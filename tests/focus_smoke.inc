@@ -5,6 +5,8 @@ template<typename Check> bool testSplitFocus(App &app, Check require) {
     static ULONGLONG cursorHash = 0;
     static COLORREF borderColor = 0;
     static bool cursorChanged = false, borderChanged = false;
+    static std::vector<Tab *> navigationGroup;
+    static int paneWidth = 0;
     static RECT caret{};
     const int clickTabs[] = {0, 1, 2, 3, 3}; // Also return to the already selected pane.
     auto focus = [&] {
@@ -26,6 +28,13 @@ template<typename Check> bool testSplitFocus(App &app, Check require) {
     };
     auto marker = [&](const std::wstring &name) { return std::filesystem::path(app.directory) / (name + L".ready"); };
     auto sendMarker = [&](const std::wstring &name) { type(L"echo focus>\"" + marker(name).wstring() + L"\"\r"); };
+    auto shortcut = [&](WORD key) {
+        require(GetForegroundWindow() == app.hwnd, "Navigation shortcut must target the foreground test workspace");
+        INPUT events[6]{};
+        const WORD keys[] = {VK_CONTROL, VK_SHIFT, key, key, VK_SHIFT, VK_CONTROL};
+        for (int i = 0; i < 6; ++i) { events[i].type = INPUT_KEYBOARD; events[i].ki.wVk = keys[i]; if (i >= 3) events[i].ki.dwFlags = KEYEVENTF_KEYUP; }
+        require(SendInput(6, events, sizeof(INPUT)) == 6, "Navigation shortcut injection failed");
+    };
     auto click = [&](HWND terminal) {
         RECT r{}; GetClientRect(terminal, &r);
         // The embedded terminal must acquire focus in its own mouse handler.
@@ -141,8 +150,36 @@ template<typename Check> bool testSplitFocus(App &app, Check require) {
             require(focus() == app.tabs[3]->terminal, "Restoring split must restore keyboard focus");
             SetFocus(app.control(Split)); app.setSplit(1);
             require(focus() == app.tabs[3]->terminal, "Returning to single pane must restore keyboard focus");
-            app.setSplit(4); SetWindowTextW(app.control(CommandText), L""); return true;
+            app.setSplit(4); navigationGroup = app.panes; paneWidth = app.paneRects[0].width;
+            app.toggleTarget(app.panes[1]);
+            SendMessageW(app.control(SendAll), BM_SETCHECK, BST_CHECKED, 0);
+            SendMessageW(app.control(SyncInput), BM_CLICK, 0, 0);
+            shortcut('H'); step = 10;
         }
+    } else if (step == 10) {
+        require(!app.navigationVisible && focus() == app.tabs[3]->terminal && app.paneRects[0].width > paneWidth,
+                "Terminal Ctrl+Shift+H must hide navigation, reclaim space and retain terminal focus");
+        require(app.panes == navigationGroup && !app.isTarget(app.panes[1]) &&
+                SendMessageW(app.control(SendAll), BM_GETCHECK, 0, 0) == BST_CHECKED &&
+                SendMessageW(app.control(SyncInput), BM_GETCHECK, 0, 0) == BST_CHECKED,
+                "Hiding navigation must preserve pane identities, excluded targets and input modes");
+        require(ui::value(app.control(CommandText)) == L"draft stays here", "Navigation toggle must preserve the command draft");
+        captureTestWindow(app.hwnd, L"ui-split-navigation-collapsed.bmp");
+        SendMessageW(app.control(SendAll), BM_SETCHECK, BST_UNCHECKED, 0);
+        SendMessageW(app.control(SyncInput), BM_CLICK, 0, 0);
+        sendMarker(L"focus-navigation-hidden"); step = 11;
+    } else if (step == 11 && std::filesystem::exists(marker(L"focus-navigation-hidden"))) {
+        shortcut('P'); step = 12;
+    } else if (step == 12) {
+        require(app.navigationVisible && focus() == app.control(Search), "Terminal search shortcut must expand navigation and focus its field");
+        shortcut('H'); step = 13;
+    } else if (step == 13) {
+        require(!app.navigationVisible && focus() == app.tabs[3]->terminal, "Hiding focused navigation must return input to the selected terminal");
+        sendMarker(L"focus-navigation-return"); step = 14;
+    } else if (step == 14 && std::filesystem::exists(marker(L"focus-navigation-return"))) {
+        app.setNavigation(true); app.toggleTarget(app.panes[1]);
+        require(focus() == app.tabs[3]->terminal && app.panes == navigationGroup, "Expanding navigation must preserve terminal focus and pane identity");
+        SetWindowTextW(app.control(CommandText), L""); return true;
     }
     return false;
 }

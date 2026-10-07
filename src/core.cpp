@@ -146,6 +146,19 @@ void initializeDefaults() {
         if (!wsSave(s.get())) throw std::runtime_error("Cannot save settings in your local AppData folder. Check folder permissions.");
     }
 }
+bool loadNavigationVisible() {
+    auto path = wsPath(L"workspace", "layout");
+    StorePtr store(wsOpen(path, false), wsClose); free(path);
+    if (!store) throw std::runtime_error("Cannot read workspace preferences.");
+    auto value = wsGet(store.get(), "NavigationVisible");
+    return !value || std::string_view(value) != "0";
+}
+void saveNavigationVisible(bool visible) {
+    auto path = wsPath(L"workspace", "layout");
+    StorePtr store(wsOpen(path, true), wsClose); free(path);
+    if (!store || !wsSet(store.get(), "NavigationVisible", visible ? "1" : "0") || !wsSave(store.get()))
+        throw std::runtime_error("Cannot save workspace preferences. Check folder permissions and disk space.");
+}
 std::vector<Profile> loadProfiles() {
     size_t count = 0;
     char **names = wsList(L"sessions", &count);
@@ -161,7 +174,7 @@ std::vector<Profile> loadProfiles() {
             p.alias = read("WookAlias"); p.tabColor = read("WookTabColor");
             if (p.protocol == L"serial") p.host = read("SerialLine");
             try { p.port = std::stoi(read(p.protocol == L"serial" ? "SerialSpeed" : "PortNumber", "22")); } catch (...) { p.port = defaultPort(p.protocol); }
-            try { p.fontSize = std::stoi(read("FontHeight", "11")); } catch (...) { p.fontSize = 11; }
+            try { p.fontSize = std::stoi(read("FontHeight", "9")); } catch (...) { p.fontSize = 9; }
             p.passwordSaved = hasSavedPassword(s.get(), p);
             if (!p.host.empty()) profiles.push_back(std::move(p));
         }

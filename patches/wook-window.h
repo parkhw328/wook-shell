@@ -179,6 +179,7 @@ static bool wookKey(HWND hwnd, UINT message, WPARAM key, LPARAM flags) {
     else if (control && shift && key == VK_RETURN) command = 12;
     else if (control && shift && key == 'B') command = 13;
     else if (control && shift && key == 'K') command = 14;
+    else if (control && shift && key == 'H') command = 15;
     else if (control && alt && key >= VK_LEFT && key <= VK_DOWN) command = 30 + (int)(key - VK_LEFT);
     else if (alt && key >= '1' && key <= '9') command = 20 + (int)(key - '1');
     else if (key == VK_F11) command = 8;

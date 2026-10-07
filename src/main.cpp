@@ -25,7 +25,8 @@ using wook::Profile;
 extern "C" int WINAPI wshellTerminalMain(HINSTANCE, HINSTANCE, LPSTR, int);
 namespace {
 enum { Search = 100, HostList, NewHost, ConnectHost, EditHost, Quick, QuickConnect, Preview,
-       Advanced, Duplicate, Reconnect, SessionSettings, Tools, About, SaveCurrent, HomeNew, HomePreview, LocalCmd, LocalPowerShell, FilesHost, FilesSession, Split, CommandText, SendCommand, SendAll, SyncInput, Targets, ControlEnd };
+       Advanced, Duplicate, Reconnect, SessionSettings, Tools, About, SaveCurrent, HomeNew, HomePreview, LocalCmd, LocalPowerShell, FilesHost, FilesSession, Split, CommandText, SendCommand, SendAll, SyncInput, Targets, NavigationToggle, ControlEnd };
+constexpr int sidebarExpanded = 252, appBarHeight = 48;
 struct Tab {
     Profile profile;
     std::wstring storageName;
@@ -37,7 +38,10 @@ struct Tab {
 };
 struct Hit { RECT rect; int index; bool close; };
 struct App {
-    HWND hwnd = nullptr, controls[ControlEnd - Search]{};
+    HWND hwnd = nullptr, controls[ControlEnd - Search]{}, tooltips = nullptr;
+    std::wstring tooltipText;
+    bool navigationVisible = true;
+    int sidebar = sidebarExpanded;
     HANDLE job = nullptr;
     std::wstring directory;
     std::vector<Profile> profiles;
@@ -66,6 +70,8 @@ struct App {
     void paint(HDC dc);
     void refresh();
     void filter();
+    void setNavigation(bool show);
+    void hostActions();
     void select(int index);
     void focusActive();
     void refreshPaneFocus();
@@ -94,7 +100,6 @@ struct App {
 #ifdef WOOK_UI_TEST
 void runUiSmoke(App &app);
 #endif
-constexpr int sidebar = 252;
 constexpr int paneHeader = 44, paneInset = 3;
 COLORREF hostColor(const Profile &p) {
     if (p.tabColor.size() != 6 || p.tabColor.find_first_not_of(L"0123456789abcdefABCDEF") != std::wstring::npos) return ui::accent;
@@ -239,6 +244,22 @@ void App::relayInput(HWND source, const COPYDATASTRUCT *data) {
 }
 void visible(HWND hwnd, bool show) { ShowWindow(hwnd, show ? SW_SHOWNA : SW_HIDE); }
 std::wstring lower(std::wstring text) { std::transform(text.begin(), text.end(), text.begin(), towlower); return text; }
+void App::setNavigation(bool show) {
+    if (navigationVisible == show) return;
+    wook::saveNavigationVisible(show);
+    auto focus = GetFocus();
+    bool restoreFocus = focus == control(NavigationToggle) || (!show && (focus == control(Search) || focus == control(HostList)));
+    navigationVisible = show; sidebar = show ? sidebarExpanded : 0;
+    layout();
+    if (restoreFocus) { if (active < 0) SetFocus(control(Quick)); else focusActive(); }
+}
+void App::hostActions() {
+    auto selected = selectedHost();
+    EnableWindow(control(ConnectHost), selected != nullptr);
+    EnableWindow(control(EditHost), selected != nullptr);
+    EnableWindow(control(FilesHost), selected && selected->protocol == L"ssh");
+    InvalidateRect(hwnd, nullptr, FALSE);
+}
 void App::filter() {
     auto query = lower(ui::value(control(Search)));
     auto current = SendMessageW(control(HostList), LB_GETCURSEL, 0, 0);
@@ -258,11 +279,8 @@ void App::filter() {
     if (!filtered.empty()) SendMessageW(control(HostList), LB_SETCURSEL, selected, 0);
     SendMessageW(control(HostList), WM_SETREDRAW, TRUE, 0);
     InvalidateRect(control(HostList), nullptr, TRUE);
-    EnableWindow(control(ConnectHost), !filtered.empty());
-    EnableWindow(control(EditHost), !filtered.empty());
-    EnableWindow(control(FilesHost), selectedHost() && selectedHost()->protocol == L"ssh");
-    visible(control(HostList), !filtered.empty());
-    InvalidateRect(hwnd, nullptr, FALSE);
+    hostActions();
+    visible(control(HostList), navigationVisible && !filtered.empty());
 }
 void App::refresh() { auto next = wook::loadProfiles(); filtered.clear(); profiles = std::move(next); filter(); }
 Profile *App::selectedHost() {
@@ -272,29 +290,33 @@ Profile *App::selectedHost() {
 void App::layout() {
     RECT client; GetClientRect(hwnd, &client);
     width = MulDiv(client.right, 96, ui::dpi); height = MulDiv(client.bottom, 96, ui::dpi);
-    ui::place(control(Search), 30, 102, sidebar - 61, 22);
-    ui::place(control(NewHost), 18, 151, sidebar - 36, 37);
-    ui::place(control(HostList), 10, 231, sidebar - 20, std::max(55, height - 420));
-    ui::place(control(ConnectHost), 18, height - 169, 90, 35);
-    ui::place(control(FilesHost), 116, height - 169, 60, 35);
-    ui::place(control(EditHost), 184, height - 169, 50, 35);
-    ui::place(control(Advanced), 18, height - 122, sidebar - 36, 35);
-    ui::place(control(Tools), 18, height - 75, 139, 33);
-    ui::place(control(About), 166, height - 75, 68, 33);
+    ui::place(control(NavigationToggle), 130, 8, 112, 32);
+    SetWindowTextW(control(NavigationToggle), navigationVisible ? L"Hide hosts" : L"Show hosts");
+    ui::place(control(NewHost), 250, 8, 102, 32);
+    ui::place(control(ConnectHost), 360, 8, 82, 32);
+    ui::place(control(FilesHost), 450, 8, 66, 32);
+    ui::place(control(EditHost), 524, 8, 62, 32);
+    ui::place(control(Advanced), 594, 8, 156, 32);
+    ui::place(control(Tools), 758, 8, 80, 32);
+    ui::place(control(About), 846, 8, 70, 32);
+    ui::place(control(Search), 26, 112, sidebarExpanded - 52, 22);
+    ui::place(control(HostList), 10, 158, sidebarExpanded - 20, std::max(55, height - 196));
+    visible(control(Search), navigationVisible);
+    visible(control(HostList), navigationVisible && !filtered.empty());
     int left = sidebar + 48, span = std::max(360, width - left - 48), card = (span - 17) / 2;
-    ui::place(control(Quick), left + 17, 246, std::max(100, span - 166), 25);
-    ui::place(control(QuickConnect), left + span - 123, 235, 123, 46);
-    ui::place(control(HomeNew), left + 22, 437, card - 44, 40);
-    ui::place(control(HomePreview), left + card + 39, 437, card - 44, 40);
-    ui::place(control(LocalCmd), left + span - 336, 536, 166, 40);
-    ui::place(control(LocalPowerShell), left + span - 160, 536, 138, 40);
-    ui::place(control(Duplicate), width - 330, 64, 95, 33);
-    ui::place(control(Split), width - 434, 64, 95, 33);
-    ui::place(control(FilesSession), width - 522, 64, 80, 33);
+    ui::place(control(Quick), left + 17, appBarHeight + 246, std::max(100, span - 166), 25);
+    ui::place(control(QuickConnect), left + span - 123, appBarHeight + 235, 123, 46);
+    ui::place(control(HomeNew), left + 22, appBarHeight + 437, card - 44, 40);
+    ui::place(control(HomePreview), left + card + 39, appBarHeight + 437, card - 44, 40);
+    ui::place(control(LocalCmd), left + span - 336, appBarHeight + 536, 166, 40);
+    ui::place(control(LocalPowerShell), left + span - 160, appBarHeight + 536, 138, 40);
+    ui::place(control(Duplicate), width - 330, appBarHeight + 64, 95, 33);
+    ui::place(control(Split), width - 434, appBarHeight + 64, 95, 33);
+    ui::place(control(FilesSession), width - 522, appBarHeight + 64, 80, 33);
     bool showFiles = active >= 0 && !tabs[active]->preview && !tabs[active]->files && tabs[active]->profile.protocol == L"ssh";
     toolbarLeft = width - (showFiles ? 522 : 434);
-    ui::place(control(Reconnect), width - 226, 64, 102, 33);
-    ui::place(control(SessionSettings), width - 115, 64, 95, 33);
+    ui::place(control(Reconnect), width - 226, appBarHeight + 64, 102, 33);
+    ui::place(control(SessionSettings), width - 115, appBarHeight + 64, 95, 33);
     ui::place(control(SaveCurrent), width - 126, height - 30, 116, 27);
     for (int id : {Quick, QuickConnect, HomeNew, HomePreview, LocalCmd, LocalPowerShell}) visible(control(id), active < 0);
     for (int id : {Duplicate, Reconnect, SessionSettings}) visible(control(id), active >= 0);
@@ -327,9 +349,9 @@ void App::layout() {
     ui::place(control(Targets), width-172, height-102, 156, 28);
     int targets = 0; for (auto *tab : panes) if (isTarget(tab)) ++targets;
     SetWindowTextW(control(Targets), (L"Targets: " + std::to_wstring(targets) + L" / " + std::to_wstring(panes.size())).c_str());
-    paneRects = wook::splitRects(std::max(1, (int)panes.size()), sidebar + 1, 113, width - sidebar - 1, std::max(40, height - 148 - (commandBar ? 124 : 0)));
+    paneRects = wook::splitRects(std::max(1, (int)panes.size()), sidebar + 1, appBarHeight + 113, width - sidebar - 1, std::max(40, height - appBarHeight - 148 - (commandBar ? 124 : 0)));
     if (paneZoom) for (size_t i = 0; i < panes.size(); ++i) paneRects[i] = panes[i] == tabs[active].get() ?
-        wook::PaneRect{sidebar+1,113,width-sidebar-1,height-148} : wook::PaneRect{};
+        wook::PaneRect{sidebar+1,appBarHeight+113,width-sidebar-1,height-appBarHeight-148} : wook::PaneRect{};
     for (size_t i = 0; i < tabs.size(); ++i) {
         auto &tab = *tabs[i];
         if (IsWindow(tab.terminal)) {
@@ -389,60 +411,65 @@ void App::splitMenu() {
 }
 void App::paint(HDC dc) {
     ui::fill(dc, ui::rect(0, 0, width, height), ui::bg);
-    ui::fill(dc, ui::rect(0, 0, sidebar, height), ui::panel);
-    ui::fill(dc, ui::rect(sidebar, 0, 1, height), ui::line);
-    ui::label(dc, L"wShell", ui::rect(24, 15, 212, 43), ui::TextSize::title, ui::bright, true);
-    ui::label(dc, L"YOUR PERSONAL WORKSPACE", ui::rect(24, 67, 211, 14), ui::TextSize::caption, ui::muted, true);
-    ui::round(dc, ui::rect(18, 90, sidebar - 36, 45), ui::raised);
-    ui::label(dc, L"SAVED HOSTS", ui::rect(21, 200, 150, 23), ui::TextSize::caption, ui::muted, true);
-    ui::label(dc, std::to_wstring(profiles.size()), ui::rect(sidebar - 56, 200, 34, 23), ui::TextSize::caption, ui::muted, false, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
-    if (filtered.empty()) {
-        ui::label(dc, profiles.empty() ? L"No saved hosts yet." : L"No matching hosts.", ui::rect(24, 246, 210, 25), ui::TextSize::body, ui::muted);
-        ui::label(dc, L"Add one to get started.", ui::rect(24, 274, 210, 22), ui::TextSize::caption, ui::muted);
+    ui::fill(dc, ui::rect(0, 0, width, appBarHeight), ui::panel);
+    ui::fill(dc, ui::rect(0, appBarHeight - 1, width, 1), ui::line);
+    ui::label(dc, L"wShell", ui::rect(18, 5, 104, 37), ui::TextSize::title, ui::bright, true);
+    if (auto p = selectedHost(); p && width >= 1090)
+        ui::label(dc, L"Host: " + p->displayName(), ui::rect(934, 8, width - 950, 32), ui::TextSize::caption, ui::muted);
+    if (navigationVisible) {
+        ui::fill(dc, ui::rect(0, appBarHeight, sidebar, height - appBarHeight), ui::panel);
+        ui::fill(dc, ui::rect(sidebar, appBarHeight, 1, height - appBarHeight), ui::line);
+        ui::label(dc, L"CONNECTIONS", ui::rect(20, 66, 160, 23), ui::TextSize::caption, ui::muted, true);
+        auto count = ui::value(control(Search)).empty() ? std::to_wstring(profiles.size()) : std::to_wstring(filtered.size()) + L" / " + std::to_wstring(profiles.size());
+        ui::label(dc, count, ui::rect(sidebar - 78, 66, 58, 23), ui::TextSize::caption, ui::muted, false, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+        ui::round(dc, ui::rect(18, 102, sidebar - 36, 40), ui::raised);
+        if (filtered.empty()) {
+            ui::label(dc, profiles.empty() ? L"No saved connections." : L"No matching connections.", ui::rect(24, 172, 210, 25), ui::TextSize::body, ui::muted);
+            ui::label(dc, profiles.empty() ? L"Use New host to add one." : L"Try another name or address.", ui::rect(24, 200, 210, 22), ui::TextSize::caption, ui::muted);
+        }
     }
-    ui::fill(dc, ui::rect(18, height - 188, sidebar - 36, 1), ui::line);
-    ui::fill(dc, ui::rect(sidebar + 1, 51, width - sidebar, 1), ui::line);
-    hits.clear(); home = ui::rect(sidebar + 9, 9, 96, 35);
+    ui::fill(dc, ui::rect(sidebar + 1, appBarHeight + 51, width - sidebar, 1), ui::line);
+    hits.clear(); home = ui::rect(sidebar + 9, appBarHeight + 9, 96, 35);
     if (active < 0) ui::round(dc, home, ui::raised, ui::line, 8);
     ui::label(dc, L"Workspace", home, ui::TextSize::body, active < 0 ? ui::bright : ui::muted, active < 0, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     int x = sidebar + 112, available = width - x - 51;
     int capacity = std::max(1, available / 160);
     int tabWidth = std::min(198, available / std::max(1, std::min(capacity, (int)tabs.size())));
     for (int i = tabScroll; i < (int)tabs.size() && i < tabScroll + capacity; ++i) {
-        RECT r = ui::rect(x, 9, tabWidth - 5, 35);
+        RECT r = ui::rect(x, appBarHeight + 9, tabWidth - 5, 35);
         if (i == active) {
             ui::round(dc, r, ui::raised, ui::line, 8);
-            ui::fill(dc, ui::rect(x + 14, 43, tabWidth - 33, 2), ui::accent);
+            ui::fill(dc, ui::rect(x + 14, appBarHeight + 43, tabWidth - 33, 2), ui::accent);
         }
         auto &tab = *tabs[i];
-        ui::fill(dc, ui::rect(x+5, 16, 3, 21), hostColor(tab.profile));
-        ui::label(dc, tab.preview ? L"Color preview" : (tab.files ? L"SFTP · " : L"") + tab.profile.displayName(), ui::rect(x + 13, 9, tabWidth - 49, 35), ui::TextSize::caption, i == active ? ui::bright : ui::muted);
-        RECT cross = ui::rect(x + tabWidth - 33, 14, 24, 25);
+        ui::fill(dc, ui::rect(x+5, appBarHeight + 16, 3, 21), hostColor(tab.profile));
+        ui::label(dc, tab.preview ? L"Color preview" : (tab.files ? L"SFTP · " : L"") + tab.profile.displayName(), ui::rect(x + 13, appBarHeight + 9, tabWidth - 49, 35), ui::TextSize::caption, i == active ? ui::bright : ui::muted);
+        RECT cross = ui::rect(x + tabWidth - 33, appBarHeight + 14, 24, 25);
         ui::label(dc, L"×", cross, ui::TextSize::section, ui::muted, false, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         hits.push_back({r, i, false}); hits.push_back({cross, i, true}); x += tabWidth;
     }
-    plus = ui::rect(width - 40, 11, 30, 31);
+    plus = ui::rect(width - 40, appBarHeight + 11, 30, 31);
     ui::label(dc, L"+", plus, ui::TextSize::title, ui::muted, false, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     if (active < 0) {
         int left = sidebar + 48, span = std::max(360, width - left - 48);
-        ui::label(dc, L"LESS FRICTION. MORE FLOW.", ui::rect(left, 102, span, 24), ui::TextSize::caption, ui::accent, true);
-        ui::label(dc, L"Your servers. One quiet workspace.", ui::rect(left, 138, span, 50), ui::TextSize::title, ui::bright, true);
-        ui::label(dc, L"A familiar terminal, with room for every connection.", ui::rect(left, 192, span, 29), ui::TextSize::body, ui::muted);
-        ui::round(dc, ui::rect(left, 235, span - 134, 46), ui::raised, ui::line, 12);
-        ui::label(dc, L"QUICK CONNECT", ui::rect(left, 299, 140, 23), ui::TextSize::caption, ui::muted, true);
-        ui::label(dc, L"user@hostname:22   or   ssh://user@[::1]:22", ui::rect(left + 139, 299, span - 139, 23), ui::TextSize::caption, ui::muted, false, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        ui::label(dc, L"LESS FRICTION. MORE FLOW.", ui::rect(left, appBarHeight + 102, span, 24), ui::TextSize::caption, ui::accent, true);
+        ui::label(dc, L"Your servers. One quiet workspace.", ui::rect(left, appBarHeight + 138, span, 50), ui::TextSize::title, ui::bright, true);
+        ui::label(dc, L"A familiar terminal, with room for every connection.", ui::rect(left, appBarHeight + 192, span, 29), ui::TextSize::body, ui::muted);
+        ui::round(dc, ui::rect(left, appBarHeight + 235, span - 134, 46), ui::raised, ui::line, 12);
+        ui::label(dc, L"QUICK CONNECT", ui::rect(left, appBarHeight + 299, 140, 23), ui::TextSize::caption, ui::muted, true);
+        ui::label(dc, L"user@hostname:22   or   ssh://user@[::1]:22", ui::rect(left + 139, appBarHeight + 299, span - 139, 23), ui::TextSize::caption, ui::muted, false, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         int gap = 17, card = (span - gap) / 2;
-        ui::round(dc, ui::rect(left, 348, card, 145), ui::panel, ui::raised, 16);
-        ui::round(dc, ui::rect(left + card + gap, 348, card, 145), ui::panel, ui::raised, 16);
-        ui::label(dc, L"A home for every host", ui::rect(left + 22, 365, card - 44, 30), ui::TextSize::section, ui::bright, true);
-        ui::label(dc, L"Save it once. Open it in a new tab.", ui::rect(left + 22, 402, card - 44, 24), ui::TextSize::body, ui::muted);
-        ui::label(dc, L"Made for the command line", ui::rect(left + card + gap + 22, 365, card - 44, 30), ui::TextSize::section, ui::bright, true);
-        ui::label(dc, L"Warm colors. Sharp type. Full color.", ui::rect(left + card + gap + 22, 402, card - 44, 24), ui::TextSize::body, ui::muted);
-        ui::round(dc, ui::rect(left, 511, span, 84), ui::panel, ui::raised, 16);
-        ui::label(dc, L"Local terminal", ui::rect(left + 22, 526, span - 376, 27), ui::TextSize::section, ui::bright, true);
-        ui::label(dc, L"Work on this computer.", ui::rect(left + 22, 558, span - 376, 22), ui::TextSize::body, ui::muted);
-        if (height >= 738) {
-        int y = std::max(620, height - 142);
+        ui::round(dc, ui::rect(left, appBarHeight + 348, card, 145), ui::panel, ui::raised, 16);
+        ui::round(dc, ui::rect(left + card + gap, appBarHeight + 348, card, 145), ui::panel, ui::raised, 16);
+        ui::label(dc, L"A home for every host", ui::rect(left + 22, appBarHeight + 365, card - 44, 30), ui::TextSize::section, ui::bright, true);
+        ui::label(dc, L"Save it once. Open it in a new tab.", ui::rect(left + 22, appBarHeight + 402, card - 44, 24), ui::TextSize::body, ui::muted);
+        ui::label(dc, L"Made for the command line", ui::rect(left + card + gap + 22, appBarHeight + 365, card - 44, 30), ui::TextSize::section, ui::bright, true);
+        ui::label(dc, L"Warm colors. Sharp type. Full color.", ui::rect(left + card + gap + 22, appBarHeight + 402, card - 44, 24), ui::TextSize::body, ui::muted);
+        ui::round(dc, ui::rect(left, appBarHeight + 511, span, 84), ui::panel, ui::raised, 16);
+        ui::label(dc, L"Local terminal", ui::rect(left + 22, appBarHeight + 526, span - 376, 27), ui::TextSize::section, ui::bright, true);
+        ui::label(dc, L"Work on this computer.", ui::rect(left + 22, appBarHeight + 558, span - 376, 22), ui::TextSize::body, ui::muted);
+        if (height >= appBarHeight + 738) {
+        int y = std::max(appBarHeight + 620, height - 142);
         ui::label(dc, L"BUILT TO STAY OUT OF YOUR WAY", ui::rect(left, y, span, 21), ui::TextSize::caption, ui::muted, true);
         ui::label(dc, L"SSH  /  Local shell  /  Serial     ·     Tabs that travel with you", ui::rect(left, y + 32, span, 26), ui::TextSize::body, ui::text);
         ui::label(dc, L"Ctrl + Shift + T   new connection       Ctrl + Tab   switch tabs", ui::rect(left, y + 66, span, 22), ui::TextSize::caption, ui::muted, false, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
@@ -450,10 +477,10 @@ void App::paint(HDC dc) {
     } else {
         auto &tab = *tabs[active];
         int titleWidth = std::max(40, toolbarLeft - sidebar - 34);
-        ui::label(dc, tab.preview ? L"Terminal preview" : tab.profile.displayName(), ui::rect(sidebar + 22, 61, titleWidth, 24), ui::TextSize::body, ui::bright, true);
+        ui::label(dc, tab.preview ? L"Terminal preview" : tab.profile.displayName(), ui::rect(sidebar + 22, appBarHeight + 61, titleWidth, 24), ui::TextSize::body, ui::bright, true);
         std::wstring endpoint = tab.preview ? L"Local preview · no connection" : tab.profile.protocol == L"local" ? L"Local terminal · this computer" : tab.profile.protocol + L"  /  " + (tab.profile.user.empty() ? L"" : tab.profile.user + L"@") + tab.profile.host + L":" + std::to_wstring(tab.profile.port);
-        ui::label(dc, endpoint, ui::rect(sidebar + 22, 85, titleWidth, 19), ui::TextSize::caption, ui::muted);
-        ui::fill(dc, ui::rect(sidebar, 112, width - sidebar, 1), ui::raised);
+        ui::label(dc, endpoint, ui::rect(sidebar + 22, appBarHeight + 85, titleWidth, 19), ui::TextSize::caption, ui::muted);
+        ui::fill(dc, ui::rect(sidebar, appBarHeight + 112, width - sidebar, 1), ui::raised);
         if (panes.size() > 1) {
             for (size_t i = 0; i < panes.size(); ++i) {
                 auto r = paneRects[i]; bool focused = panes[i] == &tab;
@@ -478,8 +505,8 @@ void App::paint(HDC dc) {
             }
         } else if (!IsWindow(tab.terminal)) {
             int cx = sidebar + 56;
-            ui::label(dc, tab.ended ? L"This session has ended." : tab.closing ? L"Closing session…" : L"Preparing your terminal…", ui::rect(cx, 220, width - cx - 40, 50), ui::TextSize::title, ui::bright, true);
-            ui::label(dc, tab.ended ? L"Reconnect to start again, or open another host." : L"Complete any connection or configuration dialog to continue.", ui::rect(cx, 279, width - cx - 40, 30), ui::TextSize::body, ui::muted);
+            ui::label(dc, tab.ended ? L"This session has ended." : tab.closing ? L"Closing session…" : L"Preparing your terminal…", ui::rect(cx, appBarHeight + 220, width - cx - 40, 50), ui::TextSize::title, ui::bright, true);
+            ui::label(dc, tab.ended ? L"Reconnect to start again, or open another host." : L"Complete any connection or configuration dialog to continue.", ui::rect(cx, appBarHeight + 279, width - cx - 40, 30), ui::TextSize::body, ui::muted);
         }
     }
     if (active >= 0 && panes.size() > 1 && !paneZoom) {
@@ -488,8 +515,10 @@ void App::paint(HDC dc) {
     }
     ui::fill(dc, ui::rect(0, height - 32, width, 32), ui::panel);
     ui::fill(dc, ui::rect(0, height - 33, width, 1), ui::line);
-    ui::label(dc, L"●  LOCAL DATA", ui::rect(20, height - 30, 125, 26), ui::TextSize::caption, ui::accent, true);
-    ui::label(dc, std::to_wstring(tabs.size()) + L" tabs", ui::rect(158, height - 30, 75, 26), ui::TextSize::caption, ui::muted);
+    if (navigationVisible) {
+        ui::label(dc, L"●  LOCAL DATA", ui::rect(20, height - 30, 125, 26), ui::TextSize::caption, ui::accent, true);
+        ui::label(dc, std::to_wstring(tabs.size()) + L" tabs", ui::rect(158, height - 30, 75, 26), ui::TextSize::caption, ui::muted);
+    }
     ui::label(dc, L"Flexoki Dark   /   JetBrains Mono", ui::rect(sidebar + 20, height - 30, 300, 26), ui::TextSize::caption, ui::muted);
     if (active < 0 || !tabs[active]->transient || tabs[active]->preview || tabs[active]->profile.protocol == L"local")
         ui::label(dc, L"NATIVE  ·  WINDOWS x64", ui::rect(width - 200, height - 30, 180, 26), ui::TextSize::caption, ui::muted, false, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
@@ -614,7 +643,7 @@ void App::command(int code) {
         } break;
     case 5: select(active >= (int)tabs.size() - 1 ? -1 : active + 1); break;
     case 6: select(active < 0 ? (int)tabs.size() - 1 : active - 1); break;
-    case 7: SetFocus(control(Search)); SendMessageW(control(Search), EM_SETSEL, 0, -1); break;
+    case 7: setNavigation(true); SetFocus(control(Search)); SendMessageW(control(Search), EM_SETSEL, 0, -1); break;
     case 8:
         if (!fullscreen) {
             GetWindowPlacement(hwnd, &placement);
@@ -637,6 +666,7 @@ void App::command(int code) {
     case 14:
         if (active >= 0 && panes.size() > 1 && !paneZoom) SetFocus(control(CommandText));
         break;
+    case 15: setNavigation(!navigationVisible); break;
     }
 }
 void App::action(int id) {
@@ -648,6 +678,7 @@ void App::action(int id) {
         return;
     }
     switch (id) {
+    case NavigationToggle: command(15); break;
     case Split: splitMenu(); break;
     case Targets: targetsMenu(); break;
     case NewHost: case HomeNew: { Profile p; if (editHost(hwnd, p, false)) refresh(); break; }
@@ -702,7 +733,7 @@ void App::toolsMenu() {
     AppendMenuW(menu, MF_STRING, 4, L"Open-source licenses…");
     AppendMenuW(menu, MF_STRING, 5, L"Switch tab…");
     RECT r; GetWindowRect(control(Tools), &r);
-    int selected = TrackPopupMenu(menu, TPM_RETURNCMD, r.left, r.top, 0, hwnd, nullptr);
+    int selected = TrackPopupMenu(menu, TPM_RETURNCMD, r.left, r.bottom, 0, hwnd, nullptr);
     DestroyMenu(menu);
     if (selected == 10 || selected == 11) localShell(selected == 11);
     else if (selected == 1) showKeyManager(hwnd);
@@ -725,7 +756,7 @@ void App::toolsMenu() {
     } else if (selected == 5) {
         menu = CreatePopupMenu(); AppendMenuW(menu, MF_STRING, 1, L"Workspace");
         for (size_t i = 0; i < tabs.size(); ++i) AppendMenuW(menu, MF_STRING, i + 2, tabs[i]->profile.name.c_str());
-        int tab = TrackPopupMenu(menu, TPM_RETURNCMD, r.left, r.top, 0, hwnd, nullptr);
+        int tab = TrackPopupMenu(menu, TPM_RETURNCMD, r.left, r.bottom, 0, hwnd, nullptr);
         DestroyMenu(menu); if (tab) select(tab - 2);
     }
 }
@@ -787,7 +818,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, (LONG_PTR)app);
             ui::dpi = GetDpiForWindow(hwnd); ui::dark(hwnd);
             auto addButton = [&](int id, const wchar_t *text) { app->controls[id - Search] = ui::button(hwnd, text, id); };
-            app->controls[Search - Search] = ui::edit(hwnd, L"Find a host…", Search);
+            app->controls[Search - Search] = ui::edit(hwnd, L"Name, alias, address…", Search);
             app->controls[Quick - Search] = ui::edit(hwnd, L"user@hostname", Quick);
             SetWindowSubclass(app->control(Search), editProc, 1, (DWORD_PTR)app);
             SetWindowSubclass(app->control(Quick), editProc, 1, (DWORD_PTR)app);
@@ -795,10 +826,11 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 LBS_OWNERDRAWFIXED | LBS_HASSTRINGS | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP);
             SendMessageW(app->control(HostList), LB_SETITEMHEIGHT, 0, ui::px(65));
             SetWindowSubclass(app->control(HostList), editProc, 1, (DWORD_PTR)app);
-            addButton(NewHost, L"+ New host"); addButton(ConnectHost, L"Connect"); addButton(EditHost, L"Edit");
+            addButton(NavigationToggle, L"Hide hosts");
+            addButton(NewHost, L"New host"); addButton(ConnectHost, L"Connect"); addButton(EditHost, L"Edit");
             addButton(FilesHost, L"SFTP"); addButton(FilesSession, L"Files");
             addButton(QuickConnect, L"Connect →"); addButton(HomeNew, L"+ Add a host"); addButton(HomePreview, L"Color preview →");
-            addButton(Advanced, L"Connection settings"); addButton(Duplicate, L"Duplicate"); addButton(Reconnect, L"Reconnect");
+            addButton(Advanced, L"Host settings"); addButton(Duplicate, L"Duplicate"); addButton(Reconnect, L"Reconnect");
             addButton(SessionSettings, L"Settings"); addButton(Tools, L"Tools"); addButton(About, L"About");
             addButton(LocalCmd, L"Command Prompt"); addButton(LocalPowerShell, L"PowerShell");
             addButton(SaveCurrent, L"Save host…");
@@ -810,6 +842,14 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             app->controls[SendAll-Search] = ui::checkbox(hwnd, L"Send to targets", SendAll);
             app->controls[SyncInput-Search] = ui::checkbox(hwnd, L"Sync keyboard", SyncInput);
             addButton(Targets, L"Targets");
+            app->tooltips = CreateWindowExW(WS_EX_TOPMOST, TOOLTIPS_CLASSW, nullptr, WS_POPUP | TTS_ALWAYSTIP | TTS_NOPREFIX,
+                0, 0, 0, 0, hwnd, nullptr, GetModuleHandleW(nullptr), nullptr);
+            SendMessageW(app->tooltips, TTM_SETMAXTIPWIDTH, 0, ui::px(440));
+            for (int id : {NavigationToggle, Search, NewHost, ConnectHost, FilesHost, EditHost, Advanced, SessionSettings}) {
+                TOOLINFOW tip{sizeof(tip)}; tip.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
+                tip.hwnd = hwnd; tip.uId = (UINT_PTR)app->control(id); tip.lpszText = LPSTR_TEXTCALLBACKW;
+                SendMessageW(app->tooltips, TTM_ADDTOOLW, 0, (LPARAM)&tip);
+            }
             app->refresh(); app->layout(); SetTimer(hwnd, 1, 350, nullptr); return 0;
         }
         if (!app) return DefWindowProcW(hwnd, msg, wp, lp);
@@ -824,7 +864,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             SelectObject(memory, old); DeleteObject(bitmap); DeleteDC(memory); EndPaint(hwnd, &ps); return 0;
         }
         case WM_SIZE: if (wp != SIZE_MINIMIZED) app->layout(); return 0;
-        case WM_GETMINMAXINFO: ((MINMAXINFO *)lp)->ptMinTrackSize = {ui::px(980), ui::px(700)}; return 0;
+        case WM_GETMINMAXINFO: ((MINMAXINFO *)lp)->ptMinTrackSize = {ui::px(980), ui::px(740)}; return 0;
         case WM_DPICHANGED: {
             ui::dpi = HIWORD(wp); auto r = (RECT *)lp;
             for (auto control : app->controls) if (control) SendMessageW(control, WM_SETFONT, (WPARAM)ui::font(), TRUE);
@@ -848,9 +888,9 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 int y = MulDiv(r.top, 96, ui::dpi);
                 ui::round(d->hDC, ui::rect(13, y + 12, 33, 33), ui::panel, selected ? ui::line : ui::panel, 8);
                 ui::label(d->hDC, L">_", ui::rect(13, y + 12, 33, 33), ui::TextSize::body, hostColor(p), true, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-                ui::label(d->hDC, p.displayName(), ui::rect(57, y + 7, sidebar - 93, 25), ui::TextSize::body, selected ? ui::bright : ui::text, true);
+                ui::label(d->hDC, p.displayName(), ui::rect(57, y + 7, sidebarExpanded - 93, 25), ui::TextSize::body, selected ? ui::bright : ui::text, true);
                 std::wstring detail = p.group.empty() ? (p.user.empty() ? L"" : p.user + L"@") + p.host : p.group + L" / " + p.host;
-                ui::label(d->hDC, detail, ui::rect(57, y + 31, sidebar - 93, 22), ui::TextSize::caption, ui::muted);
+                ui::label(d->hDC, detail, ui::rect(57, y + 31, sidebarExpanded - 93, 22), ui::TextSize::caption, ui::muted);
                 if (d->itemState & ODS_FOCUS) { RECT f = r; InflateRect(&f,-3,-3); DrawFocusRect(d->hDC,&f); }
             } else ui::drawButton(d, d->CtlID == QuickConnect || d->CtlID == ConnectHost || d->CtlID == NewHost);
             return TRUE;
@@ -858,16 +898,33 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_COMMAND:
             if (LOWORD(wp) == Search && HIWORD(wp) == EN_CHANGE) app->filter();
             else if (LOWORD(wp) == HostList && HIWORD(wp) == LBN_DBLCLK) app->action(ConnectHost);
-            else if (LOWORD(wp) == HostList && HIWORD(wp) == LBN_SELCHANGE) EnableWindow(app->control(FilesHost), app->selectedHost() && app->selectedHost()->protocol == L"ssh");
+            else if (LOWORD(wp) == HostList && HIWORD(wp) == LBN_SELCHANGE) app->hostActions();
             else if (HIWORD(wp) == BN_CLICKED) app->action(LOWORD(wp));
             return 0;
+        case WM_NOTIFY: {
+            auto header = (NMHDR *)lp;
+            if (header->hwndFrom == app->tooltips && header->code == TTN_GETDISPINFOW) {
+                int id = GetDlgCtrlID((HWND)header->idFrom);
+                auto p = app->selectedHost();
+                if (id == NavigationToggle) app->tooltipText = L"Show or hide saved connections (Ctrl+Shift+H)";
+                else if (id == Search) app->tooltipText = L"Search by name, alias, address, group or username (Ctrl+Shift+P)";
+                else if (id == NewHost) app->tooltipText = L"Save a new connection";
+                else if (id == SessionSettings) app->tooltipText = L"Change settings for the active terminal";
+                else if (!p) app->tooltipText = id == Advanced ? L"Open connection settings" : L"Select a saved connection first";
+                else app->tooltipText = std::wstring(id == ConnectHost ? L"Connect to " : id == FilesHost ? L"Open SFTP for " : id == EditHost ? L"Edit " : L"Connection settings for ") +
+                    p->displayName() + L"\n" + p->name + L" · " + p->host;
+                ((NMTTDISPINFOW *)lp)->lpszText = app->tooltipText.data();
+                return 0;
+            }
+            break;
+        }
         case WM_CONTEXTMENU: {
             POINT p{GET_X_LPARAM(lp),GET_Y_LPARAM(lp)};
             if (p.x == -1) { RECT r; GetWindowRect(app->control(HostList), &r); p={r.left+30,r.top+30}; }
             if ((HWND)wp == app->control(HostList)) {
                 POINT local = p; ScreenToClient(app->control(HostList), &local);
                 auto item = SendMessageW(app->control(HostList), LB_ITEMFROMPOINT, 0, MAKELPARAM(local.x, local.y));
-                if (!HIWORD(item)) SendMessageW(app->control(HostList), LB_SETCURSEL, LOWORD(item), 0);
+                if (!HIWORD(item)) { SendMessageW(app->control(HostList), LB_SETCURSEL, LOWORD(item), 0); app->hostActions(); }
                 app->hostMenu(p);
             } else {
                 POINT local=p; ScreenToClient(hwnd,&local);
@@ -983,21 +1040,31 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) {
-    wshellLoadFonts();
-    auto command = std::wstring(commandLine);
-    if (command == L"--terminal" || command.starts_with(L"--terminal ")) {
-        auto arguments = wook::utf8(command);
-        return wshellTerminalMain(instance, nullptr, arguments.data(), show);
-    }
     try {
         SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32 | LOAD_LIBRARY_SEARCH_APPLICATION_DIR);
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        auto command = std::wstring(commandLine);
+        bool terminal = command == L"--terminal" || command.starts_with(L"--terminal ");
+#ifdef WOOK_UI_TEST
+        bool fontProbe = command == L"--font-probe";
+        if (!terminal && !fontProbe) {
+            auto isolated = wook::executableDirectory() + L"\\ui-data-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64());
+            SetEnvironmentVariableW(L"WOOK_DATA_DIR", isolated.c_str());
+            fontPresentBeforeLoad = testFontEnumerable();
+        }
+#endif
+        wshellLoadFonts();
+#ifdef WOOK_UI_TEST
+        if (fontProbe) return testFontEnumerable() ? 0 : 2;
+#endif
+        if (terminal) {
+            auto arguments = wook::utf8(command);
+            return wshellTerminalMain(instance, nullptr, arguments.data(), show);
+        }
         INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_STANDARD_CLASSES}; InitCommonControlsEx(&controls);
         App app; app.directory=wook::executableDirectory();
-#ifdef WOOK_UI_TEST
-        auto isolated = app.directory + L"\\ui-data-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64());
-        SetEnvironmentVariableW(L"WOOK_DATA_DIR", isolated.c_str());
-#endif
+        app.navigationVisible = wook::loadNavigationVisible();
+        app.sidebar = app.navigationVisible ? sidebarExpanded : 0;
         std::wstring migrationError;
         if (!GetEnvironmentVariableW(L"WOOK_DATA_DIR", nullptr, 0)) {
             try { wook::migrateLegacySettings(app.directory + L"\\data"); }
@@ -1040,6 +1107,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
                 else if (ctrl && shift && msg.wParam==VK_RETURN) command=12;
                 else if (ctrl && shift && msg.wParam=='B') command=13;
                 else if (ctrl && shift && msg.wParam=='K') command=14;
+                else if (ctrl && shift && msg.wParam=='H') command=15;
                 else if (ctrl && alt && msg.wParam>=VK_LEFT && msg.wParam<=VK_DOWN) command=30+(int)(msg.wParam-VK_LEFT);
                 else if (alt && msg.wParam>='1' && msg.wParam<='9') command=20+(int)(msg.wParam-'1');
                 else if (msg.wParam==VK_F11) command=8;

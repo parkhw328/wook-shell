@@ -35,17 +35,16 @@ iPad용 네이티브 SSH·SFTP 앱은 별도로 준비 중입니다. 무료 Appl
 
 ### Windows
 
-1. **`wShell.exe` 하나**를 원하는 폴더에 복사합니다. `wshell-0.9.1-windows-x64.zip`에도 이 파일만 들어 있습니다.
+1. **`wShell.exe` 하나**를 원하는 폴더에 복사합니다. `wshell-0.10.0-windows-x64.zip`에도 이 파일만 들어 있습니다.
 2. 실행합니다. 설치, 관리자 권한, WebView2, .NET, Node.js가 필요하지 않습니다.
 3. `New host`에서 접속 정보를 저장하거나, 빠른 연결 칸에 `user@hostname:22`를 입력합니다.
 4. 처음 접속하는 SSH 서버의 키 지문을 확인한 뒤 신뢰 여부를 선택합니다.
 
-대상: Windows 10 1903 이상 / Windows 11, x64. 터미널 엔진·폰트·브랜딩·라이선스를 EXE 안에 포함하며, 실행할 때 보조 EXE나 폰트를 임시 폴더에 풀지 않습니다.
-폰트는 프로세스 안에서만 로드합니다. 현재 배포본에는 코드 서명이 없습니다.
+대상: Windows 10 1903 이상 / Windows 11, x64. 터미널 엔진·폰트·브랜딩·라이선스를 EXE 안에 포함합니다. 내장 폰트는 `%LOCALAPPDATA%\wShell\fonts`에 검증된 파일로 캐시하고 앱 프로세스에만 등록하므로, JetBrains Mono가 설치되지 않은 PC에서도 Windows 글꼴 선택 창을 사용할 수 있습니다. 폰트 다운로드·시스템 설치·관리자 권한은 필요하지 않습니다. 현재 배포본에는 코드 서명이 없습니다.
 
 ### macOS
 
-1. `wshell-0.9.1-macos-universal.zip`을 풀고 **`wShell.app`**을 실행합니다. Applications 폴더로 옮겨도 됩니다.
+1. `wshell-0.10.0-macos-universal.zip`을 풀고 **`wShell.app`**을 실행합니다. Applications 폴더로 옮겨도 됩니다.
 2. macOS 13 이상에서 Apple Silicon·Intel을 모두 지원하는 Universal 앱입니다. 별도 런타임이나 WebView 설치가 필요하지 않습니다.
 3. `New host`로 SSH 서버를 추가하거나 `Open Terminal`로 현재 Mac의 로그인 셸을 엽니다.
 
@@ -61,16 +60,16 @@ macOS의 `.app`은 Finder에서 하나의 앱으로 이동하는 번들이며, �
 ```text
 dist/
   README.md
-  0.9.1/
+  0.10.0/
     manifest.json
     windows-x64/
       wShell.exe
       wShell.exe.sha256
-      wshell-0.9.1-windows-x64.zip
-      wshell-0.9.1-windows-x64.zip.sha256
+      wshell-0.10.0-windows-x64.zip
+      wshell-0.10.0-windows-x64.zip.sha256
     macos-universal/
-      wshell-0.9.1-macos-universal.zip
-      wshell-0.9.1-macos-universal.zip.sha256
+      wshell-0.10.0-macos-universal.zip
+      wshell-0.10.0-macos-universal.zip.sha256
 ```
 
 | 기능 | Windows | macOS |
@@ -85,9 +84,20 @@ dist/
 | 설정 백업 | `.wshell`, 암호·개인키 제외 | 같은 형식; 호스트 목록 교환 가능 |
 | 분할·공통 명령·키보드 동기화 | 지원 | 지원 |
 | 개별 동기화 대상 선택·활성 테두리·Zoom/Back | 0.9.0에서 추가 | 기존 분할 UI 유지 |
+| 탐색창 접기·고정 상단 메뉴·새 터미널 9pt | 0.10.0에서 추가 | 기존 UI·11pt 유지 |
 
 macOS는 AppKit·SwiftTerm과 OS의 OpenSSH를 사용합니다. SSH 설정 파일·에이전트·공유 연결은 별도로 사용하지 않으며 호스트 키 저장소도 wShell 전용입니다. Windows와 macOS 엔진의 호스트 신뢰 형식은 서로 다르므로 플랫폼을 바꾸면 지문을 다시 확인하세요. PPK 파일을 OpenSSH 개인키로 자동 변환하지 않습니다.
 macOS의 첫 접속은 비밀번호 공급 전에 서버 키 지문을 별도 화면에서 확인합니다. 확인한 키와 다른 키가 제시되면 연결을 거부합니다.
+
+## Windows 탐색과 상단 메뉴
+
+0.10.0부터 **Hide hosts / Show hosts** 또는 `Ctrl+Shift+H`로 왼쪽 목록을 접고 펼칩니다. 다음 실행에도 표시 상태를 기억하며, 분할 창·명령 초안·키보드 동기화 대상과 옵션은 그대로 유지됩니다. `Ctrl+Shift+P`는 숨긴 탐색창을 펼치고 검색 칸으로 이동합니다.
+
+**New host · Connect · SFTP · Edit · Host settings · Tools · About**은 상단에 고정됩니다. 호스트 작업은 목록에서 선택한 저장 연결을 대상으로 하며, 버튼에 마우스를 올리면 대상 이름과 주소를 확인할 수 있습니다. 세션 도구 모음의 **Files / Settings**는 현재 활성 탭에 적용됩니다.
+
+검색 안내는 **Name, alias, address…**이며 이름·별칭·주소·그룹·사용자를 검색합니다. 선택할 결과가 없으면 Connect·SFTP·Edit이 비활성화됩니다. [0.10.0 변경 내역](docs/releases/0.10.0.md), [작업 공간 UI 규칙](rules/workspace-ui.md)
+
+![Fixed actions and collapsible navigation](assets/screenshots/navigation-expanded.png)
 
 ## Windows 연결과 탭
 
@@ -95,10 +105,10 @@ macOS의 첫 접속은 비밀번호 공급 전에 서버 키 지문을 별도 �
 
 ![wShell SFTP tab](assets/screenshots/sftp.png)
 
-- **호스트 관리:** 저장·편집·복제·삭제, 이름/주소/그룹/사용자 검색, 더블 클릭으로 연결.
+- **호스트 관리:** 저장·편집·복제·삭제, 이름/별칭/주소/그룹/사용자 검색, 더블 클릭으로 연결.
 - **탭:** 새 연결, 독립 세션 복제, 드래그 재정렬, 가운데 클릭으로 닫기, 연결 재시작.
 - **터미널:** UTF-8/한글, ANSI·256색·24비트 True Color, 선택/복사/붙여넣기, 10,000줄 스크롤백, 전체 화면.
-- **연결 설정:** `Connection settings`에서 프록시, SSH 터널, X11 전달, 키 인증, 로깅, 키보드/터미널 설정을 사용합니다. 설정 이름이나 항목으로 검색할 수 있으며, 긴 페이지는 스크롤합니다. 연결 중에는 `Settings`에서 변경하고 `Apply changes`로 적용하거나 `Cancel`로 취소하세요.
+- **연결 설정:** 상단 `Host settings`에서 프록시, SSH 터널, X11 전달, 키 인증, 로깅, 키보드/터미널 설정을 사용합니다. 설정 이름이나 항목으로 검색할 수 있으며, 긴 페이지는 스크롤합니다. 연결 중에는 `Settings`에서 변경하고 `Apply changes`로 적용하거나 `Cancel`로 취소하세요.
 - **프로토콜:** SSH, Telnet, Rlogin, Raw TCP, Serial. Serial은 `New host`에서 COM 포트와 전송 속도를 지정합니다.
 - **도구:** 자체 SSH 키 관리, 설정 내보내기/가져오기, 데이터 폴더 열기, 내장 라이선스 보기, 탭 목록 선택.
 - **미리 보기:** `Color preview`는 서버 연결 없이 실제 터미널 엔진의 색상을 보여 줍니다.
@@ -109,7 +119,7 @@ macOS의 첫 접속은 비밀번호 공급 전에 서버 키 지문을 별도 �
 각 탭은 같은 `wShell.exe`의 별도 프로세스로 연결을 관리합니다. PuTTYgen, Pageant나 설치된 SSH 서비스에 의존하지 않으며, 외부 에이전트 인증·에이전트 전달·연결 공유는 사용하지 않습니다.
 연결 설정·세션 설정·호스트 인증기관 관리 창은 wShell의 Flexoki Dark 화면을 사용합니다. 기존 엔진의 설정과 검증 로직을 유지하면서 탐색, 검색, 입력, 버튼과 스크롤을 새로 구성했습니다.
 
-앱의 글꼴은 **JetBrains Mono Regular/Bold**로 통일했습니다. 본문·입력·버튼 11pt, 보조 정보 9pt, 섹션 제목 13pt, 페이지 제목 20pt를 공통으로 적용합니다. 터미널 기본 크기도 11pt이며 호스트별로 조절할 수 있습니다. Windows의 파일 선택창 등 시스템 대화상자는 OS 설정을 따릅니다.
+앱의 글꼴은 **JetBrains Mono Regular/Bold**로 통일했습니다. 본문·입력·버튼 11pt, 보조 정보 9pt, 섹션 제목 13pt, 페이지 제목 20pt를 공통으로 적용합니다. Windows 새 터미널의 기본 크기는 **9pt**이며 호스트별로 조절할 수 있습니다. 기존 저장 크기는 유지합니다. macOS 기본 크기는 11pt입니다. Windows의 파일 선택창 등 시스템 대화상자는 OS 설정을 따릅니다.
 버튼·선택·포커스 강조색은 따뜻한 주황색 `#DA702C`입니다. 앱과 설정 화면의 왼쪽 상단에는 `wShell` 텍스트만 표시합니다. 실행파일 아이콘은 단색 주황색 `w`이며, 터미널의 ANSI·True Color 출력은 기존 색상을 유지합니다.
 
 ![wShell connection settings](assets/screenshots/connection-settings.png)
@@ -175,7 +185,8 @@ RSA 생성은 Windows CNG, Ed25519와 키 형식 처리는 PuTTY 라이브러리
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | 다음 / 이전 탭 |
 | `Ctrl+Shift+W` | 현재 탭 닫기 |
 | `Ctrl+Shift+R` | 현재 연결 다시 시작 |
-| `Ctrl+Shift+P` | 호스트 검색 |
+| `Ctrl+Shift+H` | 왼쪽 탐색창 접기 / 펼치기 |
+| `Ctrl+Shift+P` | 탐색창 펼치기 및 이름·주소 검색 |
 | `Ctrl+Shift+C` / `Ctrl+Shift+V` | 터미널 복사 / 붙여넣기 |
 | `Alt+1` / `Alt+2…9` | 작업 공간 / 연결 탭 1…8 |
 | `F11` | 전체 화면 |
@@ -193,6 +204,8 @@ Codex 등 원격 TUI의 색상 자동 감지는 해당 프로그램과 서버 �
   sessions/            # 세션 설정
   trust/               # 신뢰한 SSH 호스트 키
   cas/                 # SSH 호스트 인증기관
+  workspace/           # 탐색창 표시 등 작업 공간 설정
+  fonts/               # 검증된 내장 폰트 캐시, 앱에서만 사용
 ```
 
 **실행에 필요한 파일은 EXE 하나이며, 설정은 현재 Windows 사용자의 AppData에 저장됩니다.** 일반적인 위치는 `C:\Users\<사용자>\AppData\Local\wShell`입니다. EXE 옆에 `data/`를 새로 만들지 않습니다. 같은 PC에서는 EXE를 옮기거나 교체해도 저장한 서버 목록을 그대로 사용합니다.
@@ -227,6 +240,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1
 
 ```powershell
 npm --prefix tests/ssh ci --ignore-scripts --omit=optional
+node tests/ssh/font-integration.cjs
 node tests/ssh/integration.cjs
 node tests/ssh/sftp-integration.cjs
 git diff --check

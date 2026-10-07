@@ -151,8 +151,11 @@ function registryDigest() {
   assert.ok(fs.existsSync(path.join(standalone, 'ui-smoke-result.json')), 'UI exited without a report; code=' + result.code + '; progress=' + fs.readFileSync(path.join(standalone, 'ui-smoke-progress.json'), 'utf8'));
   const report = JSON.parse(fs.readFileSync(path.join(standalone, 'ui-smoke-result.json'), 'utf8'));
   assert.equal(fs.readdirSync(standalone).filter(n => n.toLowerCase().endsWith('.exe')).length, 1, 'Do not extract helper executables');
-  assert.ok(!fs.existsSync(path.join(standalone, 'fonts')) && !fs.existsSync(path.join(standalone, 'assets')), 'Fonts and branding stay embedded');
+  assert.ok(!fs.existsSync(path.join(standalone, 'fonts')) && !fs.existsSync(path.join(standalone, 'assets')), 'No font or asset folder is needed beside the EXE');
   assert.equal(report.passed, true, JSON.stringify(report));
+  const fonts = JSON.parse(fs.readFileSync(path.join(standalone, 'font-picker.json'), 'utf8'));
+  assert.equal(fonts.passed, true, 'Native font selection must work with private bundled fonts');
+  assert.deepEqual(fonts.sizes, [13, 9]);
   const settings = ['settings-connect.json', 'settings-authorities.json', 'settings-live-1.json', 'settings-live-2.json', 'settings-live-3.json'].map(file => {
     const result = JSON.parse(fs.readFileSync(path.join(standalone, file), 'utf8'));
     assert.equal(result.passed, true, file + ': ' + JSON.stringify(result)); return result;
@@ -175,7 +178,7 @@ function registryDigest() {
   assert.equal(syncInput['sync-application'], 'x\x1bOA\x1bOB\x1bOC\x1bOD' + tail, 'Application cursor mode must translate navigation independently');
   assert.equal(syncInput['sync-excluded'], '', 'Excluded SSH pane must receive no input');
   assert.equal(syncInput['sync-hidden'], '', 'Hidden SSH tab must receive no input');
-  const summary = { passed: true, sshChecks: 20, ui: report, settings, events, syncInput };
+  const summary = { passed: true, sshChecks: 20, ui: report, fonts, settings, events, syncInput };
   fs.writeFileSync(path.join(artifact, 'result.json'), JSON.stringify(summary, null, 2));
   console.log(JSON.stringify(summary, null, 2));
   console.log('Evidence: ' + artifact);

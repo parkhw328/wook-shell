@@ -1,5 +1,6 @@
 // Compiled only into ui-smoke-tests.exe, never into the release application.
 #include "focus_smoke.inc"
+#include "workspace_smoke.inc"
 template<typename Check> void testNativeKeys(const std::wstring &directory, Check require) {
     using Key = std::unique_ptr<WsKey, decltype(&wsKeyFree)>;
     auto publicText = [](WsKey *key) {
@@ -84,9 +85,12 @@ void runUiSmoke(App &app) {
             require(std::wstring(face) == L"JetBrains Mono", "Embedded UI font must resolve without installed fonts");
             captureTestWindow(app.hwnd, L"ui-home.bmp");
             phase = -1;
+            testBundledFonts(app, require);
             Profile p; p.name = L"서울 test host"; p.host = L"127.0.0.1"; p.user = L"developer"; p.group = L"Local";
             require(editHost(app.hwnd, p, false), "Host editor did not save");
             app.refresh(); require(app.profiles.size() == 1, "Saved host is missing from the sidebar");
+            require(app.profiles[0].fontSize == 9, "New hosts must use the 9pt terminal default");
+            testWorkspaceChrome(app, require);
             showKeyManager(app.hwnd);
             require(std::filesystem::exists(std::filesystem::path(app.directory) / L"ui-key-manager.bmp"), "Native key manager must generate and display a key");
             testNativeKeys(app.directory, require);

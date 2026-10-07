@@ -1,10 +1,12 @@
 # 제품 요구사항
 
 - 제품명은 **wShell**, 대상은 Windows 10 1903 이상/Windows 11 x64 및 macOS 13 이상(Apple Silicon·Intel)이다. 저장소 이름 `wook-shell`은 유지한다.
-- 설치 프로그램, WebView2, Electron, 별도 런타임 없이 `wShell.exe` 하나로 실행한다. 런타임 보조 EXE·폰트·자산을 추출하지 않는다.
+- 설치 프로그램, WebView2, Electron, 별도 런타임 없이 `wShell.exe` 하나로 실행한다. 보조 EXE를 추출하지 않는다. 내장 폰트는 Windows 글꼴 선택을 위해 사용자 데이터의 `fonts/`에 캐시하고 현재 프로세스에만 등록한다. 시스템 설치·관리자 권한·온라인 다운로드를 요구하지 않는다.
 - 네이티브 Win32 UI와 PuTTY 엔진을 사용하여 용량과 메모리 사용을 줄인다.
 - Flexoki Dark와 번들 JetBrains Mono를 기본으로 사용한다. Termius의 비공개 자산은 사용하지 않는다.
 - UI 글꼴은 JetBrains Mono Regular/Bold, 공통 크기는 보조 9pt·본문 11pt·섹션 13pt·제목 20pt로 통일한다. 개별 화면에서 임의 크기를 추가하지 않는다.
+- Windows 새 터미널·호스트의 기본 크기는 9pt다. 기존 사용자가 저장한 글꼴과 크기는 업데이트로 덮어쓰지 않는다.
+- Windows 작업 공간의 탐색·상단 메뉴·검색·폰트 동작은 [작업 공간 UI 규칙](workspace-ui.md)을 따른다.
 - 앱·설정 화면의 왼쪽 상단에는 JetBrains Mono로 `wShell` 텍스트만 표시하며 로고를 붙이지 않는다.
 - 버튼·선택·포커스의 공통 강조색은 주황색 `#DA702C`다. 터미널 출력의 ANSI 팔레트는 유지한다.
 - 실행파일 아이콘은 회색 띠·그라데이션·화살표가 없는 단색 주황색 `w`다. 생성한 PNG를 README에 사용하고 다중 해상도 ICO를 실행파일·작업 표시줄에 내장한다.

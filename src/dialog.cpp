@@ -59,7 +59,7 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         ui::place(form->auth, 28, 374, 350, 160);
         for (auto label : {L"Password", L"Public key authentication"}) SendMessageW(form->auth, CB_ADDSTRING, 0, (LPARAM)label);
         SendMessageW(form->auth, CB_SETCURSEL, form->profile.keyFile.empty() ? 0 : 1, 0);
-        add(FontSize, L"11", 402, 381, 106, std::to_wstring(form->profile.fontSize));
+        add(FontSize, L"9", 402, 381, 106, std::to_wstring(form->profile.fontSize));
         add(Key, L"Select a .ppk key file", 32, 455, 381, form->profile.keyFile);
         ui::place(ui::button(hwnd, L"Browse", Browse), 423, 448, 92, 38);
         form->password = ui::control(hwnd, L"EDIT", L"", Password, ES_PASSWORD | ES_AUTOHSCROLL | WS_TABSTOP);
@@ -218,6 +218,6 @@ void showAbout(HWND owner) {
         L"Full notices are embedded: Tools → Open-source licenses.\n"
         L"Independent project; not affiliated with PuTTY or Termius.\n\n"
         L"Ctrl+Shift+T  New connection\nCtrl+Shift+D  Duplicate tab\nCtrl+Tab  Next tab\nCtrl+Shift+W  Close tab\n"
-        L"Ctrl+Shift+P  Find hosts\nCtrl+Shift+C / V  Copy / paste\nAlt+1…9  Switch tabs\nF11  Full screen",
+        L"Ctrl+Shift+H  Show / hide hosts\nCtrl+Shift+P  Search connections\nCtrl+Shift+C / V  Copy / paste\nAlt+1…9  Switch tabs\nF11  Full screen",
         L"About wShell", MB_OK | MB_ICONINFORMATION);
 }
