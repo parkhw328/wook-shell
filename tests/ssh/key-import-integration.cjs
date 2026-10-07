@@ -88,11 +88,16 @@ async function releaseLogin(port) {
         assert.equal(login.code, 0, 'Imported key SSH failed: ' + login.stderr);
         assert.match(login.stdout, /KEY_SIGNATURE_OK/);
         assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(artifact, names[i]))).digest('hex'), originalHashes[i], 'Source key must stay unchanged');
-        // Protected DACLs allow only the importing user and LocalSystem.
-        const acl = spawnSync('powershell', ['-NoProfile', '-Command',
-            '$ErrorActionPreference = "Stop"; $a = Get-Acl -LiteralPath $env:WOOK_TEST_KEY; $u = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; '
-            + 'if (!$a.AreAccessRulesProtected) { Write-Error "Private key ACL inherits parent permissions"; exit 2 }; foreach ($r in $a.Access) { '
-            + '$s = $r.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value; '
+        // Read directly through .NET Framework: hosted runners can pass a
+        // PowerShell 7 PSModulePath into Windows PowerShell, breaking Get-Acl.
+        const powershell = path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe');
+        const acl = spawnSync(powershell, ['-NoProfile', '-Command',
+            '$ErrorActionPreference = "Stop"; $a = [System.IO.File]::GetAccessControl($env:WOOK_TEST_KEY); $u = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; '
+            + 'if (!$a.AreAccessRulesProtected) { throw "Private key ACL inherits parent permissions" }; '
+            + '$rules = $a.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]); '
+            + 'if ($rules.Count -ne 2) { throw "Expected exactly user and SYSTEM access rules" }; foreach ($r in $rules) { '
+            + 'if ($r.IsInherited -or $r.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow) { exit 4 }; '
+            + '$s = $r.IdentityReference.Value; '
             + 'if ($s -ne $u -and $s -ne "S-1-5-18") { exit 3 } }'],
             { windowsHide: true, env: { ...process.env, WOOK_TEST_KEY: converted } });
         assert.equal(acl.status, 0, 'Private key file ACL must remain user-scoped: ' + acl.stderr.toString());
