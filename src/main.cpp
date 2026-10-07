@@ -5,6 +5,7 @@
 #include "key_dialog.hpp"
 #include "backup.hpp"
 #include "credentials.h"
+#include "sftp_view.hpp"
 #include <windowsx.h>
 #include <shellapi.h>
 #include <commdlg.h>
@@ -22,14 +23,14 @@ using wook::Profile;
 extern "C" int WINAPI wshellTerminalMain(HINSTANCE, HINSTANCE, LPSTR, int);
 namespace {
 enum { Search = 100, HostList, NewHost, ConnectHost, EditHost, Quick, QuickConnect, Preview,
-       Advanced, Duplicate, Reconnect, SessionSettings, Tools, About, SaveCurrent, HomeNew, HomePreview, LocalCmd, LocalPowerShell };
+       Advanced, Duplicate, Reconnect, SessionSettings, Tools, About, SaveCurrent, HomeNew, HomePreview, LocalCmd, LocalPowerShell, FilesHost, FilesSession };
 struct Tab {
     Profile profile;
     std::wstring storageName;
     HWND terminal = nullptr;
     HANDLE process = nullptr;
     DWORD pid = 0;
-    bool preview = false, transient = false, closing = false, ended = false;
+    bool preview = false, transient = false, closing = false, ended = false, files = false;
     ~Tab() { if (process) CloseHandle(process); }
 };
 struct Hit { RECT rect; int index; bool close; };
@@ -53,7 +54,7 @@ struct App {
     void refresh();
     void filter();
     void select(int index);
-    void connect(const Profile &profile, bool saved, bool preview = false, bool advanced = false);
+    void connect(const Profile &profile, bool saved, bool preview = false, bool advanced = false, bool files = false);
     void localShell(bool powershell = false);
     void closeTab(int index);
     void command(int code);
@@ -91,6 +92,7 @@ void App::filter() {
     InvalidateRect(control(HostList), nullptr, TRUE);
     EnableWindow(control(ConnectHost), !filtered.empty());
     EnableWindow(control(EditHost), !filtered.empty());
+    EnableWindow(control(FilesHost), selectedHost() && selectedHost()->protocol == L"ssh");
     visible(control(HostList), !filtered.empty());
     InvalidateRect(hwnd, nullptr, FALSE);
 }
@@ -105,8 +107,9 @@ void App::layout() {
     ui::place(control(Search), 30, 102, sidebar - 61, 22);
     ui::place(control(NewHost), 18, 151, sidebar - 36, 37);
     ui::place(control(HostList), 10, 231, sidebar - 20, std::max(55, height - 420));
-    ui::place(control(ConnectHost), 18, height - 169, 139, 35);
-    ui::place(control(EditHost), 166, height - 169, 68, 35);
+    ui::place(control(ConnectHost), 18, height - 169, 90, 35);
+    ui::place(control(FilesHost), 116, height - 169, 60, 35);
+    ui::place(control(EditHost), 184, height - 169, 50, 35);
     ui::place(control(Advanced), 18, height - 122, sidebar - 36, 35);
     ui::place(control(Tools), 18, height - 75, 139, 33);
     ui::place(control(About), 166, height - 75, 68, 33);
@@ -118,13 +121,15 @@ void App::layout() {
     ui::place(control(LocalCmd), left + span - 336, 536, 166, 40);
     ui::place(control(LocalPowerShell), left + span - 160, 536, 138, 40);
     ui::place(control(Duplicate), width - 330, 64, 95, 33);
+    ui::place(control(FilesSession), width - 418, 64, 80, 33);
     ui::place(control(Reconnect), width - 226, 64, 102, 33);
     ui::place(control(SessionSettings), width - 115, 64, 95, 33);
     ui::place(control(SaveCurrent), width - 126, height - 30, 116, 27);
     for (int id : {Quick, QuickConnect, HomeNew, HomePreview, LocalCmd, LocalPowerShell}) visible(control(id), active < 0);
     for (int id : {Duplicate, Reconnect, SessionSettings}) visible(control(id), active >= 0);
     visible(control(SaveCurrent), active >= 0 && !tabs[active]->preview && tabs[active]->transient && tabs[active]->profile.protocol != L"local");
-    EnableWindow(control(SessionSettings), active >= 0 && tabs[active]->profile.protocol != L"local");
+    visible(control(FilesSession), active >= 0 && !tabs[active]->preview && !tabs[active]->files && tabs[active]->profile.protocol == L"ssh");
+    EnableWindow(control(SessionSettings), active >= 0 && !tabs[active]->files && tabs[active]->profile.protocol != L"local");
     for (size_t i = 0; i < tabs.size(); ++i) {
         auto &tab = *tabs[i];
         if (IsWindow(tab.terminal)) {
@@ -174,7 +179,7 @@ void App::paint(HDC dc) {
             ui::fill(dc, ui::rect(x + 14, 43, tabWidth - 33, 2), ui::accent);
         }
         auto &tab = *tabs[i];
-        ui::label(dc, tab.preview ? L"Color preview" : tab.profile.name, ui::rect(x + 13, 9, tabWidth - 49, 35), ui::TextSize::caption, i == active ? ui::bright : ui::muted);
+        ui::label(dc, tab.preview ? L"Color preview" : (tab.files ? L"SFTP · " : L"") + tab.profile.name, ui::rect(x + 13, 9, tabWidth - 49, 35), ui::TextSize::caption, i == active ? ui::bright : ui::muted);
         RECT cross = ui::rect(x + tabWidth - 33, 14, 24, 25);
         ui::label(dc, L"×", cross, ui::TextSize::section, ui::muted, false, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         hits.push_back({r, i, false}); hits.push_back({cross, i, true}); x += tabWidth;
@@ -225,7 +230,8 @@ void App::paint(HDC dc) {
     if (active < 0 || !tabs[active]->transient || tabs[active]->preview || tabs[active]->profile.protocol == L"local")
         ui::label(dc, L"NATIVE  ·  WINDOWS x64", ui::rect(width - 200, height - 30, 180, 26), ui::TextSize::caption, ui::muted, false, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
 }
-void App::connect(const Profile &profile, bool saved, bool preview, bool advanced) {
+void App::connect(const Profile &profile, bool saved, bool preview, bool advanced, bool files) {
+    if (files && profile.protocol != L"ssh") throw std::runtime_error("SFTP requires an SSH host.");
     if (tabs.size() >= 32) throw std::runtime_error("Close a tab before opening more than 32 sessions.");
     bool local = profile.protocol == L"local";
     if (!preview && !advanced && !local) wook::validateProfile(profile);
@@ -253,6 +259,11 @@ void App::connect(const Profile &profile, bool saved, bool preview, bool advance
         }
         bool ok = wsSave(store); wsClose(store);
         if (!ok) throw std::runtime_error("Cannot save temporary session settings.");
+    }
+    if (files) {
+        tab->files = true;
+        tab->terminal = createSftpView(hwnd, job, tab->storageName, saved);
+        tabs.push_back(std::move(tab)); select((int)tabs.size() - 1); return;
     }
     std::wstring args = wook::quoteArg(engine) + L" --terminal -load " + wook::quoteArg(tab->storageName);
     if (preview) args += L" -wook-preview";
@@ -291,7 +302,8 @@ void App::closeTab(int index) {
     auto &tab = *tabs[index];
     if (!tab.ended && !tab.preview && !tab.closing &&
         MessageBoxW(hwnd, L"Close this session? Commands may still be running.", L"Close tab", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) != IDYES) return;
-    if (tab.ended || WaitForSingleObject(tab.process, 0) == WAIT_OBJECT_0) {
+    if (tab.files || tab.ended || WaitForSingleObject(tab.process, 0) == WAIT_OBJECT_0) {
+        if (tab.files && IsWindow(tab.terminal)) DestroyWindow(tab.terminal);
         if (tab.transient) { wchar_t *path = wsPath(L"sessions", wook::utf8(tab.storageName).c_str()); wsRemove(path); free(path); }
         tabs.erase(tabs.begin() + index); if (active >= index) --active;
         select(std::min(active, (int)tabs.size() - 1)); return;
@@ -308,7 +320,7 @@ void App::closeTab(int index) {
 void App::poll() {
     for (int i = (int)tabs.size() - 1; i >= 0; --i) {
         auto &tab = *tabs[i];
-        if (!tab.ended && WaitForSingleObject(tab.process, 0) == WAIT_OBJECT_0) {
+        if (!tab.files && !tab.ended && WaitForSingleObject(tab.process, 0) == WAIT_OBJECT_0) {
             tab.ended = true; tab.terminal = nullptr;
             if (tab.closing) { closeTab(i); continue; }
             refresh(); layout();
@@ -320,7 +332,7 @@ void App::command(int code) {
     switch (code) {
     case 1: select(-1); SetFocus(control(Quick)); break;
     case 2:
-        if (active >= 0) { auto &t = *tabs[active]; connect(t.profile, !t.transient, t.preview); } break;
+        if (active >= 0) { auto &t = *tabs[active]; connect(t.profile, !t.transient, t.preview, false, t.files); } break;
     case 3: closeTab(active); break;
     case 4:
         if (active >= 0) {
@@ -359,6 +371,8 @@ void App::action(int id) {
         Profile p = *selected; if (editHost(hwnd, p, true)) refresh(); break;
     }
     case ConnectHost: if (auto p = selectedHost()) connect(*p, true); break;
+    case FilesHost: if (auto p = selectedHost()) connect(*p, true, false, false, true); break;
+    case FilesSession: if (active >= 0) { auto &t = *tabs[active]; connect(t.profile, !t.transient, false, false, true); } break;
     case QuickConnect: {
         auto e = wook::parseEndpoint(ui::value(control(Quick)));
         Profile p; p.name = e.host; p.host = e.host; p.user = e.user; p.port = e.port; p.protocol = e.protocol;
@@ -376,7 +390,7 @@ void App::action(int id) {
     case Duplicate: command(2); break;
     case Reconnect: command(4); break;
     case SessionSettings:
-        if (active >= 0 && tabs[active]->profile.protocol != L"local" && IsWindow(tabs[active]->terminal)) PostMessageW(tabs[active]->terminal, WM_SYSCOMMAND, 0x0050, 0);
+        if (active >= 0 && !tabs[active]->files && tabs[active]->profile.protocol != L"local" && IsWindow(tabs[active]->terminal)) PostMessageW(tabs[active]->terminal, WM_SYSCOMMAND, 0x0050, 0);
         break;
     case SaveCurrent:
         if (active >= 0 && !tabs[active]->preview) { Profile p = tabs[active]->profile; if (editHost(hwnd, p, false)) refresh(); }
@@ -490,7 +504,8 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 LBS_OWNERDRAWFIXED | LBS_HASSTRINGS | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP);
             SendMessageW(app->control(HostList), LB_SETITEMHEIGHT, 0, ui::px(65));
             SetWindowSubclass(app->control(HostList), editProc, 1, (DWORD_PTR)app);
-            addButton(NewHost, L"+ New host"); addButton(ConnectHost, L"Connect →"); addButton(EditHost, L"Edit");
+            addButton(NewHost, L"+ New host"); addButton(ConnectHost, L"Connect"); addButton(EditHost, L"Edit");
+            addButton(FilesHost, L"SFTP"); addButton(FilesSession, L"Files");
             addButton(QuickConnect, L"Connect →"); addButton(HomeNew, L"+ Add a host"); addButton(HomePreview, L"Color preview →");
             addButton(Advanced, L"Connection settings"); addButton(Duplicate, L"Duplicate"); addButton(Reconnect, L"Reconnect");
             addButton(SessionSettings, L"Settings"); addButton(Tools, L"Tools"); addButton(About, L"About");
@@ -544,6 +559,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_COMMAND:
             if (LOWORD(wp) == Search && HIWORD(wp) == EN_CHANGE) app->filter();
             else if (LOWORD(wp) == HostList && HIWORD(wp) == LBN_DBLCLK) app->action(ConnectHost);
+            else if (LOWORD(wp) == HostList && HIWORD(wp) == LBN_SELCHANGE) EnableWindow(app->control(FilesHost), app->selectedHost() && app->selectedHost()->protocol == L"ssh");
             else if (HIWORD(wp) == BN_CLICKED) app->action(LOWORD(wp));
             return 0;
         case WM_CONTEXTMENU: {
@@ -710,7 +726,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
             }
             if (!consumed && !IsDialogMessageW(hwnd,&msg)) { TranslateMessage(&msg); DispatchMessageW(&msg); }
         }
-        for (auto &tab:app.tabs) WaitForSingleObject(tab->process,200);
+        for (auto &tab:app.tabs) if (tab->process) WaitForSingleObject(tab->process,200);
         CloseHandle(app.job);
         for (auto &tab:app.tabs) if (tab->transient) {
             wchar_t *path=wsPath(L"sessions",wook::utf8(tab->storageName).c_str()); wsRemove(path); free(path);

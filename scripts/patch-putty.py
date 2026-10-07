@@ -39,7 +39,7 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
                      "                wgs->pending_surrogate = 0;\n                term_keyinputw(wgs->term, &c, 1);")
     window = replace(window, "    dll_hijacking_protection();", "    dll_hijacking_protection();\n    wookWindowInit();")
     window = replace(window, "    ShowWindow(wgs->term_hwnd, show);\n    SetForegroundWindow(wgs->term_hwnd);",
-                     "    if (!wookParent) {\n        ShowWindow(wgs->term_hwnd, show);\n        SetForegroundWindow(wgs->term_hwnd);\n    }")
+                     "    if (!wookParent && !wookSftp) {\n        ShowWindow(wgs->term_hwnd, show);\n        SetForegroundWindow(wgs->term_hwnd);\n    }")
     window = replace(window, "    gui_terminal_ready(wgs->term_hwnd, &wgs->seat, wgs->backend);",
                      "    wookWindowAttach(wgs->term_hwnd);\n    if (wookParent) reset_window(wgs, 2);\n    gui_terminal_ready(wgs->term_hwnd, &wgs->seat, wgs->backend);")
     window = replace(window, "    gui_term_process_cmdline(wgs->conf, cmdline);",
@@ -50,7 +50,7 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
     window = replace(window, "static void start_backend(WinGuiSeat *wgs)\n{",
                      "static void wookIndependentConf(Conf *conf);\nstatic void wookResetPassword(void);\n\nstatic void start_backend(WinGuiSeat *wgs)\n{\n    wookResetPassword();\n    wookIndependentConf(wgs->conf);")
     window = replace(window, "    spr = cmdline_get_passwd_input(p, &wgs->cmdline_get_passwd_state, true);",
-                     "    if (wookSavedPassword(wgs->conf, p)) return SPR_OK;\n    spr = cmdline_get_passwd_input(p, &wgs->cmdline_get_passwd_state, true);")
+                     "    if (wookSavedPassword(wgs->conf, p)) return SPR_OK;\n    if (wookSftp) return wookSftpPrompt(p);\n    spr = cmdline_get_passwd_input(p, &wgs->cmdline_get_passwd_state, true);")
     window = replace(window, '    char *title = dupprintf("%s Fatal Error", appname);\n    show_mouseptr(wgs, true);\n    MessageBox(wgs->term_hwnd, msg, title, MB_ICONERROR | MB_OK);', '''    char *title = dupprintf("%s Connection Error", appname);
     char *auth_help = NULL;
     if (strstr(msg, "No supported authentication methods available")) {
@@ -84,6 +84,10 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
                 } else PostMessageW(wookParent, WM_APP + 43, wParam == IDM_DUPSESS ? 2 : 1, (LPARAM)hwnd);
                 break;
             }''')
+    window = replace(window, 'static const SeatVtable win_seat_vt = {', 'static void wookSftpStarted(Seat *seat);\nstatic const SeatVtable win_seat_vt = {')
+    window = replace(window, '.notify_session_started = nullseat_notify_session_started,', '.notify_session_started = wookSftpStarted,')
+    window = replace(window, '    return term_data(wgs->term, data, len);', '    if (wookSftp) return wookSftpOutput(type, data, len);\n    return term_data(wgs->term, data, len);')
+    window = replace(window, '    if (wookImeMessage(wgs, message, wParam, &lParam)) return 0;', '    if (wookSftp && message == WM_TIMER && wParam == 0x57534654) { wookSftpPump(wgs); return 0; }\n    if (wookImeMessage(wgs, message, wParam, &lParam)) return 0;')
     (SOURCE / "windows/window.c").write_text(window, encoding="utf-8")
     seat = original("windows/win-gui-seat.h")
     seat = replace(seat, "    HWND term_hwnd;", "    HWND term_hwnd;\n    struct WsIme *wshell_ime;")
@@ -110,7 +114,7 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
 
     putty = original("windows/putty.c")
     putty = replace(putty, "static strbuf *demo_terminal_data = NULL;", "static strbuf *demo_terminal_data = NULL;\nstatic bool wookPreview = false;")
-    putty = replace(putty, "static bool wookPreview = false;", "static bool wookPreview = false;\nstatic bool wookLocal = false;\nextern const BackendVtable conpty_backend;")
+    putty = replace(putty, "static bool wookPreview = false;", "static bool wookPreview = false;\nstatic bool wookLocal = false;\nbool wookSftp = false;\nextern const BackendVtable conpty_backend;")
     putty = replace(putty, "    bool demo_config_box = false;", "    bool demo_config_box = false;\n    bool wookConfig = false;")
     putty = replace(putty, '            } else if (!strcmp(p, "-cleanup")) {', '''            } else if (!strcmp(p, "--terminal")) {
                 /* Internal mode of the single wShell executable. */
@@ -118,6 +122,8 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
                 wookConfig = true;
             } else if (!strcmp(p, "-wook-local")) {
                 wookLocal = true;
+            } else if (!strcmp(p, "-wook-sftp")) {
+                wookSftp = true;
             } else if (!strcmp(p, "-wook-preview")) {
                 wookPreview = true;
                 demo_terminal_data = strbuf_new();
@@ -142,6 +148,23 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
     }
     if (demo_config_box) {''')
     putty = replace(putty, "    cmdline_run_saved(conf);", '''    cmdline_run_saved(conf);
+    if (wookSftp) {
+        special_launchable_argument = true;
+        conf_set_int(conf, CONF_protocol, PROT_SSH);
+        conf_set_int(conf, CONF_sshprot, 3);
+        conf_set_str(conf, CONF_remote_cmd, "sftp");
+        conf_set_bool(conf, CONF_ssh_subsys, true);
+        conf_set_str(conf, CONF_remote_cmd2, "");
+        conf_set_bool(conf, CONF_ssh_subsys2, false);
+        conf_set_bool(conf, CONF_nopty, true);
+        conf_set_bool(conf, CONF_ssh_no_shell, false);
+        conf_set_bool(conf, CONF_x11_forward, false);
+        conf_set_int(conf, CONF_logtype, LGTYP_NONE);
+        conf_set_int(conf, CONF_close_on_exit, FORCE_ON);
+        const char *key;
+        while ((key = conf_get_str_nthstrkey(conf, CONF_portfwd, 0)) != NULL)
+            conf_del_str_str(conf, CONF_portfwd, key);
+    }
     if (wookLocal) {
         special_launchable_argument = true;
         conf_set_int(conf, CONF_protocol, -1);
@@ -260,6 +283,8 @@ endif()
 
 shutil.copyfile(ROOT / "patches/portable-storage.c", SOURCE / "windows/storage.c")
 shutil.copyfile(ROOT / "patches/wook-window.h", SOURCE / "windows/wook-window.h")
+shutil.copyfile(ROOT / "patches/wook-sftp.h", SOURCE / "windows/wook-sftp.h")
+shutil.copyfile(ROOT / "src/prompt.h", SOURCE / "windows/wshell-prompt.h")
 shutil.copyfile(ROOT / "patches/wshell-config.h", SOURCE / "windows/wshell-config.h")
 shutil.copyfile(ROOT / "src/settings_ui.h", SOURCE / "windows/wshell-settings-ui.h")
 shutil.copyfile(ROOT / "src/credentials.h", SOURCE / "windows/wshell-credentials.h")

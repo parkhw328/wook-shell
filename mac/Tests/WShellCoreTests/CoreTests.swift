@@ -23,6 +23,13 @@ final class CoreTests: XCTestCase {
         let password = try SSHCommand.arguments(for: host(), knownHosts: URL(fileURLWithPath: "/tmp/hosts"), savedPassword: true)
         XCTAssertTrue(password.contains("KbdInteractiveAuthentication=no")); XCTAssertTrue(password.contains("PubkeyAuthentication=no"))
     }
+    func testSFTPUsesSubsystemWithoutPTYOrForwarding() throws {
+        let args = try SSHCommand.arguments(for: host(), knownHosts: URL(fileURLWithPath: "/tmp/hosts"), savedPassword: true, sftp: true)
+        XCTAssertTrue(args.contains("-T")); XCTAssertFalse(args.contains("-tt"))
+        XCTAssertTrue(args.contains("-s")); XCTAssertTrue(args.contains("ClearAllForwardings=yes"))
+        XCTAssertTrue(args.contains("StrictHostKeyChecking=yes")); XCTAssertTrue(args.contains("PreferredAuthentications=password"))
+        XCTAssertEqual(args.suffix(3), ["--", "localhost", "sftp"])
+    }
     func testBackupInteroperabilityAndSecretExclusion() throws {
         var record = host("서울")
         record["WookSshPasswordDPAPI"] = "ciphertext"; record["WookSshPasswordScope"] = "binding"; record["ProxyPassword"] = "secret"

@@ -35,6 +35,7 @@ static bool wookImeMessage(WinGuiSeat *wgs, UINT message, WPARAM wParam, LPARAM 
     return false;
 }
 static HWND wookParent = NULL;
+#include "wook-sftp.h"
 static bool wookPasswordTried = false;
 static void wookResetPassword(void) { wookPasswordTried = false; }
 extern void wshellLoadFonts(void);
@@ -73,6 +74,7 @@ static void wookWindowInit(void) {
     wshellLoadFonts();
 }
 static void wookWindowAttach(HWND hwnd) {
+    if (wookSftp) { SetTimer(hwnd, 0x57534654, 10, NULL); return; }
     if (!wookParent) return;
     LONG_PTR style = GetWindowLongPtr(hwnd, GWL_STYLE);
     style &= ~(WS_POPUP | WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU);

@@ -33,3 +33,4 @@ The macOS application uses the operating system's OpenSSH client, ssh-keygen and
 It embeds JetBrains Mono, Flexoki colors and the license notices in wShell.app. SwiftTerm is pinned by commit in mac/Package.swift;
 development-only Swift package dependencies are pinned in mac/Package.resolved and are not app runtime dependencies.
 Windows local terminals use the existing PuTTY ConPTY backend with Windows pseudoconsole APIs.
+SFTP uses a wShell-owned C protocol codec over PuTTY's SSH subsystem on Windows and OS OpenSSH on macOS. Windows integration adds a raw pipe transport and native authentication prompts inside the same executable; SSH cryptography is unchanged. The codec follows SFTP v3 ([draft](https://www.ietf.org/archive/id/draft-ietf-secsh-filexfer-02.txt)) and the OpenSSH POSIX rename extension; it does not redistribute an additional SFTP client.

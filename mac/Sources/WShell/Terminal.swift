@@ -74,13 +74,17 @@ final class TerminalBridge: TerminalViewDelegate {
 }
 
 final class Session {
-    enum Kind { case local, ssh, preview, keygen }
+    enum Kind { case local, ssh, sftp, preview, keygen }
     let id = UUID(), kind: Kind, host: Record?, terminal: SessionTerminal
     var title: String, ended = false, attempt: URL?
+    var files: SftpBrowser?
+    var view: NSView { files ?? terminal }
+    var running: Bool { files.map { !$0.closed } ?? terminal.process.running }
+    func stop() { files?.stop(); terminal.stop() }
     init(kind: Kind, host: Record? = nil, title: String) {
         self.kind = kind; self.host = host; self.title = title
         terminal = SessionTerminal(frame: NSRect(x: 0, y: 0, width: 800, height: 550))
         terminal.configure(size: CGFloat(host?.fontSize ?? 13))
     }
-    deinit { terminal.stop(); if let attempt { try? FileManager.default.removeItem(at: attempt) } }
+    deinit { stop(); if let attempt { try? FileManager.default.removeItem(at: attempt) } }
 }

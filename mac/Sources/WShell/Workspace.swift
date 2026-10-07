@@ -47,9 +47,10 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
         table.selectionHighlightStyle = .regular; table.intercellSpacing = NSSize(width: 0, height: 5)
         scroll.documentView = table; scroll.hasVerticalScroller = true; scroll.drawsBackground = false
         scroll.autohidesScrollers = true; scroll.scrollerStyle = .overlay; sidebar.addSubview(scroll)
-        let actions = [ActionButton("Connect →", accent: true) { [weak self] in self?.connectSelected() },
+        let actions = [ActionButton("Connect", accent: true) { [weak self] in self?.connectSelected() },
             ActionButton("Connection settings") { [weak self] in guard let self else { return }; self.edit(self.selectedHost) },
-            ActionButton("Tools") { [weak self] in self?.tools() }, ActionButton("About") { [weak self] in self?.about() }]
+            ActionButton("Tools") { [weak self] in self?.tools() }, ActionButton("About") { [weak self] in self?.about() },
+            ActionButton("SFTP") { [weak self] in guard let self, let host = self.selectedHost ?? self.active?.host else { return }; self.safely { try self.openSFTP(host) } }]
         sidebarViews += actions; actions.forEach { sidebar.addSubview($0) }
     }
     func buildHome() {
@@ -77,8 +78,9 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
         sidebar.frame = NSRect(x: 0, y: 0, width: side, height: height - 30)
         let positions: [NSRect] = [NSRect(x: 22,y: 23,width: 200,height: 34), NSRect(x: 22,y: 66,width: 200,height: 20),
             NSRect(x: 18,y: 99,width: 206,height: 32), NSRect(x: 18,y: 147,width: 206,height: 36), NSRect(x: 20,y: 199,width: 202,height: 20),
-            NSRect(x: 18,y: height-189,width: 206,height: 35), NSRect(x: 18,y: height-142,width: 206,height: 35),
-            NSRect(x: 18,y: height-95,width: 128,height: 35), NSRect(x: 156,y: height-95,width: 68,height: 35)]
+            NSRect(x: 18,y: height-189,width: 126,height: 35), NSRect(x: 18,y: height-142,width: 206,height: 35),
+            NSRect(x: 18,y: height-95,width: 128,height: 35), NSRect(x: 156,y: height-95,width: 68,height: 35),
+            NSRect(x: 154,y: height-189,width: 70,height: 35)]
         for (view, frame) in zip(sidebarViews, positions) { view.frame = frame }
         scroll.frame = NSRect(x: 14,y: 232,width: 214,height: max(60,height-437))
         tabsScroll.frame = NSRect(x: side + 1,y: 0,width: width-side-1,height: 53)
@@ -93,7 +95,7 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
         for (view, frame) in zip(homeViews, homeFrames) { view.frame = frame }
         homeViews.last?.isHidden = home.bounds.height < 660
         status.frame = NSRect(x: 18,y: height-26,width: width-36,height: 23)
-        for session in sessions { session.terminal.frame = content.bounds.insetBy(dx: 10, dy: 8) }
+        for session in sessions { session.view.frame = session.files == nil ? content.bounds.insetBy(dx: 10, dy: 8) : content.bounds }
         tabBar.frame = NSRect(x: 0,y: 0,width: max(tabsScroll.contentSize.width, CGFloat(tabButtons.count)*184+12),height: 42)
         for (index, button) in tabButtons.enumerated() { button.frame = NSRect(x: 8+CGFloat(index)*184,y: 7,width: 176,height: 32) }
     }
@@ -128,14 +130,14 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
     }
     func select(_ id: UUID?) {
         selected = id; home.isHidden = id != nil
-        for session in sessions { session.terminal.isHidden = session.id != id }
+        for session in sessions { session.view.isHidden = session.id != id }
         rebuildTabs()
-        if let session = active { window.makeFirstResponder(session.terminal) } else { window.makeFirstResponder(quick) }
+        if let session = active { window.makeFirstResponder(session.files?.tables[1] ?? session.terminal) } else { window.makeFirstResponder(quick) }
     }
     var active: Session? { sessions.first { $0.id == selected } }
     func attach(_ session: Session) throws {
         guard sessions.count < 32 else { throw WShellError("Close a tab before opening more than 32 sessions.") }
-        sessions.append(session); content.addSubview(session.terminal); session.terminal.processDelegate = self; select(session.id)
+        sessions.append(session); content.addSubview(session.view); session.terminal.processDelegate = self; select(session.id)
     }
     func environment() -> [String: String] {
         var env = ProcessInfo.processInfo.environment
@@ -154,24 +156,36 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
                 currentDirectory: smoke?.output.path ?? FileManager.default.homeDirectoryForCurrentUser.path)
         }
     }
-    func openSSH(_ host: Record) throws {
+    func prepareSSH(_ host: Record, sftp: Bool = false) throws -> (args: [String], env: [String: String], attempt: URL?)? {
+        guard sessions.count < 32 else { throw WShellError("Close a tab before opening more than 32 sessions.") }
         guard try HostTrust.ensure(host, file: store.knownHosts, confirm: { fingerprints in
             let alert = Theme.alert("Verify SSH host key", "\(host["HostName"]):\(host.port)\n\nCompare these fingerprints with your server administrator before trusting this host.\n\n" + fingerprints.joined(separator: "\n\n"))
             alert.addButton(withTitle: "Trust host"); alert.addButton(withTitle: "Cancel")
             return alert.runModal() == .alertFirstButtonReturn
-        }) else { return }
+        }) else { return nil }
         let saved = CredentialStore().contains(host.credentialID)
-        let args = try SSHCommand.arguments(for: host, knownHosts: store.knownHosts, savedPassword: saved)
-        let session = Session(kind: .ssh, host: host, title: host.name); try attach(session)
+        let args = try SSHCommand.arguments(for: host, knownHosts: store.knownHosts, savedPassword: saved, sftp: sftp)
+        var attempt: URL?
         var env = environment()
         env["SSH_ASKPASS"] = Bundle.main.executableURL!.path; env["SSH_ASKPASS_REQUIRE"] = "force"; env["WSHELL_ASKPASS"] = "1"
         env["WOOK_DATA_DIR"] = store.root.path
         if saved {
             let nonce = UUID().uuidString
             env["WSHELL_PASSWORD_HOST"] = host.name; env["WSHELL_PASSWORD_SCOPE"] = host.credentialID
-            env["WSHELL_PASSWORD_ATTEMPT"] = nonce; session.attempt = store.root.appendingPathComponent("attempt-" + nonce)
+            env["WSHELL_PASSWORD_ATTEMPT"] = nonce; attempt = store.root.appendingPathComponent("attempt-" + nonce)
         }
-        session.terminal.startProcess(executable: "/usr/bin/ssh", args: args, environment: env.map { "\($0.key)=\($0.value)" }, currentDirectory: FileManager.default.homeDirectoryForCurrentUser.path)
+        return (args, env, attempt)
+    }
+    func openSSH(_ host: Record) throws {
+        guard let config = try prepareSSH(host) else { return }
+        let session = Session(kind: .ssh, host: host, title: host.name); session.attempt = config.attempt; try attach(session)
+        session.terminal.startProcess(executable: "/usr/bin/ssh", args: config.args, environment: config.env.map { "\($0.key)=\($0.value)" }, currentDirectory: FileManager.default.homeDirectoryForCurrentUser.path)
+    }
+    func openSFTP(_ host: Record) throws {
+        guard let config = try prepareSSH(host, sftp: true) else { return }
+        let client = try SftpClient(arguments: config.args, environment: config.env, attempt: config.attempt)
+        let session = Session(kind: .sftp, host: host, title: "SFTP · " + host.name)
+        session.files = SftpBrowser(client: client); try attach(session)
     }
     func openPreview() {
         safely {
@@ -182,17 +196,17 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
         }
     }
     func close(_ session: Session, confirm: Bool = true) {
-        if confirm && session.terminal.process.running {
+        if confirm && session.running {
             let alert = Theme.alert("Close tab?", "Commands may still be running."); alert.addButton(withTitle: "Close tab"); alert.addButton(withTitle: "Cancel")
             if alert.runModal() != .alertFirstButtonReturn { return }
         }
-        session.terminal.stop(); session.terminal.removeFromSuperview(); sessions.removeAll { $0.id == session.id }
+        session.stop(); session.view.removeFromSuperview(); sessions.removeAll { $0.id == session.id }
         select(sessions.last?.id)
     }
     @objc func closeMenuTab(_ sender: NSMenuItem) { if let id = sender.representedObject as? String, let session = sessions.first(where: { $0.id.uuidString == id }) { close(session) } }
     func duplicate() {
         guard let session = active else { return }
-        switch session.kind { case .local: openLocal(); case .ssh: safely { try openSSH(session.host!) }; case .preview: openPreview(); case .keygen: break }
+        switch session.kind { case .local: openLocal(); case .ssh: safely { try openSSH(session.host!) }; case .sftp: safely { try openSFTP(session.host!) }; case .preview: openPreview(); case .keygen: break }
     }
     func restart() { guard let session = active else { return }; duplicate(); close(session, confirm: false) }
     func moveTab(_ offset: Int) {
@@ -209,11 +223,11 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
     func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
     func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        if sessions.contains(where: { $0.terminal.process.running }) {
+        if sessions.contains(where: { $0.running }) {
             let alert = Theme.alert("Close wShell?", "All active terminals will be closed."); alert.addButton(withTitle: "Close workspace"); alert.addButton(withTitle: "Cancel")
             if alert.runModal() != .alertFirstButtonReturn { return false }
         }
-        sessions.forEach { $0.terminal.stop() }; return true
+        sessions.forEach { $0.stop() }; return true
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply { windowShouldClose(window) ? .terminateNow : .terminateCancel }

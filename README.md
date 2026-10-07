@@ -11,7 +11,7 @@
 
 ### Windows
 
-1. **`wShell.exe` 하나**를 원하는 폴더에 복사합니다. `wshell-0.5.1-windows-x64.zip`에도 이 파일만 들어 있습니다.
+1. **`wShell.exe` 하나**를 원하는 폴더에 복사합니다. `wshell-0.6.0-windows-x64.zip`에도 이 파일만 들어 있습니다.
 2. 실행합니다. 설치, 관리자 권한, WebView2, .NET, Node.js가 필요하지 않습니다.
 3. `New host`에서 접속 정보를 저장하거나, 빠른 연결 칸에 `user@hostname:22`를 입력합니다.
 4. 처음 접속하는 SSH 서버의 키 지문을 확인한 뒤 신뢰 여부를 선택합니다.
@@ -21,7 +21,7 @@
 
 ### macOS
 
-1. `wshell-0.5.1-macos-universal.zip`을 풀고 **`wShell.app`**을 실행합니다. Applications 폴더로 옮겨도 됩니다.
+1. `wshell-0.6.0-macos-universal.zip`을 풀고 **`wShell.app`**을 실행합니다. Applications 폴더로 옮겨도 됩니다.
 2. macOS 13 이상에서 Apple Silicon·Intel을 모두 지원하는 Universal 앱입니다. 별도 런타임이나 WebView 설치가 필요하지 않습니다.
 3. `New host`로 SSH 서버를 추가하거나 `Open Terminal`로 현재 Mac의 로그인 셸을 엽니다.
 
@@ -37,21 +37,22 @@ macOS의 `.app`은 Finder에서 하나의 앱으로 이동하는 번들이며, �
 ```text
 dist/
   README.md
-  0.5.1/
+  0.6.0/
     manifest.json
     windows-x64/
       wShell.exe
       wShell.exe.sha256
-      wshell-0.5.1-windows-x64.zip
-      wshell-0.5.1-windows-x64.zip.sha256
+      wshell-0.6.0-windows-x64.zip
+      wshell-0.6.0-windows-x64.zip.sha256
     macos-universal/
-      wshell-0.5.1-macos-universal.zip
-      wshell-0.5.1-macos-universal.zip.sha256
+      wshell-0.6.0-macos-universal.zip
+      wshell-0.6.0-macos-universal.zip.sha256
 ```
 
 | 기능 | Windows | macOS |
 | --- | --- | --- |
 | SSH 비밀번호·공개키 인증, 컬러 터미널, 탭 | 지원 | 지원 |
+| SFTP 전용 탭 | 로컬·원격 목록, 파일 업로드/다운로드 | 동일 |
 | 로컬 셸 | CMD 기본 / PowerShell 선택 | 시스템 로그인 셸(zsh 등) |
 | 저장 비밀번호 | 현재 Windows 계정 DPAPI | 이 Mac의 로그인 Keychain, 동기화 제외 |
 | 키 생성 | Ed25519 / RSA, 자체 키 관리자 | Ed25519 / RSA, OS ssh-keygen을 앱 내 터미널에서 실행 |
@@ -63,6 +64,10 @@ macOS는 AppKit·SwiftTerm과 OS의 OpenSSH를 사용합니다. SSH 설정 파�
 macOS의 첫 접속은 비밀번호 공급 전에 서버 키 지문을 별도 화면에서 확인합니다. 확인한 키와 다른 키가 제시되면 연결을 거부합니다.
 
 ## Windows 연결과 탭
+
+**SFTP:** SSH 호스트를 선택하고 `SFTP`를 누르면 로컬·원격 파일 목록을 나란히 볼 수 있습니다. 여러 파일 전송, 진행률·취소, 폴더 생성·이름 변경·삭제를 지원합니다. Windows SSH 탭의 `Files`, macOS의 `Tools → Open SFTP`에서도 열 수 있습니다. 폴더 전체 재귀 전송·동기화는 아직 지원하지 않습니다. [사용법과 지원 범위](docs/sftp.md)를 확인하세요.
+
+![wShell SFTP tab](assets/screenshots/sftp.png)
 
 - **호스트 관리:** 저장·편집·복제·삭제, 이름/주소/그룹/사용자 검색, 더블 클릭으로 연결.
 - **탭:** 새 연결, 독립 세션 복제, 드래그 재정렬, 가운데 클릭으로 닫기, 연결 재시작.
@@ -197,6 +202,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1
 ```powershell
 npm --prefix tests/ssh ci --ignore-scripts --omit=optional
 node tests/ssh/integration.cjs
+node tests/ssh/sftp-integration.cjs
 git diff --check
 ```
 

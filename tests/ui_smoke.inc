@@ -220,6 +220,42 @@ void runUiSmoke(App &app) {
             require(true, "PowerShell exit must finish the tab");
             closeTestSession(0); phase = 27; waits = 0;
         } else if (phase == 27 && app.tabs.empty()) {
+            auto local=std::filesystem::path(app.directory)/L"sftp-local";
+            std::filesystem::create_directory(local);std::filesystem::create_directory(std::filesystem::path(app.directory)/L"sftp-download");
+            {std::ofstream file(local/L"upload-한글.txt",std::ios::binary);file<<"Native SFTP · 한글 🙂\n";}
+            {std::ofstream file(local/L"empty.txt");}
+            auto profiles=wook::loadProfiles();
+            auto found=std::find_if(profiles.begin(),profiles.end(),[](auto&p){return p.name==L"한글 SSH 연결";});
+            require(found!=profiles.end(),"Missing SFTP key profile");
+            app.connect(*found,true,false,false,true);phase=28;waits=0;
+        } else if (phase == 28 && ready() && SendMessageW(app.tabs[0]->terminal,WM_APP+121,0,0)==1) {
+            require(app.tabs[0]->files && !app.tabs[0]->process,"SFTP must be an in-process tab with an independently supervised transport");
+            auto view=app.tabs[0]->terminal;
+            SetWindowTextW(GetDlgItem(view,10),(app.directory+L"\\sftp-local").c_str());SendMessageW(view,WM_COMMAND,9,0);
+            require(ListView_GetItemCount(GetDlgItem(view,11))==2,"SFTP must list the local fixture");
+            require(ListView_GetItemCount(GetDlgItem(view,15))>=2,"SFTP must list remote UTF-8 filenames");
+            ListView_SetItemState(GetDlgItem(view,11),-1,LVIS_SELECTED,LVIS_SELECTED);SendMessageW(view,WM_COMMAND,1,0);
+            phase=29;waits=0;
+        } else if (phase == 29 && ready() && SendMessageW(app.tabs[0]->terminal,WM_APP+121,0,0)==1) {
+            auto view=app.tabs[0]->terminal;
+            require(ListView_GetItemCount(GetDlgItem(view,15))>=4,"SFTP upload must refresh the remote listing");
+            captureTestWindow(app.hwnd,L"ui-sftp.bmp");
+            SetWindowTextW(GetDlgItem(view,10),(app.directory+L"\\sftp-download").c_str());SendMessageW(view,WM_COMMAND,9,0);
+            LVFINDINFOW find{};find.flags=LVFI_STRING;find.psz=L"   upload-한글.txt";
+            int index=ListView_FindItem(GetDlgItem(view,15),-1,&find);require(index>=0,"Uploaded UTF-8 filename must be visible");
+            ListView_SetItemState(GetDlgItem(view,15),index,LVIS_SELECTED,LVIS_SELECTED);SendMessageW(view,WM_COMMAND,2,0);
+            phase=30;waits=0;
+        } else if (phase == 30 && ready() && SendMessageW(app.tabs[0]->terminal,WM_APP+121,0,0)==1) {
+            require(std::filesystem::exists(std::filesystem::path(app.directory)/L"sftp-download"/L"upload-한글.txt"),"SFTP download must finish on disk");
+            app.command(2);phase=31;waits=0;
+        } else if (phase == 31 && ready() && SendMessageW(app.tabs.back()->terminal,WM_APP+121,0,0)==1) {
+            require(app.tabs.size()==2 && app.tabs[1]->files,"Duplicate must open another independent SFTP tab");
+            closeTestSession(1);closeTestSession(0);
+            auto profiles=wook::loadProfiles();auto found=std::find_if(profiles.begin(),profiles.end(),[](auto&p){return p.name==L"Password SSH test";});
+            require(found!=profiles.end(),"Missing SFTP password profile");app.connect(*found,true,false,false,true);phase=32;waits=0;
+        } else if (phase == 32 && ready() && SendMessageW(app.tabs[0]->terminal,WM_APP+121,0,0)==1) {
+            require(true,"SFTP must reuse the scoped DPAPI password");closeTestSession(0);phase=33;waits=0;
+        } else if (phase == 33 && app.tabs.empty()) {
             std::ofstream result(std::filesystem::path(app.directory) / L"ui-smoke-result.json");
             result << "{\"passed\":true,\"checks\":" << checks << "}\n";
             result.close(); phase = -1; DestroyWindow(app.hwnd);

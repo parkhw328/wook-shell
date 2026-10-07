@@ -182,10 +182,10 @@ public final class SettingsStore {
 }
 
 public enum SSHCommand {
-    public static func arguments(for host: Record, knownHosts: URL, savedPassword: Bool = false) throws -> [String] {
+    public static func arguments(for host: Record, knownHosts: URL, savedPassword: Bool = false, sftp: Bool = false) throws -> [String] {
         try host.validate()
         // Imported engine fields and the user's ~/.ssh/config are intentionally not executed.
-        var result = ["-tt", "-F", "/dev/null", "-p", String(host.port),
+        var result = [sftp ? "-T" : "-tt", "-F", "/dev/null", "-p", String(host.port),
             "-o", "UserKnownHostsFile=\"\(knownHosts.path.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))\"",
             "-o", "GlobalKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=yes", "-o", "UpdateHostKeys=no",
             "-o", "IdentityAgent=none", "-o", "ForwardAgent=no", "-o", "ControlMaster=no", "-o", "ControlPath=none",
@@ -198,6 +198,7 @@ public enum SSHCommand {
         } else if !host["PublicKeyFile"].isEmpty { result += ["-i", host["PublicKeyFile"]] }
         else { result += ["-o", "IdentityFile=none"] }
         if host["Compression"] == "1" { result += ["-C"] }
-        return result + ["--", host["HostName"]]
+        if sftp { result += ["-s", "-o", "ClearAllForwardings=yes"] }
+        return result + ["--", host["HostName"]] + (sftp ? ["sftp"] : [])
     }
 }

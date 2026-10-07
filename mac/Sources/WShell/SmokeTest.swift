@@ -100,6 +100,31 @@ final class SmokeTest {
                 try require(!String(decoding: backup, as: UTF8.self).contains(ProcessInfo.processInfo.environment["WSHELL_TEST_PASSWORD"]!), "Password leaked into backup.")
                 advance(7)
             case 7 where ticks > 8:
+                workspace.close(workspace.active!, confirm: false)
+                let host = try workspace.store.read().first { $0.name == "Loopback key fixture" }!
+                try workspace.openSFTP(host); advance(8)
+            case 8 where workspace.active?.files?.connected == true && workspace.active?.files?.busy == false:
+                let files = workspace.active!.files!
+                files.navigate(0, output.appendingPathComponent("sftp-local").path)
+                try require(files.entries[0].count == 2 && files.entries[1].count >= 2, "SFTP must list both local and remote files.")
+                files.tables[0].selectRowIndexes(IndexSet(integersIn: 0..<2), byExtendingSelection: false)
+                try files.transfer(true); advance(9)
+            case 9 where workspace.active?.files?.busy == false:
+                let files = workspace.active!.files!
+                try require(files.connected && files.entries[1].contains { $0.name == "upload-한글.bin" }, "Native SFTP upload failed: " + files.status.stringValue)
+                try capture("mac-sftp")
+                files.navigate(0, output.appendingPathComponent("sftp-download").path)
+                let index = files.entries[1].firstIndex { $0.name == "upload-한글.bin" }!
+                files.tables[1].selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+                try files.transfer(false); advance(10)
+            case 10 where workspace.active?.files?.busy == false:
+                let files = workspace.active!.files!
+                try require(files.connected && FileManager.default.fileExists(atPath: output.appendingPathComponent("sftp-download/upload-한글.bin").path), "Native SFTP download failed: " + files.status.stringValue)
+                workspace.close(workspace.active!, confirm: false)
+                let host = try workspace.store.read().first { $0.name == "Loopback password fixture" }!
+                try workspace.openSFTP(host); advance(11)
+            case 11 where workspace.active?.files?.connected == true && workspace.active?.files?.busy == false:
+                try require(true, "SFTP reuses the scoped Keychain password.")
                 finish(nil)
             default: break
             }

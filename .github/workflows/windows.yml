@@ -27,6 +27,8 @@ jobs:
         run: npm --prefix tests/ssh ci --ignore-scripts --omit=optional
       - name: Test SSH and hosted native windows
         run: node tests/ssh/integration.cjs
+      - name: Test SFTP transfers and cancellation
+        run: node tests/ssh/sftp-integration.cjs
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: wshell-windows-x64

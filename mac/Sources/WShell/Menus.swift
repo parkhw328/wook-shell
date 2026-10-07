@@ -29,6 +29,7 @@ extension Workspace {
         case "local": openLocal()
         case "host": edit(nil)
         case "settings": edit(active?.host ?? selectedHost)
+        case "sftp": if let host = active?.host ?? selectedHost { safely { try openSFTP(host) } }
         case "duplicate": duplicate()
         case "restart": restart()
         case "close": if let session = active { close(session) } else { window.performClose(nil) }
@@ -58,7 +59,7 @@ extension Workspace {
     }
     func tools() {
         let menu = NSMenu()
-        for (title, command) in [("Local terminal", "local"),("Duplicate tab", "duplicate"),("Reconnect", "restart"),
+        for (title, command) in [("Local terminal", "local"),("Open SFTP", "sftp"),("Duplicate tab", "duplicate"),("Reconnect", "restart"),
             ("Move tab left", "left"),("Move tab right", "right"),("SSH key manager", "keys"),
             ("Duplicate saved host", "copy-host"),("Delete saved host", "delete"),
             ("Export settings", "export"),("Import settings", "import"),("Open data folder", "folder"),("Licenses", "licenses")] {

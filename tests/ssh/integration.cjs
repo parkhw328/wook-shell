@@ -13,6 +13,8 @@ const data = path.join(artifact, 'data');
 const binaries = path.join(root, 'build', 'native');
 const standalone = path.join(artifact, 'standalone');
 fs.mkdirSync(standalone);
+const sftpRoot=path.join(artifact,'remote');fs.mkdirSync(sftpRoot);
+fs.writeFileSync(path.join(sftpRoot,'안녕하세요.txt'),'Remote UTF-8 sample\n');fs.mkdirSync(path.join(sftpRoot,'projects'));
 const importKey = path.join(artifact, 'import-키.openssh');
 fs.writeFileSync(importKey, utils.generateKeyPairSync('ed25519', {
   passphrase: 'fixture-passphrase', cipher: 'aes256-cbc',
@@ -53,6 +55,7 @@ const server = new Server({ hostKeys: [key] }, client => {
     events.authenticated.push(true);
     client.on('session', accept => {
       const session = accept();
+      require('./sftp-fixture.cjs')(session,sftpRoot);
       session.on('pty', (accept, reject, info) => { events.terminalTypes.push(info.term); accept(); });
       session.on('env', (accept, reject, info) => { events.environment.push(info); if (accept) accept(); });
       session.on('window-change', (accept) => { ++events.resizes; if (accept) accept(); });
@@ -91,7 +94,7 @@ function run(executable, args, input = '', environment = {}) {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let stdout = '', stderr = '';
-    const timer = setTimeout(() => { child.kill(); reject(new Error('Timed out: ' + path.basename(executable) + '\n' + stdout + '\n' + stderr)); }, 120000);
+    const timer = setTimeout(() => { child.kill(); reject(new Error('Timed out: ' + path.basename(executable) + '\n' + stdout + '\n' + stderr)); }, 180000);
     child.stdout.on('data', chunk => stdout += chunk);
     child.stderr.on('data', chunk => stderr += chunk);
     child.on('error', reject);
@@ -148,7 +151,8 @@ function registryDigest() {
   assert.ok(events.resizes >= 1, 'PTY resize must reach the server');
   assert.equal(registryDigest(), before, 'GUI must leave existing PuTTY registry unchanged');
   fs.writeFileSync(path.join(artifact, 'authentication.json'), JSON.stringify({ passwords: events.passwords, methods: events.methods, shells: events.shells }, null, 2));
-  assert.equal(events.passwords.filter(p => p.user === 'password' && p.accepted).length, 4, 'Encrypted password must authenticate the GUI, duplicate, and reconnect, plus the CLI baseline; attempts=' + JSON.stringify(events.passwords));
+  assert.equal(events.passwords.filter(p => p.user === 'password' && p.accepted).length, 5, 'Encrypted password must authenticate the GUI, duplicate, reconnect and SFTP, plus the CLI baseline; attempts=' + JSON.stringify(events.passwords));
+  assert.deepEqual(fs.readFileSync(path.join(standalone,'sftp-download','upload-한글.txt')),fs.readFileSync(path.join(standalone,'sftp-local','upload-한글.txt')),'GUI SFTP round trip must preserve exact bytes');
   assert.deepEqual(events.passwords.filter(p => p.user === 'password-fallback').map(p => p.accepted), [false, true], 'Rejected saved password must be tried only once, then allow manual input');
   assert.match(events.received, /y.*z/s, 'Password sessions must open usable shells before and after reconnect');
   const summary = { passed: true, sshChecks: 16, ui: report, settings, events };

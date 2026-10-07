@@ -10,6 +10,11 @@ const root = path.resolve(__dirname, '../..');
 const output = path.join(root, 'build', 'mac-evidence');
 const data = path.join(output, 'data');
 fs.mkdirSync(data, { recursive: true });
+const remote=path.join(output,'remote');fs.mkdirSync(remote,{recursive:true});
+fs.writeFileSync(path.join(remote,'안녕하세요.txt'),'Remote UTF-8 sample\n');fs.mkdirSync(path.join(remote,'projects'),{recursive:true});
+for(const dir of ['sftp-local','sftp-download'])fs.mkdirSync(path.join(output,dir),{recursive:true});
+const sftpPayload=crypto.randomBytes(1200003);fs.writeFileSync(path.join(output,'sftp-local','upload-한글.bin'),sftpPayload);
+fs.writeFileSync(path.join(output,'sftp-local','empty.txt'),'');
 const key = utils.generateKeyPairSync('ed25519');
 const serverKey = utils.generateKeyPairSync('ed25519');
 const publicKey = utils.parseKey(key.private);
@@ -29,6 +34,7 @@ const server = new Server({ hostKeys: [serverKey.private] }, client => {
   });
   client.on('ready', () => client.on('session', accept => {
     const session = accept();
+    require('./sftp-fixture.cjs')(session,remote,events);
     session.on('pty', (accept, reject, info) => { events.terminalTypes.push(info.term); accept(); });
     session.on('env', accept => { if (accept) accept(); });
     session.on('window-change', accept => { ++events.resizes; if (accept) accept(); });
@@ -56,7 +62,9 @@ const server = new Server({ hostKeys: [serverKey.private] }, client => {
       child.once('exit', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error(`macOS app exited ${code}`)); });
     });
     assert(events.signatures >= 1, 'OpenSSH public-key signature must verify');
-    assert.equal(events.passwords, 1, 'Saved password must authenticate exactly once');
+    assert.equal(events.passwords, 2, 'Saved password must authenticate once per SSH/SFTP connection');
+    assert(events.connections >= 2, 'Both key and saved-password SFTP must connect');
+    assert.deepEqual(fs.readFileSync(path.join(output,'sftp-download','upload-한글.bin')),sftpPayload,'Native SFTP upload/download exact bytes');
     assert.equal(events.shells, 2); assert(events.resizes > 0);
     assert(events.input.includes('key-input') && events.input.includes('password-input'));
     assert.equal(events.input.split('|ime:한글🙂|').length - 1, 1, 'Only committed IME text must cross SSH, exactly once');

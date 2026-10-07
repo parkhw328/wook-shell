@@ -68,6 +68,7 @@ func editHost(_ existing: Record?, store: SettingsStore) throws -> Bool {
 }
 
 func runAskpass() -> Never {
+    let parent = getppid()
     let app = NSApplication.shared
     app.setActivationPolicy(.accessory); app.appearance = NSAppearance(named: .darkAqua); Theme.loadFonts()
     let environment = ProcessInfo.processInfo.environment
@@ -96,7 +97,12 @@ func runAskpass() -> Never {
         alert.addButton(withTitle: confirmation ? "Trust host" : "Continue"); alert.addButton(withTitle: "Cancel")
         let input = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 460, height: 30)); input.font = Theme.font()
         if !confirmation { alert.accessoryView = input }
-        guard alert.runModal() == .alertFirstButtonReturn else { exit(1) }
+          let monitor = Timer(timeInterval: 0.25, repeats: true) { _ in
+              if getppid() != parent || kill(parent, 0) != 0 { NSApp.abortModal() }
+          }
+          RunLoop.main.add(monitor, forMode: .modalPanel)
+          let result = alert.runModal(); monitor.invalidate()
+          guard result == .alertFirstButtonReturn else { exit(1) }
         var password = Data((confirmation ? "yes" : input.stringValue).utf8); input.stringValue = ""
         FileHandle.standardOutput.write(password); FileHandle.standardOutput.write(Data([10]))
         password.resetBytes(in: 0..<password.count); exit(0)
