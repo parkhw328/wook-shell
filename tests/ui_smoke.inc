@@ -136,7 +136,21 @@ void runUiSmoke(App &app) {
             require(wsGet(store, "ScrollbackLines") && std::string(wsGet(store, "ScrollbackLines")) == "12000", "Connection settings must persist scrollback");
             wsClose(store);
             captureTestWindow(app.hwnd, L"ui-ssh.bmp");
+            GUITHREADINFO caret{sizeof(caret)};
+            require(GetGUIThreadInfo(GetWindowThreadProcessId(app.tabs[0]->terminal, nullptr), &caret) &&
+                    caret.hwndCaret == app.tabs[0]->terminal, "Hosted terminal must expose its actual IME caret");
+            auto ime = wsImeCreate(app.tabs[0]->terminal, [](void *, const wchar_t *, int) {}, mk_wcwidth, nullptr);
+            require(ime != nullptr, "Cannot preview native IME layout");
+            wsImePosition(ime, caret.rcCaret.left, caret.rcCaret.top,
+                caret.rcCaret.right-caret.rcCaret.left, caret.rcCaret.bottom-caret.rcCaret.top,
+                ui::font(), RGB(206,205,195), RGB(16,15,15));
+            wsImeStart(ime); wsImeApply(ime, nullptr, 0, L"한", 1, 1);
+            captureTestWindow(app.hwnd, L"ui-ime-composition.bmp");
+            wsImeDestroy(ime);
             SendMessageW(app.tabs[0]->terminal, WM_CHAR, L'x', 1);
+            // Exercise the Unicode fallback through the actual embedded window and SSH.
+            for (auto c : std::wstring(L"|ime:한글\U0001f642|"))
+                SendMessageW(app.tabs[0]->terminal, WM_IME_CHAR, c, 1);
             RECT r; GetWindowRect(app.hwnd, &r);
             SetWindowPos(app.hwnd, nullptr, 0,0, r.right-r.left-40, r.bottom-r.top-20, SWP_NOMOVE | SWP_NOZORDER);
             app.action(SessionSettings);

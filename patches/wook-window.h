@@ -1,5 +1,39 @@
 /* Host integration and an optional saved-password provider. SSH crypto is unchanged. */
 #include "wshell-credentials.h"
+#include "wshell-ime.h"
+static void wookImeSend(void *context, const wchar_t *text, int length) {
+    WinGuiSeat *wgs = context;
+    if (wgs->ldisc) term_keyinputw(wgs->term, text, length);
+}
+static void wookImePosition(WinGuiSeat *wgs) {
+    wsImePosition(wgs->wshell_ime, wgs->caret_x, wgs->caret_y,
+        wgs->font_width, wgs->font_height, wgs->fonts[FONT_NORMAL],
+        wgs->colours[ATTR_DEFFG >> ATTR_FGSHIFT], wgs->colours[ATTR_DEFBG >> ATTR_BGSHIFT]);
+}
+static bool wookImeMessage(WinGuiSeat *wgs, UINT message, WPARAM wParam, LPARAM *lParam) {
+    if (!wgs || !wgs->wshell_ime) return false;
+    switch (message) {
+      case WM_IME_SETCONTEXT:
+        *lParam &= ~ISC_SHOWUICOMPOSITIONWINDOW;
+        break; /* DefWindowProc must still activate the OS candidate UI. */
+      case WM_IME_STARTCOMPOSITION:
+        wookImePosition(wgs); wsImeStart(wgs->wshell_ime); return true;
+      case WM_IME_COMPOSITION:
+        wookImePosition(wgs);
+        wsImeComposition(wgs->wshell_ime, *lParam, wParam);
+        return true; /* Do not let DefWindowProc generate a second WM_CHAR commit. */
+      case WM_IME_ENDCOMPOSITION:
+        wsImeClear(wgs->wshell_ime); return true;
+      case WM_IME_NOTIFY:
+        if (wParam == IMN_OPENCANDIDATE || wParam == IMN_CHANGECANDIDATE)
+            wookImePosition(wgs);
+        break;
+      case WM_KILLFOCUS:
+        wsImeFinish(wgs->wshell_ime);
+        break;
+    }
+    return false;
+}
 static HWND wookParent = NULL;
 static bool wookPasswordTried = false;
 static void wookResetPassword(void) { wookPasswordTried = false; }
@@ -42,7 +76,7 @@ static void wookWindowAttach(HWND hwnd) {
     if (!wookParent) return;
     LONG_PTR style = GetWindowLongPtr(hwnd, GWL_STYLE);
     style &= ~(WS_POPUP | WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU);
-    style |= WS_CHILD | WS_CLIPSIBLINGS;
+    style |= WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
     SetWindowLongPtr(hwnd, GWL_STYLE, style);
     SetWindowLongPtr(hwnd, GWL_EXSTYLE, 0);
     SetParent(hwnd, wookParent);

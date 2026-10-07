@@ -11,7 +11,7 @@
 
 ### Windows
 
-1. **`wShell.exe` 하나**를 원하는 폴더에 복사합니다. `wshell-0.5.0-windows-x64.zip`에도 이 파일만 들어 있습니다.
+1. **`wShell.exe` 하나**를 원하는 폴더에 복사합니다. `wshell-0.5.1-windows-x64.zip`에도 이 파일만 들어 있습니다.
 2. 실행합니다. 설치, 관리자 권한, WebView2, .NET, Node.js가 필요하지 않습니다.
 3. `New host`에서 접속 정보를 저장하거나, 빠른 연결 칸에 `user@hostname:22`를 입력합니다.
 4. 처음 접속하는 SSH 서버의 키 지문을 확인한 뒤 신뢰 여부를 선택합니다.
@@ -21,7 +21,7 @@
 
 ### macOS
 
-1. `wshell-0.5.0-macos-universal.zip`을 풀고 **`wShell.app`**을 실행합니다. Applications 폴더로 옮겨도 됩니다.
+1. `wshell-0.5.1-macos-universal.zip`을 풀고 **`wShell.app`**을 실행합니다. Applications 폴더로 옮겨도 됩니다.
 2. macOS 13 이상에서 Apple Silicon·Intel을 모두 지원하는 Universal 앱입니다. 별도 런타임이나 WebView 설치가 필요하지 않습니다.
 3. `New host`로 SSH 서버를 추가하거나 `Open Terminal`로 현재 Mac의 로그인 셸을 엽니다.
 
@@ -37,16 +37,16 @@ macOS의 `.app`은 Finder에서 하나의 앱으로 이동하는 번들이며, �
 ```text
 dist/
   README.md
-  0.5.0/
+  0.5.1/
     manifest.json
     windows-x64/
       wShell.exe
       wShell.exe.sha256
-      wshell-0.5.0-windows-x64.zip
-      wshell-0.5.0-windows-x64.zip.sha256
+      wshell-0.5.1-windows-x64.zip
+      wshell-0.5.1-windows-x64.zip.sha256
     macos-universal/
-      wshell-0.5.0-macos-universal.zip
-      wshell-0.5.0-macos-universal.zip.sha256
+      wshell-0.5.1-macos-universal.zip
+      wshell-0.5.1-macos-universal.zip.sha256
 ```
 
 | 기능 | Windows | macOS |
@@ -82,6 +82,16 @@ macOS의 첫 접속은 비밀번호 공급 전에 서버 키 지문을 별도 �
 버튼·선택·포커스 강조색은 따뜻한 주황색 `#DA702C`입니다. 앱과 설정 화면의 왼쪽 상단에는 `wShell` 텍스트만 표시합니다. 실행파일 아이콘은 단색 주황색 `w`이며, 터미널의 ANSI·True Color 출력은 기존 색상을 유지합니다.
 
 ![wShell connection settings](assets/screenshots/connection-settings.png)
+
+## 한글 입력 보정
+
+Windows에서는 한글 조합을 별도 팝업 대신 **터미널 커서 자리**에 표시합니다. 터미널과 같은 글꼴·크기·배경을 사용하며, 조합 중인 글자는 주황색 밑줄로 구분합니다. 한글은 두 칸 폭에 맞추고 창 크기·커서 위치를 따라 이동합니다. SSH와 로컬 CMD/PowerShell에 별도 설정 없이 적용됩니다.
+
+조합 중인 글자는 화면에만 표시하며 확정된 글자만 전송합니다. 탭을 옮길 때는 기존 탭에서 조합을 마무리합니다. 한자 등 후보 선택창은 Windows 기본 기능을 유지하며 조합 위치에 맞춰 배치합니다. macOS도 조합 밑줄·선택 범위와 attributed 확정 문자열을 처리합니다. JetBrains Mono에 없는 한글 글리프는 OS 글꼴로 보완합니다.
+
+자동 검증은 합성 조합 이벤트·취소·한글 폭·리사이즈와 실제 루프백 SSH의 한글/이모지 전송을 포함합니다. OS 입력기별 실제 타이핑·후보창 동작은 [수동 확인 절차](docs/ime-input.md)를 따릅니다. 서버의 문자 인코딩이나 셸 편집 동작은 변경하지 않습니다.
+
+![커서 위치에 표시한 한글 조합 — 합성 입력 테스트](assets/screenshots/ime-composition.png)
 
 ## 공개키 인증과 SSH 키 관리
 

@@ -74,6 +74,20 @@ final class SmokeTest {
                 try require(workspace.active?.terminal.process.running == true, "SSH PTY is not running.")
                 try require(String(decoding: workspace.active!.terminal.terminal.getBufferAsData(), as: UTF8.self).contains("WSHELL_SSH_READY"), "SSH output did not reach the terminal screen buffer.")
                 workspace.active?.terminal.send(txt: "key-input\r"); try capture("mac-ssh")
+                let terminal = workspace.active!.terminal
+                let noRange = NSRange(location: NSNotFound, length: 0)
+                terminal.send(txt: "|ime:")
+                for syllable in ["ㅎ", "하", "한"] {
+                    terminal.setMarkedText(syllable, selectedRange: NSRange(location: 1, length: 0), replacementRange: noRange)
+                }
+                try require(terminal.hasMarkedText() && terminal.selectedRange() == NSRange(location: 1, length: 0),
+                            "IME selection must be relative to the composition, not the remote screen.")
+                try capture("mac-ime-composition")
+                terminal.insertText(NSAttributedString(string: "한글🙂"), replacementRange: noRange)
+                try require(!terminal.hasMarkedText(), "Attributed IME commit must clear composition.")
+                terminal.setMarkedText("취소", selectedRange: NSRange(location: 2, length: 0), replacementRange: noRange)
+                terminal.unmarkText(); terminal.send(txt: "|\r")
+                try require(!terminal.hasMarkedText(), "Cancelled marked text must be removed.")
                 workspace.window.setContentSize(NSSize(width: 1200,height: 780)); workspace.layout(); advance(5)
             case 5 where ticks > 8:
                 workspace.close(workspace.active!, confirm: false)

@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" WSHELL_VERSION LIMIT_COUNT 1)
 project(WookShell VERSION ${WSHELL_VERSION} LANGUAGES C CXX RC)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
 configure_file(assets/version.h.in "${CMAKE_CURRENT_SOURCE_DIR}/build/version.h" @ONLY)
 configure_file(assets/app.manifest "${CMAKE_CURRENT_SOURCE_DIR}/build/app.manifest" @ONLY)
 if(NOT TARGET wshell-terminal)
@@ -13,7 +14,7 @@ add_library(wook-core STATIC src/core.cpp src/store.c src/backup.cpp src/credent
 target_link_libraries(wook-core PUBLIC crypt32)
 target_include_directories(wook-core PUBLIC src)
 target_compile_options(wook-core PRIVATE -Wall -Wextra)
-set(workspace_sources src/main.cpp src/dialog.cpp src/resources.cpp src/key_dialog.cpp src/settings_ui.cpp assets/app.rc
+set(workspace_sources src/main.cpp src/dialog.cpp src/resources.cpp src/key_dialog.cpp src/settings_ui.cpp src/ime.c assets/app.rc
     $<TARGET_OBJECTS:wshell-terminal> $<TARGET_OBJECTS:wshell-terminal-be-list>)
 # windres does not emit dependencies for binary RCDATA and nested resource scripts.
 set_property(SOURCE assets/app.rc APPEND PROPERTY OBJECT_DEPENDS
@@ -39,6 +40,11 @@ add_executable(core-tests tests/core_test.cpp)
 target_link_libraries(core-tests PRIVATE wook-core shell32)
 target_link_options(core-tests PRIVATE -municode -static)
 add_test(NAME core COMMAND core-tests)
+add_executable(ime-tests tests/ime_test.cpp src/ime.c)
+target_include_directories(ime-tests PRIVATE src)
+target_link_libraries(ime-tests PRIVATE utils imm32 gdi32 user32)
+target_link_options(ime-tests PRIVATE -static)
+add_test(NAME ime COMMAND ime-tests)
 add_executable(ui-smoke-tests WIN32 ${workspace_sources})
 target_compile_definitions(ui-smoke-tests PRIVATE WOOK_UI_TEST)
 target_link_libraries(ui-smoke-tests PRIVATE ${workspace_libraries})

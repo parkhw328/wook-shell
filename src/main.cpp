@@ -14,6 +14,8 @@
 #ifdef WOOK_UI_TEST
 #include "../tests/capture.hpp"
 #include "keys.h"
+#include "ime.h"
+extern "C" int mk_wcwidth(unsigned int);
 #endif
 
 using wook::Profile;

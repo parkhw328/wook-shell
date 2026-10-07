@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const assert = require('node:assert/strict');
+const { StringDecoder } = require('node:string_decoder');
 const root = path.resolve(__dirname, '../..');
 const artifact = path.join(root, 'build', 'ssh-test-' + Date.now());
 fs.mkdirSync(artifact, { recursive: true });
@@ -69,8 +70,9 @@ const server = new Server({ hostKeys: [key] }, client => {
         stream.write('  developer@loopback  $ ');
         if (username === 'password') signal('password-shell-' + ++passwordShells);
         if (username === 'password-fallback') signal('password-fallback-shell');
+        const decoder = new StringDecoder('utf8');
         stream.on('data', bytes => {
-          events.received += bytes.toString(); stream.write(bytes);
+          events.received += decoder.write(bytes); stream.write(bytes);
           if (username === 'password') for (const marker of ['y', 'z']) {
             if (bytes.includes(marker)) signal('password-input-' + marker);
           }
@@ -142,6 +144,7 @@ function registryDigest() {
   assert.ok(events.terminalTypes.includes('xterm-256color'), 'PTY terminal type must support color');
   assert.ok(events.environment.some(e => e.key === 'COLORTERM' && e.val === 'truecolor'), 'True Color environment must be requested');
   assert.match(events.received, /x/, 'Keyboard data must cross the real SSH connection');
+  assert.equal(events.received.split('|ime:한글🙂|').length - 1, 1, 'IME Unicode must cross SSH exactly once without mojibake');
   assert.ok(events.resizes >= 1, 'PTY resize must reach the server');
   assert.equal(registryDigest(), before, 'GUI must leave existing PuTTY registry unchanged');
   fs.writeFileSync(path.join(artifact, 'authentication.json'), JSON.stringify({ passwords: events.passwords, methods: events.methods, shells: events.shells }, null, 2));

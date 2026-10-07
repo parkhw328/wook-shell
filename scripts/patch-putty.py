@@ -21,6 +21,20 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
     window = replace(window, "int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)",
                      "int WINAPI wshellTerminalMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)")
     window = replace(window, "HINSTANCE hinst;", '#include "wook-window.h"\n\nHINSTANCE hinst;')
+    window = replace(window, "    SetWindowLongPtr(wgs->term_hwnd, GWLP_USERDATA, (LONG_PTR)wgs);",
+                     "    SetWindowLongPtr(wgs->term_hwnd, GWLP_USERDATA, (LONG_PTR)wgs);\n    wgs->wshell_ime = wsImeCreate(wgs->term_hwnd, wookImeSend, mk_wcwidth, wgs);\n    SetWindowLongPtr(wgs->term_hwnd, GWL_STYLE, GetWindowLongPtr(wgs->term_hwnd, GWL_STYLE) | WS_CLIPCHILDREN);")
+    window = replace(window, "static void wgs_cleanup(WinGuiSeat *wgs)\n{",
+                     "static void wgs_cleanup(WinGuiSeat *wgs)\n{\n    wsImeDestroy(wgs->wshell_ime);")
+    window = replace(window, "    ImmSetCompositionWindow(hIMC, &cf);",
+                     "    ImmSetCompositionWindow(hIMC, &cf);\n    wookImePosition(wgs);")
+    # WM_IME_CHAR is UTF-16 in a Unicode window, not a pair of legacy DBCS bytes.
+    window = replace(window, "      case WM_IME_CHAR:\n        if (wParam & 0xFF00) {",
+                     "      case WM_IME_CHAR:\n        if (unicode_window)\n            return WndProc(hwnd, WM_CHAR, wParam, lParam);\n        if (wParam & 0xFF00) {")
+    # Do not keep a consumed high surrogate around for an unrelated later input.
+    window = replace(window, "                term_keyinputw(wgs->term, pair, 2);",
+                     "                wgs->pending_surrogate = 0;\n                term_keyinputw(wgs->term, pair, 2);")
+    window = replace(window, "                term_keyinputw(wgs->term, &c, 1);",
+                     "                wgs->pending_surrogate = 0;\n                term_keyinputw(wgs->term, &c, 1);")
     window = replace(window, "    dll_hijacking_protection();", "    dll_hijacking_protection();\n    wookWindowInit();")
     window = replace(window, "    ShowWindow(wgs->term_hwnd, show);\n    SetForegroundWindow(wgs->term_hwnd);",
                      "    if (!wookParent) {\n        ShowWindow(wgs->term_hwnd, show);\n        SetForegroundWindow(wgs->term_hwnd);\n    }")
@@ -46,7 +60,7 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
     window = replace(window, "            conf_cache_data(wgs);",
                      "            wookIndependentConf(wgs->conf);\n            conf_cache_data(wgs);")
     window = replace(window, "    switch (message) {\n      case WM_CREATE:",
-                     "    if (wookKey(hwnd, message, wParam, lParam)) return 0;\n    switch (message) {\n      case WM_APP + 60:\n        if (wookParent && wgs) {\n            close_session(wgs);\n            term_pwron(wgs->term, false);\n            start_backend(wgs);\n        }\n        return 0;\n      case WM_CREATE:")
+                     "    if (wookImeMessage(wgs, message, wParam, &lParam)) return 0;\n    if (wookKey(hwnd, message, wParam, lParam)) return 0;\n    switch (message) {\n      case WM_APP + 60:\n        if (wookParent && wgs) {\n            wsImeClear(wgs->wshell_ime);\n            close_session(wgs);\n            term_pwron(wgs->term, false);\n            start_backend(wgs);\n        }\n        return 0;\n      case WM_CREATE:")
     window = replace(window, "static void clear_full_screen(WinGuiSeat *wgs)\n{",
                      "static void clear_full_screen(WinGuiSeat *wgs)\n{\n    if (wookParent) return;")
     window = replace(window, "static bool is_full_screen(WinGuiSeat *wgs)\n{",
@@ -69,6 +83,9 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
                 break;
             }''')
     (SOURCE / "windows/window.c").write_text(window, encoding="utf-8")
+    seat = original("windows/win-gui-seat.h")
+    seat = replace(seat, "    HWND term_hwnd;", "    HWND term_hwnd;\n    struct WsIme *wshell_ime;")
+    (SOURCE / "windows/win-gui-seat.h").write_text(seat, encoding="utf-8")
 
     # Explicit, locally assigned authentication metadata: never infer password prompts from server text.
     header = original("putty.h")
@@ -244,6 +261,7 @@ shutil.copyfile(ROOT / "patches/wook-window.h", SOURCE / "windows/wook-window.h"
 shutil.copyfile(ROOT / "patches/wshell-config.h", SOURCE / "windows/wshell-config.h")
 shutil.copyfile(ROOT / "src/settings_ui.h", SOURCE / "windows/wshell-settings-ui.h")
 shutil.copyfile(ROOT / "src/credentials.h", SOURCE / "windows/wshell-credentials.h")
+shutil.copyfile(ROOT / "src/ime.h", SOURCE / "windows/wshell-ime.h")
 shutil.copyfile(ROOT / "src/store.c", SOURCE / "windows/wook-store.c")
 shutil.copyfile(ROOT / "src/store.h", SOURCE / "windows/wook-store.h")
 # Shared implementation includes this short local filename.

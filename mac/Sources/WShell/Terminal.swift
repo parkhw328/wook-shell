@@ -5,8 +5,38 @@ import WShellCore
 final class SessionTerminal: LocalProcessTerminalView {
     var output: ((String) -> Void)?
     var bridge: TerminalBridge!
+    private var compositionSelection = NSRange(location: NSNotFound, length: 0)
+
+    override func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
+        let text: NSMutableAttributedString
+        if let attributed = string as? NSAttributedString { text = NSMutableAttributedString(attributedString: attributed) }
+        else { text = NSMutableAttributedString(string: string as? String ?? "") }
+        // Give uncommitted text the same orange accent as the terminal caret.
+        text.addAttributes([.underlineStyle: NSUnderlineStyle.single.rawValue, .underlineColor: Theme.orange],
+                           range: NSRange(location: 0, length: text.length))
+        let start = min(selectedRange.location, text.length)
+        compositionSelection = NSRange(location: start, length: min(selectedRange.length, text.length - start))
+        super.setMarkedText(text, selectedRange: compositionSelection, replacementRange: replacementRange)
+        if text.length == 0 { unmarkText() }
+        inputContext?.invalidateCharacterCoordinates()
+    }
+    override func selectedRange() -> NSRange {
+        hasMarkedText() ? compositionSelection : super.selectedRange()
+    }
+    override func insertText(_ string: Any, replacementRange: NSRange) {
+        // AppKit can commit an attributed string; SwiftTerm's insertion path accepts NSString.
+        let text = (string as? NSAttributedString)?.string ?? (string as? String ?? "")
+        super.insertText(text, replacementRange: replacementRange)
+        // Also reset the library's composing flag for subsequent terminal keys.
+        unmarkText()
+    }
+    override func unmarkText() {
+        compositionSelection = NSRange(location: NSNotFound, length: 0)
+        super.unmarkText()
+    }
     override func dataReceived(slice: ArraySlice<UInt8>) {
         super.dataReceived(slice: slice)
+        if hasMarkedText() { inputContext?.invalidateCharacterCoordinates() }
         output?(String(decoding: slice, as: UTF8.self))
     }
     func configure(size: CGFloat) {

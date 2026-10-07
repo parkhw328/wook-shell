@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const assert = require('node:assert/strict');
+const { StringDecoder } = require('node:string_decoder');
 const root = path.resolve(__dirname, '../..');
 const output = path.join(root, 'build', 'mac-evidence');
 const data = path.join(output, 'data');
@@ -34,7 +35,8 @@ const server = new Server({ hostKeys: [serverKey.private] }, client => {
     session.on('shell', accept => {
       ++events.shells; const stream = accept();
       stream.write('\r\n\x1b[38;2;218;112;44mwShell · loopback SSH\x1b[0m\r\nWSHELL_SSH_READY\r\n$ ');
-      stream.on('data', data => { events.input += data.toString(); stream.write(data); });
+      const decoder = new StringDecoder('utf8');
+      stream.on('data', data => { events.input += decoder.write(data); stream.write(data); });
     });
   }));
 });
@@ -57,6 +59,8 @@ const server = new Server({ hostKeys: [serverKey.private] }, client => {
     assert.equal(events.passwords, 1, 'Saved password must authenticate exactly once');
     assert.equal(events.shells, 2); assert(events.resizes > 0);
     assert(events.input.includes('key-input') && events.input.includes('password-input'));
+    assert.equal(events.input.split('|ime:한글🙂|').length - 1, 1, 'Only committed IME text must cross SSH, exactly once');
+    assert(!events.input.includes('취소') && !events.input.includes('ㅎ'), 'Preedit and cancelled text must remain local');
     assert(events.terminalTypes.every(type => type === 'xterm-256color'));
     fs.writeFileSync(path.join(output, 'ssh-result.json'), JSON.stringify({ passed: true, events }, null, 2));
     console.log(JSON.stringify({ passed: true, events }));
