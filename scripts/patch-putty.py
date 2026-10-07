@@ -27,6 +27,8 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
                      "static void wgs_cleanup(WinGuiSeat *wgs)\n{\n    wsImeDestroy(wgs->wshell_ime);")
     window = replace(window, "    ImmSetCompositionWindow(hIMC, &cf);",
                      "    ImmSetCompositionWindow(hIMC, &cf);\n    wookImePosition(wgs);")
+    window = replace(window, "    if (cx == wgs->caret_x && cy == wgs->caret_y)\n        return;",
+                     "    if (cx == wgs->caret_x && cy == wgs->caret_y) {\n        /* Font or DPI can change even at the same pixel position. */\n        wookImePosition(wgs);\n        return;\n    }")
     # WM_IME_CHAR is UTF-16 in a Unicode window, not a pair of legacy DBCS bytes.
     window = replace(window, "      case WM_IME_CHAR:\n        if (wParam & 0xFF00) {",
                      "      case WM_IME_CHAR:\n        if (unicode_window)\n            return WndProc(hwnd, WM_CHAR, wParam, lParam);\n        if (wParam & 0xFF00) {")
