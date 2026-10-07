@@ -71,6 +71,7 @@ final class SmokeTest {
                 try workspace.store.save(host)
                 try CredentialStore().save(host.credentialID, password: Data((env["WSHELL_TEST_PASSWORD"] ?? "").utf8))
             case 4 where received.contains("WSHELL_SSH_READY"):
+                try require(workspace.active?.inputReady == true,"SSH broadcast readiness must follow authentication")
                 try require(workspace.active?.terminal.process.running == true, "SSH PTY is not running.")
                 try require(String(decoding: workspace.active!.terminal.terminal.getBufferAsData(), as: UTF8.self).contains("WSHELL_SSH_READY"), "SSH output did not reach the terminal screen buffer.")
                 workspace.active?.terminal.send(txt: "key-input\r"); try capture("mac-ssh")
@@ -169,13 +170,20 @@ final class SmokeTest {
                 try require(true,"Common command reaches all four panes")
                 workspace.syncInput.state = .on; workspace.inputOptionsChanged()
                 workspace.active!.terminal.insertText("printf live > live-$WSHELL_PANE.ready\n", replacementRange:NSRange(location:NSNotFound,length:0))
+                workspace.active!.terminal.setMarkedText("취소", selectedRange:NSRange(location:2,length:0), replacementRange:NSRange(location:NSNotFound,length:0))
+                workspace.active!.terminal.unmarkText()
+                workspace.active!.terminal.insertText(NSAttributedString(string:"printf '한글🙂' > unicode-$WSHELL_PANE.ready\n"), replacementRange:NSRange(location:NSNotFound,length:0))
                 advance(15)
-            case 15 where (0..<4).allSatisfy({FileManager.default.fileExists(atPath:output.appendingPathComponent("live-\($0).ready").path)}):
+            case 15 where (0..<4).allSatisfy({FileManager.default.fileExists(atPath:output.appendingPathComponent("unicode-\($0).ready").path)}):
                 try require(true,"Committed keyboard text reaches all four panes")
                 for index in 0..<4 { try require(try String(contentsOf:output.appendingPathComponent("live-\(index).ready"),encoding:.utf8) == "live","Broadcast delivers exact text once") }
+                for index in 0..<4 { try require(try String(contentsOf:output.appendingPathComponent("unicode-\(index).ready"),encoding:.utf8) == "한글🙂","Broadcast only committed IME Unicode once") }
                 try capture("mac-broadcast")
                 workspace.setSplit(2)
                 try require(workspace.sendAll.state == .off && workspace.syncInput.state == .off,"Changing panes disables broadcast")
+                workspace.sendAll.state = .on; workspace.commandText.stringValue = "printf scoped > scoped-$WSHELL_PANE.ready"; workspace.sendCommand(); advance(16)
+            case 16 where [0,3].allSatisfy({FileManager.default.fileExists(atPath:output.appendingPathComponent("scoped-\($0).ready").path)}):
+                try require([1,2].allSatisfy { !FileManager.default.fileExists(atPath:output.appendingPathComponent("scoped-\($0).ready").path) },"Hidden tabs must not receive commands")
                 workspace.setSplit(4); workspace.close(workspace.active!, confirm: false)
                 try require(workspace.panes.count == 3 && workspace.sessions.allSatisfy { !$0.view.isHidden }, "Closing split pane keeps other sessions visible")
                 finish(nil)

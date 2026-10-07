@@ -2,14 +2,21 @@ import AppKit
 import SwiftTerm
 import WShellCore
 
+final class TerminalWindow: NSWindow {
+    override func sendEvent(_ event: NSEvent) {
+        let terminal = firstResponder as? SessionTerminal
+        let keyboard = event.type == .keyDown || event.type == .keyUp
+        if keyboard { terminal?.inputDepth += 1 }
+        defer { if keyboard { terminal?.inputDepth -= 1 } }
+        super.sendEvent(event)
+    }
+}
+
 final class SessionTerminal: LocalProcessTerminalView {
     var output: ((String) -> Void)?
     var bridge: TerminalBridge!
     var userInput: ((ArraySlice<UInt8>) -> Void)?
     var inputDepth = 0
-    override func keyDown(with event: NSEvent) {
-        inputDepth += 1; defer { inputDepth -= 1 }; super.keyDown(with:event)
-    }
     override func paste(_ sender: Any) {
         inputDepth += 1; defer { inputDepth -= 1 }; super.paste(sender)
     }

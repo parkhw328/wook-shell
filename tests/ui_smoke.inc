@@ -286,7 +286,7 @@ void runUiSmoke(App &app) {
             for (int i=0;i<4;++i) {
                 SendMessageW(app.hwnd,WM_APP+46,(WPARAM)app.tabs[i]->terminal,0);
                 require(app.active==i,"Focused pane must own tab commands");
-                std::wstring text=L"set WSHELL_PANE="+std::to_wstring(i)+L"\recho pane > \""+app.directory+L"\\split-"+std::to_wstring(i)+L".ready\"\r";
+                std::wstring text=L"chcp 65001>nul\rset WSHELL_PANE="+std::to_wstring(i)+L"\recho pane > \""+app.directory+L"\\split-"+std::to_wstring(i)+L".ready\"\r";
                 for(wchar_t ch:text)PostMessageW(app.tabs[i]->terminal,WM_CHAR,ch,1);
             }
             phase=36;waits=0;
@@ -320,10 +320,12 @@ void runUiSmoke(App &app) {
             PostMessageW(target,WM_KEYDOWN,VK_LEFT,0x014b0001);PostMessageW(target,WM_KEYUP,VK_LEFT,0xc14b0001);
             PostMessageW(target,WM_KEYDOWN,VK_RIGHT,0x014d0001);PostMessageW(target,WM_KEYUP,VK_RIGHT,0xc14d0001);
             for(auto c:L"e>\""+app.directory+L"\\live-%WSHELL_PANE%.ready\"\r")PostMessageW(target,WM_CHAR,c,1);
+            for(auto c:L"echo 한글\U0001f642>\""+app.directory+L"\\unicode-%WSHELL_PANE%.ready\"\r")PostMessageW(target,WM_IME_CHAR,c,1);
             phase=40;waits=0;
-        } else if (phase == 40 && received(L"live-0.ready") && received(L"live-1.ready") && received(L"live-2.ready") && received(L"live-3.ready")) {
+        } else if (phase == 40 && received(L"unicode-0.ready") && received(L"unicode-1.ready") && received(L"unicode-2.ready") && received(L"unicode-3.ready")) {
             require(true,"Live keyboard input, cursor keys and Backspace reach all split terminals without loops");
             for (int i=0;i<4;++i) { std::ifstream file(std::filesystem::path(app.directory)/(L"live-"+std::to_wstring(i)+L".ready")); std::string value;std::getline(file,value);require(value=="live","Broadcast keyboard edits must produce exact text"); }
+            for (int i=0;i<4;++i) { std::ifstream file(std::filesystem::path(app.directory)/(L"unicode-"+std::to_wstring(i)+L".ready")); std::string value;std::getline(file,value);require(value==wook::utf8(L"한글\U0001f642"),"Committed Unicode must broadcast once without broken surrogate pairs"); }
             captureTestWindow(app.hwnd,L"ui-broadcast.bmp");
             app.setSplit(2);
             require(SendMessageW(app.control(SendAll),BM_GETCHECK,0,0)==BST_UNCHECKED && SendMessageW(app.control(SyncInput),BM_GETCHECK,0,0)==BST_UNCHECKED,"Changing target panes resets both broadcast modes");

@@ -4,7 +4,7 @@ import WShellCore
 
 final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTableViewDataSource, NSTableViewDelegate, NSTextFieldDelegate, LocalProcessTerminalViewDelegate {
     let store: SettingsStore
-    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1200, height: 780), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+    let window = TerminalWindow(contentRect: NSRect(x: 0, y: 0, width: 1200, height: 780), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
     let root = Canvas(), sidebar = Canvas(), home = Canvas(), tabBar = Canvas(), content = Canvas()
     let table = NSTableView(), scroll = NSScrollView(), tabsScroll = NSScrollView()
     let search = Theme.input("Find a host"), quick = Theme.input("user@hostname"), status = Theme.label("LOCAL DATA  ·  Flexoki Dark / JetBrains Mono", size: 11, color: Theme.muted)
