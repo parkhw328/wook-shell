@@ -1,0 +1,36 @@
+name: iPad personal preview
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['ios/**', 'scripts/build-ios.py', 'tests/ssh/ios-integration.cjs', '.github/workflows/ipad.yml']
+permissions:
+  contents: read
+jobs:
+  ipad:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+      - name: Build simulator and unsigned device IPA
+        run: python3 scripts/build-ios.py
+      - name: Install isolated SSH fixture
+        run: npm --prefix tests/ssh ci --ignore-scripts --omit=optional
+      - name: Test native iPad terminal, SSH, Keychain and SFTP
+        run: node tests/ssh/ios-integration.cjs
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: wshell-ipad-personal-unsigned
+          path: dist/ipad/*/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: ipad-test-evidence
+          path: build/ipad-evidence/*
+          if-no-files-found: ignore
