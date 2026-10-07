@@ -86,7 +86,7 @@ def project():
         configs = [obj(name + c, 'XCBuildConfiguration', name=c, buildSettings=settings) for c in ('Debug', 'Release')]
         return obj(name, 'XCConfigurationList', buildConfigurations=configs, defaultConfigurationIsVisible=0, defaultConfigurationName='Release')
     files, sources, resources = [], [], []
-    for p in sorted((ROOT / 'ios').glob('*.swift')) + [ROOT / 'ios/SSH.c', ROOT / 'mac/Sources/CSFTP/wsftp.c']:
+    for p in sorted((ROOT / 'ios').glob('*.swift')) + [ROOT / 'mac/Sources/WShellCore/SplitLayout.swift', ROOT / 'ios/SSH.c', ROOT / 'mac/Sources/CSFTP/wsftp.c']:
         ref = obj(str(p), 'PBXFileReference', path=str(p), sourceTree='<absolute>', lastKnownFileType='sourcecode.swift' if p.suffix == '.swift' else 'sourcecode.c.c')
         files.append(ref); sources.append(obj(str(p) + 'build', 'PBXBuildFile', fileRef=ref))
     assets = BUILD / 'Assets.xcassets'; icons = assets / 'AppIcon.appiconset'; icons.mkdir(parents=True, exist_ok=True)
@@ -132,6 +132,9 @@ def project():
     root = obj('project', 'PBXProject', attributes={'LastUpgradeCheck':'1600'}, buildConfigurationList=config('projectConfig', {}), compatibilityVersion='Xcode 14.0', developmentRegion='en', knownRegions=['en','Base'], mainGroup=group, productRefGroup=group, projectDirPath='', projectRoot='', targets=[target], packageReferences=[package])
     directory = BUILD / 'wShell.xcodeproj'; directory.mkdir(exist_ok=True)
     (directory / 'project.pbxproj').write_bytes(plistlib.dumps(dict(archiveVersion='1', classes={}, objectVersion='56', objects=objects, rootObject=root)))
+    resolved = directory / 'project.xcworkspace/xcshareddata/swiftpm/Package.resolved'
+    resolved.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(ROOT / 'mac/Package.resolved', resolved)
     return directory
 
 def main():
@@ -142,7 +145,8 @@ def main():
         dependencies(sdk)
     directory = project()
     for sdk in ('iphonesimulator', 'iphoneos'):
-        run('xcodebuild', '-project', directory, '-scheme', 'wShell', '-configuration', 'Release',
+        # The pinned SwiftTerm build-info plugin was reviewed; it only emits revision metadata.
+        run('xcodebuild', '-skipPackagePluginValidation', '-disableAutomaticPackageResolution', '-project', directory, '-scheme', 'wShell', '-configuration', 'Release',
             '-sdk', sdk, '-destination', 'generic/platform=iOS Simulator' if sdk == 'iphonesimulator' else 'generic/platform=iOS',
             '-derivedDataPath', BUILD / 'DerivedData', 'ARCHS=arm64', 'CODE_SIGNING_ALLOWED=NO', 'build')
     app = BUILD / 'DerivedData/Build/Products/Release-iphoneos/wShell.app'

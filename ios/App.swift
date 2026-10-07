@@ -18,6 +18,7 @@ struct Workspace: View {
     @ObservedObject var store: HostStore
     @Environment(\.scenePhase) private var phase
     @State private var sessions: [Connection] = [], selected: UUID?
+    @State private var splitCount = 1, panes: [UUID] = []
     @State private var editor: Host?, openRequest: OpenRequest?, trustRequest: TrustRequest?
     @State private var error = "", showError = false, about = false, importing = false, exporting = false, backupInfo = false
     @State private var backup = BackupDocument(Data())
@@ -47,18 +48,32 @@ struct Workspace: View {
             VStack(spacing: 0) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        Button("Home") { selected = nil }
+                        Button("Home") { select(nil) }
                         ForEach(sessions) { session in
                             HStack(spacing: 12) {
-                                Button((session.isSFTP ? "⇅ " : "") + session.host.name) { selected = session.id }
+                                Button((session.isSFTP ? "⇅ " : "") + session.host.name) { select(session.id) }
                                 Button { close(session) } label: { Image(systemName: "xmark") }.accessibilityLabel("Close \(session.host.name)")
                             }.padding(12).background(selected == session.id ? Palette.orange.opacity(0.2) : Palette.panel).clipShape(RoundedRectangle(cornerRadius: 8))
                         }
+                        Menu("Split") {
+                            ForEach(1...4, id: \.self) { count in
+                                Button(count == 1 ? "Single pane" : "\(count) panes") { setSplit(count) }.disabled(sessions.count < count || selected == nil)
+                            }
+                        }.padding(.horizontal, 12)
                     }.padding(12)
                 }.background(Palette.panel)
-                if let session = sessions.first(where: { $0.id == selected }) {
-                    SessionPane(connection: session) { openRequest = OpenRequest(host: session.host, sftp: session.isSFTP) }
-                        .id(session.id)
+                if selected != nil, !visibleSessions.isEmpty {
+                    GeometryReader { geometry in
+                        let visible = visibleSessions
+                        let frames = SplitLayout.frames(count: visible.count, in: CGRect(origin: .zero, size: geometry.size))
+                        ForEach(Array(visible.enumerated()), id: \.element.id) { index, session in
+                            SessionPane(connection: session) { openRequest = OpenRequest(host: session.host, sftp: session.isSFTP) }
+                                .overlay { Rectangle().stroke(selected == session.id && visible.count > 1 ? Palette.orange : Palette.muted.opacity(0.2), lineWidth: visible.count > 1 ? 2 : 0).allowsHitTesting(false) }
+                                .frame(width: frames[index].width, height: frames[index].height)
+                                .position(x: frames[index].midX, y: frames[index].midY)
+                                .simultaneousGesture(TapGesture().onEnded { select(session.id) })
+                        }
+                    }
                 } else {
                     VStack(alignment: .leading, spacing: 22) {
                         Text("Made for the\ncommand line.").font(Palette.font(32, bold: true))
@@ -114,11 +129,34 @@ struct Workspace: View {
         }
     }
     private func report(_ message: String) { error = message; showError = true }
-    private func close(_ session: Connection) { session.stop(); sessions.removeAll { $0.id == session.id }; if selected == session.id { selected = sessions.last?.id } }
+    private var visibleSessions: [Connection] {
+        guard let selected else { return [] }
+        if splitCount == 1 { return sessions.filter { $0.id == selected } }
+        var ids = panes.filter { id in sessions.contains { $0.id == id } }
+        if !ids.contains(selected) { ids.insert(selected, at: 0) }
+        for session in sessions where ids.count < splitCount && !ids.contains(session.id) { ids.append(session.id) }
+        return ids.prefix(splitCount).compactMap { id in sessions.first { $0.id == id } }
+    }
+    private func select(_ id: UUID?) {
+        if let id, splitCount > 1, !visibleSessions.contains(where: { $0.id == id }) {
+            panes = visibleSessions.map(\.id)
+            if let index = panes.firstIndex(where: { $0 == selected }) { panes[index] = id }
+            else if !panes.isEmpty { panes[0] = id }
+        }
+        selected = id
+    }
+    private func setSplit(_ count: Int) {
+        guard let selected else { return }
+        splitCount = count; panes = [selected] + sessions.filter { $0.id != selected }.prefix(count-1).map(\.id)
+    }
+    private func close(_ session: Connection) {
+        session.stop(); sessions.removeAll { $0.id == session.id }; panes.removeAll { $0 == session.id }
+        if selected == session.id { selected = panes.first ?? sessions.last?.id }
+    }
     private func connect(_ request: OpenRequest, _ password: String, _ key: Data?, _ passphrase: String) {
         let session = Connection(host: request.host, sftp: request.sftp)
         if !request.sftp { session.terminal = TerminalPane(session) }
-        sessions.append(session); selected = session.id
+        sessions.append(session); select(session.id)
         session.start(password: password, key: key, passphrase: passphrase) { fingerprint, respond in
             if let known = store.fingerprint(request.host) {
                 if known == fingerprint { respond(true) }
@@ -135,10 +173,15 @@ private struct SessionPane: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text(connection.status).lineLimit(2).font(Palette.font(11)).foregroundStyle(Palette.muted)
+                VStack(alignment: .leading) {
+                    Text(connection.host.name).font(Palette.font(11, bold: true)).lineLimit(1)
+                    Text(connection.status).lineLimit(2).font(Palette.font(11)).foregroundStyle(Palette.muted)
+                }
                 Spacer()
-                Button(connection.ready ? "Duplicate tab" : "Reconnect", action: duplicate)
-                Button("Disconnect") { connection.stop() }.disabled(!connection.ready)
+                Menu("Tab") {
+                    Button(connection.ready ? "Duplicate tab" : "Reconnect", action: duplicate)
+                    Button("Disconnect") { connection.stop() }.disabled(!connection.ready)
+                }
             }.padding(12)
             if connection.isSFTP {
                 if connection.ready { FilesPane(connection) }
