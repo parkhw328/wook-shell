@@ -62,6 +62,7 @@ final class SmokeTest {
                 try CredentialStore().save(host.credentialID, password: Data((env["WSHELL_TEST_PASSWORD"] ?? "").utf8))
             case 4 where received.contains("WSHELL_SSH_READY"):
                 try require(workspace.active?.terminal.process.running == true, "SSH PTY is not running.")
+                try require(String(decoding: workspace.active!.terminal.terminal.getBufferAsData(), as: UTF8.self).contains("WSHELL_SSH_READY"), "SSH output did not reach the terminal screen buffer.")
                 workspace.active?.terminal.send(txt: "key-input\r"); try capture("mac-ssh")
                 workspace.window.setContentSize(NSSize(width: 1200,height: 780)); workspace.layout(); advance(5)
             case 5 where ticks > 8:

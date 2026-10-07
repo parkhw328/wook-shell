@@ -16,6 +16,7 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
         NSApp.appearance = NSAppearance(named: .darkAqua); Theme.loadFonts(); buildMenu()
         window.title = "wShell"; window.minSize = NSSize(width: 1060, height: 720); window.delegate = self
         window.backgroundColor = Theme.background; window.contentView = root; root.wantsLayer = true
+        window.setContentSize(NSSize(width: 1200, height: 780))
         root.layer?.backgroundColor = Theme.background.cgColor
         sidebar.wantsLayer = true; sidebar.layer?.backgroundColor = Theme.panel.cgColor
         [sidebar, content, tabsScroll, status].forEach { root.addSubview($0) }
