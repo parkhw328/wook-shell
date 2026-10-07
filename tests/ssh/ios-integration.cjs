@@ -31,7 +31,11 @@ const server = new Server({hostKeys:[serverKey.private]}, client => {
     const key = ctx.username === 'rsa' ? rsaPublic : ctx.username === 'ed25519' ? edPublic : null;
     if (key && ctx.method === 'publickey' && ctx.key.data.equals(key.getPublicSSH()) &&
         (!ctx.signature || key.verify(ctx.blob, ctx.signature, ctx.hashAlgo) === true)) {
-      if (ctx.signature) { ++events[ctx.username]; events.algorithms.push(ctx.key.algo); }
+      if (ctx.signature) {
+        ++events[ctx.username];
+        // ssh2 normalizes RSA key types to ssh-rsa; hashAlgo records the actual signature hash.
+        events.algorithms.push({key:ctx.key.algo, hash:ctx.hashAlgo ?? null});
+      }
       return ctx.accept();
     }
     ctx.reject(['publickey','password']);
@@ -77,7 +81,9 @@ let device;
     assert(result.passed, result.error);
     assert.equal(events.passwords, 1, 'Rejecting host identity must not send a password');
     assert.equal(events.rsa, 2); assert.equal(events.ed25519, 1);
-    assert.equal(events.algorithms.filter(x => x === 'rsa-sha2-512' || x === 'rsa-sha2-256').length, 2);
+    const rsaSignatures = events.algorithms.filter(x => x.key === 'ssh-rsa');
+    assert.equal(rsaSignatures.length, 2);
+    assert(rsaSignatures.every(x => x.hash === 'sha512' || x.hash === 'sha256'), 'RSA signatures must use SHA-2');
     assert.equal(events.shells, 3); assert(events.resizes >= 3);
     assert.equal(events.input.split('|ime:한글🙂|').length - 1, 3);
     assert(!events.input.includes('취소'));
@@ -86,6 +92,7 @@ let device;
     fs.writeFileSync(path.join(evidence,'server-result.json'), JSON.stringify({passed:true, events}, null, 2));
     console.log(JSON.stringify({passed:true, checks:result.checks, events}));
   } catch (error) {
+    fs.writeFileSync(path.join(evidence, 'server-result.json'), JSON.stringify({passed:false, error:String(error), events}, null, 2));
     // Preserve launcher/securityd evidence before deleting our isolated simulator.
     if (device) {
       try {

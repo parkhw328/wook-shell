@@ -6,10 +6,12 @@ Native iPadOS 17+ app; intended for private installation. The requested iPadOS 2
 
 - Flexoki Dark, orange controls, bundled JetBrains Mono and the wShell icon.
 - Multiple SSH terminal tabs, duplication, resizing, ANSI/256/true color, UIKit text input and Ctrl/Esc/Tab/arrow accessory keys.
+- Split existing tabs into 2–4 fixed panes. Tap a pane to focus it; selecting a hidden tab replaces the active pane. Single-pane mode keeps the other connections running.
 - Password and public-key authentication. Import an OpenSSH/PEM **private** key from Files; a `.pub` file alone cannot authenticate. Export PPK to OpenSSH on desktop first. Encrypted keys request a passphrase each connection.
 - SHA-256 server identity verification **before** sending credentials; changed keys are blocked.
 - Optional passwords and imported private keys in this device's non-synchronizing Keychain. Settings reside in the private Application Support directory.
 - Dedicated SFTP tab: local/remote panes, file import/share, upload/download, directory navigation, create folder, delete file/empty folder. Transfers stage files before publication; remote replacement requires atomic rename support.
+- **Show hidden files** starts unchecked and controls both file lists. Dotfiles and local hidden flags stay hidden until enabled.
 - Settings export/import explicitly excludes passwords, private keys and trusted host keys. The iPad JSON backup is separate from desktop WSB1. Existing hosts are retained.
 
 ## Build and validation
