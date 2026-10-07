@@ -290,6 +290,9 @@ Profile *App::selectedHost() {
 void App::layout() {
     RECT client; GetClientRect(hwnd, &client);
     width = MulDiv(client.right, 96, ui::dpi); height = MulDiv(client.bottom, 96, ui::dpi);
+    int capacity = std::max(1, (width - sidebar - 163) / 160);
+    if (active >= 0) tabScroll = std::clamp(tabScroll, std::max(0, active - capacity + 1), active);
+    tabScroll = std::clamp(tabScroll, 0, std::max(0, (int)tabs.size() - 1));
     ui::place(control(NavigationToggle), 130, 8, 112, 32);
     SetWindowTextW(control(NavigationToggle), navigationVisible ? L"Hide hosts" : L"Show hosts");
     ui::place(control(NewHost), 250, 8, 102, 32);
@@ -378,10 +381,6 @@ void App::select(int index) {
         else if (!panes.empty()) panes[0] = tabs[next].get();
     }
     active = next;
-    if (active >= 0 && active < tabScroll) tabScroll = active;
-    int capacity = std::max(1, (width - sidebar - 162) / 160);
-    if (active >= tabScroll + capacity) tabScroll = active - capacity + 1;
-    tabScroll = std::clamp(tabScroll, 0, std::max(0, (int)tabs.size() - 1));
     layout();
     if (active >= 0 && panes.size() > 1 && !paneZoom) inputStatus();
     if (active < 0) SetFocus(control(Quick));

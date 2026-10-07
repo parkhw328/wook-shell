@@ -179,6 +179,13 @@ template<typename Check> bool testSplitFocus(App &app, Check require) {
     } else if (step == 14 && std::filesystem::exists(marker(L"focus-navigation-return"))) {
         app.setNavigation(true); app.toggleTarget(app.panes[1]);
         require(focus() == app.tabs[3]->terminal && app.panes == navigationGroup, "Expanding navigation must preserve terminal focus and pane identity");
+        RECT window{}; GetWindowRect(app.hwnd, &window);
+        app.setNavigation(false);
+        SetWindowPos(app.hwnd, nullptr, 0, 0, ui::px(980), ui::px(740), SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+        app.setNavigation(true); UpdateWindow(app.hwnd);
+        require(std::any_of(app.hits.begin(), app.hits.end(), [&](const Hit &hit) { return !hit.close && hit.index == app.active; }),
+                "Reopening navigation in a narrow window must keep the active tab visible");
+        SetWindowPos(app.hwnd, nullptr, 0, 0, window.right - window.left, window.bottom - window.top, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
         SetWindowTextW(app.control(CommandText), L""); return true;
     }
     return false;
