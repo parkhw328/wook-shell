@@ -34,6 +34,7 @@ It embeds JetBrains Mono, Flexoki colors and the license notices in wShell.app. 
 development-only Swift package dependencies are pinned in mac/Package.resolved and are not app runtime dependencies.
 Windows local terminals use the existing PuTTY ConPTY backend with Windows pseudoconsole APIs.
 SFTP uses a wShell-owned C protocol codec over PuTTY's SSH subsystem on Windows and OS OpenSSH on macOS. Windows integration adds a raw pipe transport and native authentication prompts inside the same executable; SSH cryptography is unchanged. The codec follows SFTP v3 ([draft](https://www.ietf.org/archive/id/draft-ietf-secsh-filexfer-02.txt)) and the OpenSSH POSIX rename extension; it does not redistribute an additional SFTP client.
-# iPad personal preview additions
+
+## iPad personal preview additions
 
 The separate iPad app statically links [libssh2](https://github.com/libssh2/libssh2), BSD-3-Clause, pinned development commit `d4e5780315c352a8b2957eb95072d74ff1cdcc7d` (1.11.2 development snapshot), and [OpenSSL 3.5.9 LTS](https://github.com/openssl/openssl/releases/tag/openssl-3.5.9), Apache-2.0. Original texts are in `licenses/libssh2.txt` and `licenses/OpenSSL.txt` and are included in the app's About screen. Source archives and SHA-256 hashes are fixed in `scripts/build-ios.py`; source code is unmodified. libssh2 uses its modern algorithm defaults, with compression disabled. The iPad app also embeds the already pinned SwiftTerm, Flexoki and JetBrains Mono licenses. Desktop SSH engines are unchanged.

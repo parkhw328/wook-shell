@@ -17,8 +17,23 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: '24'
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            build/ios/deps
+            build/ios/sources
+            build/ios/*.tar.gz
+          key: ipad-crypto-arm64-openssl359-libssh2d4e578-v1
       - name: Build simulator and unsigned device IPA
         run: python3 scripts/build-ios.py
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        if: always()
+        with:
+          path: |
+            build/ios/deps
+            build/ios/sources
+            build/ios/*.tar.gz
+          key: ipad-crypto-arm64-openssl359-libssh2d4e578-v1
       - name: Install isolated SSH fixture
         run: npm --prefix tests/ssh ci --ignore-scripts --omit=optional
       - name: Test native iPad terminal, SSH, Keychain and SFTP

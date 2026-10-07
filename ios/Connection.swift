@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 final class Connection: ObservableObject, Identifiable {
     let id = UUID(), host: Host, isSFTP: Bool

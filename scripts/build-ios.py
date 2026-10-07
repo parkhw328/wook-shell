@@ -78,8 +78,8 @@ def dependencies(sdk):
 def project():
     """Generate an Xcode project without a third-party project generator."""
     objects = {}
-    def obj(name, isa, **values):
-        key = hashlib.sha1(name.encode()).hexdigest()[:24].upper()
+    def obj(identifier, isa, **values):
+        key = hashlib.sha1(identifier.encode()).hexdigest()[:24].upper()
         objects[key] = dict(isa=isa, **values)
         return key
     def config(name, settings):
