@@ -151,8 +151,17 @@ void runUiSmoke(App &app) {
             // Exercise the Unicode fallback through the actual embedded window and SSH.
             for (auto c : std::wstring(L"|ime:한글\U0001f642|"))
                 SendMessageW(app.tabs[0]->terminal, WM_IME_CHAR, c, 1);
+            DeleteFileW((app.directory+L"\\pty-resize.ready").c_str());
             RECT r; GetWindowRect(app.hwnd, &r);
             SetWindowPos(app.hwnd, nullptr, 0,0, r.right-r.left-40, r.bottom-r.top-20, SWP_NOMOVE | SWP_NOZORDER);
+            // CI desktops may already constrain the outer window to its minimum size.
+            // Resize the hosted terminal itself and wait for the independent server's observation.
+            RECT terminalBefore{}, terminalAfter{}; GetClientRect(app.tabs[0]->terminal,&terminalBefore);
+            SetWindowPos(app.tabs[0]->terminal,nullptr,0,0,terminalBefore.right-80,terminalBefore.bottom-48,SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
+            GetClientRect(app.tabs[0]->terminal,&terminalAfter);
+            require(terminalAfter.right<terminalBefore.right && terminalAfter.bottom<terminalBefore.bottom,"PTY resize test must change the terminal client area");
+            phase = 44; waits = 0;
+        } else if (phase == 44 && received(L"pty-resize.ready")) {
             app.action(SessionSettings);
             phase = 7; waits = 0;
         } else if (phase == 7 && std::filesystem::exists(std::filesystem::path(app.directory) / L"settings-live-1.json")) {

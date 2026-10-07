@@ -59,7 +59,7 @@ const server = new Server({ hostKeys: [key] }, client => {
       require('./sftp-fixture.cjs')(session,sftpRoot);
       session.on('pty', (accept, reject, info) => { events.terminalTypes.push(info.term); accept(); });
       session.on('env', (accept, reject, info) => { events.environment.push(info); if (accept) accept(); });
-      session.on('window-change', (accept) => { ++events.resizes; if (accept) accept(); });
+      session.on('window-change', (accept) => { ++events.resizes; signal('pty-resize'); if (accept) accept(); });
       session.on('exec', (accept, reject, info) => {
         const stream = accept();
         stream.write('WOOK_SSH_OK ' + info.command + '\n');
