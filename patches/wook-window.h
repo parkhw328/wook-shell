@@ -37,11 +37,16 @@ static bool wookImeMessage(WinGuiSeat *wgs, UINT message, WPARAM wParam, LPARAM 
 static HWND wookParent = NULL;
 #include "wshell-broadcast.h"
 static bool wookInputReceiving = false;
+static bool wookEditingKey(unsigned key) {
+    return (key >= VK_PRIOR && key <= VK_DOWN) || key == VK_INSERT || key == VK_DELETE ||
+        key == VK_BACK || key == VK_RETURN || key == VK_TAB || key == VK_ESCAPE ||
+        (key >= VK_F1 && key <= VK_F20 && key != VK_F11);
+}
 static void wookInputNotify(void *context, int kind, int codepage, const void *text, int length) {
     WinGuiSeat *wgs = context;
     if (!wookParent || wookInputReceiving || !wgs->backend || !backend_sendok(wgs->backend) ||
         !GetPropW(wgs->term_hwnd, L"wShell.SyncInput")) return;
-    size_t bytes = kind == 2 ? (length < 0 ? strlen(text) + 1 : (size_t)length) : (size_t)length * sizeof(wchar_t);
+    size_t bytes = kind == 4 ? (size_t)length : kind == 2 ? (length < 0 ? strlen(text) + 1 : (size_t)length) : (size_t)length * sizeof(wchar_t);
     if (!bytes || bytes > WSHELL_INPUT_LIMIT) return;
     WsInputHeader *packet = malloc(sizeof(*packet) + bytes);
     if (!packet) return;
@@ -52,21 +57,43 @@ static void wookInputNotify(void *context, int kind, int codepage, const void *t
     SendMessageTimeoutW(wookParent, WM_COPYDATA, (WPARAM)wgs->term_hwnd, (LPARAM)&data, SMTO_ABORTIFHUNG, 500, &ignored);
     SecureZeroMemory(packet, sizeof(*packet) + bytes); free(packet);
 }
+static void wookTranslatedKey(WinGuiSeat *wgs, UINT message, WPARAM key, LPARAM flags, const void *text, int length) {
+    bool receiving = wookInputReceiving;
+    if (!receiving && wookEditingKey((unsigned)key) && (message == WM_KEYDOWN || message == WM_SYSKEYDOWN)) {
+        WsInputKey input = {0}; input.key = (uint32_t)key; input.flags = (uint32_t)flags;
+        if (GetKeyboardState(input.keyboard)) {
+            wookInputNotify(wgs, 4, 0, &input, sizeof(input));
+            wookInputReceiving = true; /* Do not also mirror the source's encoded escape sequence. */
+        }
+    }
+    term_keyinput(wgs->term, -1, text, length);
+    wookInputReceiving = receiving;
+}
 static bool wookInputReceive(WinGuiSeat *wgs, WPARAM sender, LPARAM value) {
     const COPYDATASTRUCT *data = (const COPYDATASTRUCT *)value;
     if (!wgs || (HWND)sender != wookParent || !data || data->dwData != WSHELL_INPUT_MESSAGE ||
-        !data->lpData || data->cbData <= sizeof(WsInputHeader) || data->cbData > WSHELL_INPUT_LIMIT + sizeof(WsInputHeader) ||
+        !wsInputValid(data->lpData, data->cbData) ||
         !wgs->ldisc || !wgs->backend || !backend_sendok(wgs->backend)) return false;
     const WsInputHeader *packet = data->lpData;
-    const void *text = packet + 1; size_t bytes = data->cbData - sizeof(*packet);
-    if (packet->kind < 1 || packet->kind > 3) return false;
-    if (packet->kind != 2 && (packet->length <= 0 || (size_t)packet->length * sizeof(wchar_t) != bytes)) return false;
-    if (packet->kind == 2 && (packet->length < -2 || (packet->length >= 0 ? (size_t)packet->length != bytes : ((const char *)text)[bytes-1] != 0))) return false;
+    const void *text = packet + 1;
+    if (packet->kind == 4) {
+        WsInputKey input; memcpy(&input, text, sizeof(input));
+        unsigned char saved[256], output[256];
+        if (!wookEditingKey(input.key) || (input.flags & 0x80000000u) || !GetKeyboardState(saved)) return false;
+        if (!SetKeyboardState(input.keyboard)) return false;
+        bool receiving = wookInputReceiving; wookInputReceiving = true;
+        int length = TranslateKey(wgs, WM_KEYDOWN, input.key, (LPARAM)input.flags, output);
+        SetKeyboardState(saved);
+        if (length > 0 || length == -2) term_keyinput(wgs->term, -1, output, length);
+        wookInputReceiving = receiving;
+        return true;
+    }
+    bool receiving = wookInputReceiving;
     wookInputReceiving = true;
     if (packet->kind == 1) term_keyinputw(wgs->term, text, packet->length);
     else if (packet->kind == 2) term_keyinput(wgs->term, packet->codepage, text, packet->length);
     else term_do_paste(wgs->term, text, packet->length);
-    wookInputReceiving = false;
+    wookInputReceiving = receiving;
     return true;
 }
 #include "wook-sftp.h"
@@ -137,6 +164,10 @@ static bool wookKey(HWND hwnd, UINT message, WPARAM key, LPARAM flags) {
     else if (control && shift && key == 'P') command = 7;
     else if (control && shift && key == 'L') command = 10;
     else if (control && shift && key == 'S') command = 11;
+    else if (control && shift && key == VK_RETURN) command = 12;
+    else if (control && shift && key == 'B') command = 13;
+    else if (control && shift && key == 'K') command = 14;
+    else if (control && alt && key >= VK_LEFT && key <= VK_DOWN) command = 30 + (int)(key - VK_LEFT);
     else if (alt && key >= '1' && key <= '9') command = 20 + (int)(key - '1');
     else if (key == VK_F11) command = 8;
     else if (alt && key == VK_F4) command = 9;

@@ -11,15 +11,19 @@
 
 여러 탭을 연 뒤 **Split**에서 2·3·4분할을 선택합니다. 영역을 클릭하면 입력 대상이 바뀌며, **Single pane**으로 돌아가도 연결은 유지됩니다. Windows `Ctrl+Shift+S`, Mac `⌘⇧S`. [자세한 사용법](docs/split-view.md)
 
+Windows 0.9에서는 주황색 테두리와 **ACTIVE** 표시로 현재 영역을 구별합니다. **Zoom / Back** 또는 `Ctrl+Shift+Enter`로 현재 영역을 확대하고 원래 분할로 복귀합니다. `Ctrl+Alt+방향키`로 인접 영역에 포커스를 옮깁니다.
+
 ![wShell split terminals](assets/screenshots/split.png)
 
 ## 호스트 별칭·색상과 공통 입력
 
 Windows·Mac의 호스트 편집 화면에서 **Alias**와 **Tab color**를 지정합니다. 별칭과 색상은 탭과 분할 영역을 구분하며 설정 백업에도 포함됩니다.
 
-분할 화면 하단에 명령을 입력하고 Enter 또는 **Send**를 누르면 현재 영역으로 보냅니다. **Send to all panes**를 체크하면 보이는 연결 완료 터미널 모두로 보냅니다. **Sync keyboard**는 터미널에서 타이핑·방향키·Backspace·Ctrl+C·붙여넣기를 동시에 전달하는 별도 옵션입니다.
+분할 화면 하단에 명령을 입력하고 Enter 또는 **Send**를 누르면 현재 영역으로 보냅니다. Windows는 **Targets**에서 대상을 선택하고 **Send to targets**를 체크하면 선택한 영역에 보냅니다. Mac은 기존 **Send to all panes**를 사용합니다. **Sync keyboard**는 터미널에서 타이핑·방향키·Backspace·Ctrl+C·붙여넣기를 동시에 전달하는 별도 옵션입니다.
 
-두 옵션은 기본 해제이며 분할 대상이 바뀌면 해제됩니다. 숨겨진 탭·SFTP·인증 중인 연결은 제외합니다. 자세한 범위는 [분할 입력 사용법](docs/split-view.md)을 확인하세요.
+Windows에서 **Sync keyboard** 또는 `Ctrl+Shift+B`를 누르면 활성 터미널로 포커스가 돌아갑니다. 그 터미널 안에서 방향키·Home/End·Delete로 여러 창을 함께 편집합니다. 공통 명령창의 방향키는 보내기 전 초안만 편집하며, `Ctrl+Shift+K`로 명령창에 이동합니다. **Targets**에서 제외한 영역은 독립적으로 입력할 수 있습니다. 서로 다른 셸·편집기 내용의 커서 좌표 자체를 일치시키는 기능은 아닙니다.
+
+두 옵션은 기본 해제이며 분할 대상이 바뀌면 해제됩니다. Windows는 확대/복귀와 재연결 시에도 해제합니다. 숨겨진 탭·SFTP·인증 중인 연결은 제외합니다. 자세한 범위와 플랫폼 차이는 [분할 입력 사용법](docs/split-view.md), 변경 내역은 [0.9.0 릴리스 노트](docs/releases/0.9.0.md)를 확인하세요.
 
 ![wShell aliases and broadcast controls](assets/screenshots/broadcast.png)
 
@@ -31,7 +35,7 @@ iPad용 네이티브 SSH·SFTP 앱은 별도로 준비 중입니다. 무료 Appl
 
 ### Windows
 
-1. **`wShell.exe` 하나**를 원하는 폴더에 복사합니다. `wshell-0.8.0-windows-x64.zip`에도 이 파일만 들어 있습니다.
+1. **`wShell.exe` 하나**를 원하는 폴더에 복사합니다. `wshell-0.9.0-windows-x64.zip`에도 이 파일만 들어 있습니다.
 2. 실행합니다. 설치, 관리자 권한, WebView2, .NET, Node.js가 필요하지 않습니다.
 3. `New host`에서 접속 정보를 저장하거나, 빠른 연결 칸에 `user@hostname:22`를 입력합니다.
 4. 처음 접속하는 SSH 서버의 키 지문을 확인한 뒤 신뢰 여부를 선택합니다.
@@ -41,7 +45,7 @@ iPad용 네이티브 SSH·SFTP 앱은 별도로 준비 중입니다. 무료 Appl
 
 ### macOS
 
-1. `wshell-0.8.0-macos-universal.zip`을 풀고 **`wShell.app`**을 실행합니다. Applications 폴더로 옮겨도 됩니다.
+1. `wshell-0.9.0-macos-universal.zip`을 풀고 **`wShell.app`**을 실행합니다. Applications 폴더로 옮겨도 됩니다.
 2. macOS 13 이상에서 Apple Silicon·Intel을 모두 지원하는 Universal 앱입니다. 별도 런타임이나 WebView 설치가 필요하지 않습니다.
 3. `New host`로 SSH 서버를 추가하거나 `Open Terminal`로 현재 Mac의 로그인 셸을 엽니다.
 
@@ -57,16 +61,16 @@ macOS의 `.app`은 Finder에서 하나의 앱으로 이동하는 번들이며, �
 ```text
 dist/
   README.md
-  0.8.0/
+  0.9.0/
     manifest.json
     windows-x64/
       wShell.exe
       wShell.exe.sha256
-      wshell-0.8.0-windows-x64.zip
-      wshell-0.8.0-windows-x64.zip.sha256
+      wshell-0.9.0-windows-x64.zip
+      wshell-0.9.0-windows-x64.zip.sha256
     macos-universal/
-      wshell-0.8.0-macos-universal.zip
-      wshell-0.8.0-macos-universal.zip.sha256
+      wshell-0.9.0-macos-universal.zip
+      wshell-0.9.0-macos-universal.zip.sha256
 ```
 
 | 기능 | Windows | macOS |
@@ -79,6 +83,8 @@ dist/
 | 개인키 파일 | PPK; OpenSSH를 키 관리자에서 변환 | OpenSSH 형식 |
 | 고급 PuTTY 설정 / Serial·Telnet·Rlogin·Raw | 지원 | 이번 macOS 버전에서는 미지원 |
 | 설정 백업 | `.wshell`, 암호·개인키 제외 | 같은 형식; 호스트 목록 교환 가능 |
+| 분할·공통 명령·키보드 동기화 | 지원 | 지원 |
+| 개별 동기화 대상 선택·활성 테두리·Zoom/Back | 0.9.0에서 추가 | 기존 분할 UI 유지 |
 
 macOS는 AppKit·SwiftTerm과 OS의 OpenSSH를 사용합니다. SSH 설정 파일·에이전트·공유 연결은 별도로 사용하지 않으며 호스트 키 저장소도 wShell 전용입니다. Windows와 macOS 엔진의 호스트 신뢰 형식은 서로 다르므로 플랫폼을 바꾸면 지문을 다시 확인하세요. PPK 파일을 OpenSSH 개인키로 자동 변환하지 않습니다.
 macOS의 첫 접속은 비밀번호 공급 전에 서버 키 지문을 별도 화면에서 확인합니다. 확인한 키와 다른 키가 제시되면 연결을 거부합니다.

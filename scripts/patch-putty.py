@@ -27,6 +27,8 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
         terminal = replace(terminal, signature + "\n{", signature + "\n{\n    if (term->wshell_input) term->wshell_input(term->wshell_input_context, " + notify + ");")
     (SOURCE / "terminal/terminal.c").write_text(terminal, encoding="utf-8")
     window = original("windows/window.c")
+    window = replace(window, "                    term_keyinput(wgs->term, -1, buf, len);",
+                     "                    wookTranslatedKey(wgs, message, wParam, lParam, buf, len);")
     window = replace(window, "int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)",
                      "int WINAPI wshellTerminalMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)")
     window = replace(window, "HINSTANCE hinst;", '#include "wook-window.h"\n\nHINSTANCE hinst;')

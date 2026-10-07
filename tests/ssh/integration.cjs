@@ -27,6 +27,7 @@ const key = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKe
 const fingerprint = 'SHA256:' + crypto.createHash('sha256').update(utils.parseKey(key).getPublicSSH()).digest('base64').replace(/=+$/, '');
 const events = { authenticated: [], publicKeySignatures: 0, passwords: [], methods: [], shells: 0, terminalTypes: [], environment: [], resizes: 0, received: '' };
 const clients = new Set();
+const syncInput = {};
 let passwordShells = 0;
 const signal = name => fs.writeFileSync(path.join(standalone, name + '.ready'), 'ready\n');
 const server = new Server({ hostKeys: [key] }, client => {
@@ -37,7 +38,7 @@ const server = new Server({ hostKeys: [key] }, client => {
   client.on('authentication', ctx => {
     username = ctx.username;
     events.methods.push({ user: ctx.username, method: ctx.method });
-    if ((ctx.username === 'none' || ctx.username === 'shell') && ctx.method === 'none') ctx.accept();
+    if ((ctx.username === 'none' || ctx.username === 'shell' || ctx.username.startsWith('sync-')) && ctx.method === 'none') ctx.accept();
     else if ((ctx.username === 'password' || ctx.username === 'password-fallback') && ctx.method === 'password') {
       const accepted = ctx.password === password;
       events.passwords.push({ user: ctx.username, accepted });
@@ -68,6 +69,18 @@ const server = new Server({ hostKeys: [key] }, client => {
       session.on('shell', accept => {
         ++events.shells;
         const stream = accept();
+        if (username.startsWith('sync-')) {
+          syncInput[username] = '';
+          stream.write(username === 'sync-application' ? '\x1b[?1h' : '\x1b[?1l');
+          signal(username);
+          const decoder = new StringDecoder('utf8');
+          stream.on('data', bytes => {
+            syncInput[username] += decoder.write(bytes);
+            if (syncInput[username].includes('paste-한글')) signal('sync-input-' + username.slice(5));
+          });
+          stream.on('error', () => {});
+          return;
+        }
         stream.write('\x1b[2J\x1b[H\r\n  \x1b[38;2;58;169;159mSSH CONNECTED\x1b[0m  /  encrypted loopback test\r\n\r\n');
         stream.write('  PuTTY engine + wShell workspace\r\n  UTF-8: 한글 서버 / 日本語 / café\r\n\r\n');
         stream.write('  \x1b[31mANSI\x1b[0m   \x1b[38;5;172m256 colors\x1b[0m   \x1b[38;2;139;126;200m24-bit color\x1b[0m\r\n\r\n');
@@ -157,7 +170,12 @@ function registryDigest() {
   assert.deepEqual(fs.readFileSync(path.join(standalone,'sftp-download','upload-한글.txt')),fs.readFileSync(path.join(standalone,'sftp-local','upload-한글.txt')),'GUI SFTP round trip must preserve exact bytes');
   assert.deepEqual(events.passwords.filter(p => p.user === 'password-fallback').map(p => p.accepted), [false, true], 'Rejected saved password must be tried only once, then allow manual input');
   assert.match(events.received, /y.*z/s, 'Password sessions must open usable shells before and after reconnect');
-  const summary = { passed: true, sshChecks: 16, ui: report, settings, events };
+  const tail = '\x1b[1~\x1b[4~\x1b[3~\x7f\t\x1b\r\x03paste-한글';
+  assert.equal(syncInput['sync-normal'], 'x\x1b[A\x1b[B\x1b[C\x1b[D' + tail, 'Normal cursor mode must receive exact input once');
+  assert.equal(syncInput['sync-application'], 'x\x1bOA\x1bOB\x1bOC\x1bOD' + tail, 'Application cursor mode must translate navigation independently');
+  assert.equal(syncInput['sync-excluded'], '', 'Excluded SSH pane must receive no input');
+  assert.equal(syncInput['sync-hidden'], '', 'Hidden SSH tab must receive no input');
+  const summary = { passed: true, sshChecks: 20, ui: report, settings, events, syncInput };
   fs.writeFileSync(path.join(artifact, 'result.json'), JSON.stringify(summary, null, 2));
   console.log(JSON.stringify(summary, null, 2));
   console.log('Evidence: ' + artifact);

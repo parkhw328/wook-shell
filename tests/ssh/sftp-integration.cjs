@@ -17,9 +17,9 @@ const clients=new Set();const server=new Server({hostKeys:[key]},client=>{
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   const test=spawn(path.join(root,'build/native/sftp-tests.exe'),[],{windowsHide:true,env:{...process.env,WOOK_DATA_DIR:path.join(artifact,'data'),WOOK_SFTP_ENGINE:path.join(root,'build/native/wShell.exe'),WOOK_TEST_PORT:String(server.address().port),WOOK_TEST_FINGERPRINT:pin,WOOK_SFTP_LOCAL:local}});
   test.stdout.pipe(process.stdout);test.stderr.pipe(process.stderr);
-  const timer=setTimeout(()=>{test.kill();for(const c of clients)c.destroy();},60000);
+  const timer=setTimeout(()=>{test.kill();for(const c of clients)c.end();},60000);
   const code=await new Promise(resolve=>test.on('close',resolve));clearTimeout(timer);assert.equal(code,0);
   assert.deepEqual(fs.readFileSync(path.join(local,'한글-🙂.bin')),payload,'download and cancellation preserve exact bytes');
   assert.deepEqual(fs.readdirSync(remote).filter(n=>!n.startsWith('.wshell-')).sort(),['slow.bin','안녕하세요.txt'].sort());
   console.log('PASS: independent SFTP server + SHA-256 byte equality ('+artifact+')');
-})().catch(e=>{console.error(e);process.exitCode=1;}).finally(()=>{for(const c of clients)c.destroy();server.close();});
+})().catch(e=>{console.error(e);process.exitCode=1;}).finally(()=>{for(const c of clients)c.end();server.close();});

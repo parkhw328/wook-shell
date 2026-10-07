@@ -25,7 +25,7 @@ using wook::Profile;
 extern "C" int WINAPI wshellTerminalMain(HINSTANCE, HINSTANCE, LPSTR, int);
 namespace {
 enum { Search = 100, HostList, NewHost, ConnectHost, EditHost, Quick, QuickConnect, Preview,
-       Advanced, Duplicate, Reconnect, SessionSettings, Tools, About, SaveCurrent, HomeNew, HomePreview, LocalCmd, LocalPowerShell, FilesHost, FilesSession, Split, CommandText, SendCommand, SendAll, SyncInput };
+       Advanced, Duplicate, Reconnect, SessionSettings, Tools, About, SaveCurrent, HomeNew, HomePreview, LocalCmd, LocalPowerShell, FilesHost, FilesSession, Split, CommandText, SendCommand, SendAll, SyncInput, Targets, ControlEnd };
 struct Tab {
     Profile profile;
     std::wstring storageName;
@@ -37,7 +37,7 @@ struct Tab {
 };
 struct Hit { RECT rect; int index; bool close; };
 struct App {
-    HWND hwnd = nullptr, controls[28]{};
+    HWND hwnd = nullptr, controls[ControlEnd - Search]{};
     HANDLE job = nullptr;
     std::wstring directory;
     std::vector<Profile> profiles;
@@ -48,7 +48,10 @@ struct App {
     std::vector<wook::PaneRect> paneRects;
     int splitCount = 1;
     std::vector<Tab *> routingPanes;
-    std::wstring commandStatus = L"Current pane only";
+    std::vector<Tab *> excludedPanes;
+    bool paneZoom = false;
+    int toolbarLeft = 0;
+    std::wstring commandStatus = L"Send → active pane";
     int active = -1, tabScroll = 0, dragTab = -1, width = 1200, height = 760;
     POINT dragStart{};
     unsigned sequence = 0;
@@ -72,6 +75,12 @@ struct App {
     void tabMenu(int index, POINT point);
     void splitMenu();
     void setSplit(int count);
+    void zoomPane();
+    void movePane(int direction);
+    void targetsMenu();
+    void toggleTarget(Tab *tab);
+    bool isTarget(Tab *tab) const;
+    void inputStatus();
     bool inputReady(Tab *tab);
     void sendCommand();
     void relayInput(HWND source, const COPYDATASTRUCT *data);
@@ -81,6 +90,7 @@ struct App {
 void runUiSmoke(App &app);
 #endif
 constexpr int sidebar = 252;
+constexpr int paneHeader = 44, paneInset = 3;
 COLORREF hostColor(const Profile &p) {
     if (p.tabColor.size() != 6 || p.tabColor.find_first_not_of(L"0123456789abcdefABCDEF") != std::wstring::npos) return ui::accent;
     auto n = wcstoul(p.tabColor.c_str(), nullptr, 16); return RGB((n >> 16) & 255, (n >> 8) & 255, n & 255);
@@ -90,8 +100,54 @@ bool App::inputReady(Tab *tab) {
     DWORD_PTR ready = 0;
     return SendMessageTimeoutW(tab->terminal, WM_APP + 61, 0, 0, SMTO_ABORTIFHUNG, 100, &ready) && ready;
 }
-void App::sendCommand() {
+bool App::isTarget(Tab *tab) const {
+    return tab && !tab->files && !tab->preview && !tab->ended && !tab->closing &&
+        std::find(excludedPanes.begin(), excludedPanes.end(), tab) == excludedPanes.end();
+}
+void App::inputStatus() {
+    bool sync = SendMessageW(control(SyncInput), BM_GETCHECK, 0, 0) == BST_CHECKED;
+    bool all = SendMessageW(control(SendAll), BM_GETCHECK, 0, 0) == BST_CHECKED;
+    int count = 0; for (auto *tab : panes) if (isTarget(tab) && inputReady(tab)) ++count;
+    commandStatus = sync ? L"LIVE · " + std::to_wstring(count) + L" ready · type in a target pane" :
+        all ? L"Send → " + std::to_wstring(count) + L" ready targets" : L"Send → active pane";
+    if (sync && active >= 0 && !isTarget(tabs[active].get())) commandStatus = L"LIVE paused · active pane excluded";
+}
+void App::toggleTarget(Tab *tab) {
+    auto it = std::find(excludedPanes.begin(), excludedPanes.end(), tab);
+    if (it == excludedPanes.end()) excludedPanes.push_back(tab); else excludedPanes.erase(it);
+    inputStatus(); layout();
+}
+void App::targetsMenu() {
+    auto menuPanes = panes;
+    HMENU menu = CreatePopupMenu();
+    for (size_t i = 0; i < panes.size(); ++i) {
+        auto *tab = panes[i];
+        auto name = std::to_wstring(i + 1) + L"  " + tab->profile.displayName();
+        // Menu labels must not interpret a host alias as a mnemonic.
+        for (size_t p = 0; (p = name.find(L'&', p)) != std::wstring::npos; p += 2) name.insert(p, 1, L'&');
+        bool available = !tab->files && !tab->preview && !tab->ended && !tab->closing;
+        AppendMenuW(menu, MF_STRING | (isTarget(tab) ? MF_CHECKED : 0) | (available ? 0 : MF_GRAYED), i + 1, name.c_str());
+    }
+    RECT r; GetWindowRect(control(Targets), &r);
+    int choice = TrackPopupMenu(menu, TPM_RETURNCMD, r.left, r.top, 0, hwnd, nullptr);
+    DestroyMenu(menu);
+    if (panes != menuPanes) return; // A connection can close while the menu's message loop is running.
+    if (choice > 0 && choice <= (int)panes.size()) toggleTarget(panes[choice - 1]);
+}
+void App::zoomPane() {
     if (active < 0 || panes.size() < 2) return;
+    paneZoom = !paneZoom; routingPanes.clear(); layout();
+    if (IsWindow(tabs[active]->terminal)) SetFocus(tabs[active]->terminal);
+}
+void App::movePane(int direction) {
+    if (active < 0 || panes.size() < 2 || paneZoom) return;
+    auto it = std::find(panes.begin(), panes.end(), tabs[active].get());
+    int next = wook::adjacentPane(paneRects, (int)(it - panes.begin()), direction);
+    if (next < 0 || next >= (int)panes.size()) return;
+    for (size_t i = 0; i < tabs.size(); ++i) if (tabs[i].get() == panes[next]) { select((int)i); break; }
+}
+void App::sendCommand() {
+    if (active < 0 || panes.size() < 2 || paneZoom) return;
     auto text = ui::value(control(CommandText)); if (text.empty()) return;
     if (text.find_first_of(L"\r\n") != std::wstring::npos) throw std::runtime_error("Send one command line at a time.");
     text += L'\r';
@@ -101,7 +157,7 @@ void App::sendCommand() {
     COPYDATASTRUCT packet{WSHELL_INPUT_MESSAGE, (DWORD)bytes.size(), bytes.data()};
     bool all = SendMessageW(control(SendAll), BM_GETCHECK, 0, 0) == BST_CHECKED;
     int sent = 0, skipped = 0;
-    for (auto *tab : panes) if (all || tab == tabs[active].get()) {
+    for (auto *tab : panes) if (all ? isTarget(tab) : tab == tabs[active].get()) {
         DWORD_PTR accepted = 0;
         if (inputReady(tab) && SendMessageTimeoutW(tab->terminal, WM_COPYDATA, (WPARAM)hwnd, (LPARAM)&packet, SMTO_ABORTIFHUNG, 500, &accepted) && accepted) ++sent;
         else ++skipped;
@@ -112,13 +168,28 @@ void App::sendCommand() {
     InvalidateRect(hwnd, nullptr, FALSE);
 }
 void App::relayInput(HWND source, const COPYDATASTRUCT *data) {
-    if (active < 0 || panes.size() < 2 || SendMessageW(control(SyncInput), BM_GETCHECK, 0, 0) != BST_CHECKED ||
-        tabs[active]->terminal != source || !data || !data->lpData || data->cbData <= sizeof(WsInputHeader) || data->cbData > sizeof(WsInputHeader) + WSHELL_INPUT_LIMIT) return;
-    if (std::find(panes.begin(), panes.end(), tabs[active].get()) == panes.end()) return;
-    for (auto *tab : panes) if (tab->terminal != source && inputReady(tab)) {
-        DWORD_PTR accepted;
-        SendMessageTimeoutW(tab->terminal, WM_COPYDATA, (WPARAM)hwnd, (LPARAM)data, SMTO_ABORTIFHUNG, 500, &accepted);
+    if (active < 0 || paneZoom || panes.size() < 2 || SendMessageW(control(SyncInput), BM_GETCHECK, 0, 0) != BST_CHECKED ||
+        !data || !wsInputValid(data->lpData, data->cbData)) return;
+    // Sent input can overtake the child's posted focus notification. Verify the
+    // actual focus before updating selection, so the first keystroke is not lost.
+    if (tabs[active]->terminal != source) {
+        GUITHREADINFO info{sizeof(info)};
+        if (!GetGUIThreadInfo(GetWindowThreadProcessId(source, nullptr), &info) || info.hwndFocus != source) return;
+        for (size_t i = 0; i < tabs.size(); ++i) if (tabs[i]->terminal == source &&
+            std::find(panes.begin(), panes.end(), tabs[i].get()) != panes.end()) {
+            active = (int)i; inputStatus(); layout(); break;
+        }
     }
+    if (tabs[active]->terminal != source || !isTarget(tabs[active].get()) || !inputReady(tabs[active].get())) return;
+    if (std::find(panes.begin(), panes.end(), tabs[active].get()) == panes.end()) return;
+    int sent = 1, skipped = 0;
+    for (auto *tab : panes) if (tab->terminal != source && isTarget(tab)) {
+        DWORD_PTR accepted = 0;
+        if (inputReady(tab) && SendMessageTimeoutW(tab->terminal, WM_COPYDATA, (WPARAM)hwnd, (LPARAM)data, SMTO_ABORTIFHUNG, 500, &accepted) && accepted) ++sent;
+        else ++skipped;
+    }
+    commandStatus = L"LIVE → " + std::to_wstring(sent) + L" terminal(s)" + (skipped ? L" · " + std::to_wstring(skipped) + L" skipped" : L"");
+    RECT status = ui::rect(sidebar, height - 65, width - sidebar, 30); InvalidateRect(hwnd, &status, FALSE);
 }
 void visible(HWND hwnd, bool show) { ShowWindow(hwnd, show ? SW_SHOWNA : SW_HIDE); }
 std::wstring lower(std::wstring text) { std::transform(text.begin(), text.end(), text.begin(), towlower); return text; }
@@ -172,8 +243,10 @@ void App::layout() {
     ui::place(control(LocalCmd), left + span - 336, 536, 166, 40);
     ui::place(control(LocalPowerShell), left + span - 160, 536, 138, 40);
     ui::place(control(Duplicate), width - 330, 64, 95, 33);
-    ui::place(control(FilesSession), width - 418, 64, 80, 33);
-    ui::place(control(Split), width - 522, 64, 95, 33);
+    ui::place(control(Split), width - 434, 64, 95, 33);
+    ui::place(control(FilesSession), width - 522, 64, 80, 33);
+    bool showFiles = active >= 0 && !tabs[active]->preview && !tabs[active]->files && tabs[active]->profile.protocol == L"ssh";
+    toolbarLeft = width - (showFiles ? 522 : 434);
     ui::place(control(Reconnect), width - 226, 64, 102, 33);
     ui::place(control(SessionSettings), width - 115, 64, 95, 33);
     ui::place(control(SaveCurrent), width - 126, height - 30, 116, 27);
@@ -181,7 +254,7 @@ void App::layout() {
     for (int id : {Duplicate, Reconnect, SessionSettings}) visible(control(id), active >= 0);
     visible(control(Split), active >= 0);
     visible(control(SaveCurrent), active >= 0 && !tabs[active]->preview && tabs[active]->transient && tabs[active]->profile.protocol != L"local");
-    visible(control(FilesSession), active >= 0 && !tabs[active]->preview && !tabs[active]->files && tabs[active]->profile.protocol == L"ssh");
+    visible(control(FilesSession), showFiles);
     EnableWindow(control(SessionSettings), active >= 0 && !tabs[active]->files && tabs[active]->profile.protocol != L"local");
     panes.erase(std::remove_if(panes.begin(), panes.end(), [&](Tab *p) {
         return std::none_of(tabs.begin(), tabs.end(), [&](const auto &t) { return t.get() == p; });
@@ -193,28 +266,34 @@ void App::layout() {
             for (auto &t : tabs) if ((int)panes.size() < splitCount && std::find(panes.begin(), panes.end(), t.get()) == panes.end()) panes.push_back(t.get());
         }
     }
-    bool commandBar = active >= 0 && panes.size() > 1;
+    if (active < 0 || panes.size() < 2) paneZoom = false;
+    bool commandBar = active >= 0 && panes.size() > 1 && !paneZoom;
     if (routingPanes != panes || !commandBar) {
         SendMessageW(control(SendAll), BM_SETCHECK, BST_UNCHECKED, 0);
         SendMessageW(control(SyncInput), BM_SETCHECK, BST_UNCHECKED, 0);
-        commandStatus = L"Current pane only"; routingPanes = panes;
+        commandStatus = L"Send → active pane"; routingPanes = panes; excludedPanes.clear();
     }
-    for (int id : {CommandText, SendCommand, SendAll, SyncInput}) visible(control(id), commandBar);
-    ui::place(control(CommandText), sidebar+18, height-103, width-sidebar-132, 26);
-    ui::place(control(SendCommand), width-104, height-111, 88, 37);
-    ui::place(control(SendAll), sidebar+16, height-72, 196, 26);
-    ui::place(control(SyncInput), sidebar+218, height-72, 172, 26);
-    paneRects = wook::splitRects(std::max(1, (int)panes.size()), sidebar + 1, 113, width - sidebar - 1, std::max(40, height - 148 - (commandBar ? 94 : 0)));
+    for (int id : {CommandText, SendCommand, SendAll, SyncInput, Targets}) visible(control(id), commandBar);
+    ui::place(control(CommandText), sidebar+18, height-133, width-sidebar-132, 26);
+    ui::place(control(SendCommand), width-104, height-141, 88, 37);
+    ui::place(control(SendAll), sidebar+16, height-101, 190, 26);
+    ui::place(control(SyncInput), sidebar+218, height-101, 180, 26);
+    ui::place(control(Targets), width-172, height-102, 156, 28);
+    int targets = 0; for (auto *tab : panes) if (isTarget(tab)) ++targets;
+    SetWindowTextW(control(Targets), (L"Targets: " + std::to_wstring(targets) + L" / " + std::to_wstring(panes.size())).c_str());
+    paneRects = wook::splitRects(std::max(1, (int)panes.size()), sidebar + 1, 113, width - sidebar - 1, std::max(40, height - 148 - (commandBar ? 124 : 0)));
+    if (paneZoom) for (size_t i = 0; i < panes.size(); ++i) paneRects[i] = panes[i] == tabs[active].get() ?
+        wook::PaneRect{sidebar+1,113,width-sidebar-1,height-148} : wook::PaneRect{};
     for (size_t i = 0; i < tabs.size(); ++i) {
         auto &tab = *tabs[i];
         if (IsWindow(tab.terminal)) {
-            if (commandBar && SendMessageW(control(SyncInput), BM_GETCHECK, 0, 0) == BST_CHECKED && !tab.files && !tab.preview && std::find(panes.begin(), panes.end(), &tab) != panes.end())
+            if (commandBar && SendMessageW(control(SyncInput), BM_GETCHECK, 0, 0) == BST_CHECKED && isTarget(&tab) && std::find(panes.begin(), panes.end(), &tab) != panes.end())
                 SetPropW(tab.terminal, L"wShell.SyncInput", (HANDLE)1);
             else RemovePropW(tab.terminal, L"wShell.SyncInput");
             auto pane = std::find(panes.begin(), panes.end(), &tab);
-            if (active >= 0 && pane != panes.end()) {
+            if (active >= 0 && pane != panes.end() && (!paneZoom || (int)i == active)) {
                 auto r = paneRects[pane - panes.begin()];
-                int inset = panes.size() > 1 ? 2 : 0, header = panes.size() > 1 ? 26 : 0;
+                int inset = panes.size() > 1 ? paneInset : 0, header = panes.size() > 1 ? paneHeader : 0;
                 ui::place(tab.terminal, r.x + inset, r.y + header, r.width - inset * 2, std::max(10, r.height - header - inset));
                 ShowWindow(tab.terminal, SW_SHOWNA);
             } else ShowWindow(tab.terminal, SW_HIDE);
@@ -225,6 +304,7 @@ void App::layout() {
 void App::select(int index) {
     int next = std::clamp(index, -1, (int)tabs.size() - 1);
     if (next >= 0 && splitCount > 1 && std::find(panes.begin(), panes.end(), tabs[next].get()) == panes.end()) {
+        paneZoom = false;
         auto old = active >= 0 ? std::find(panes.begin(), panes.end(), tabs[active].get()) : panes.end();
         if (old != panes.end()) *old = tabs[next].get();
         else if (!panes.empty()) panes[0] = tabs[next].get();
@@ -235,12 +315,14 @@ void App::select(int index) {
     if (active >= tabScroll + capacity) tabScroll = active - capacity + 1;
     tabScroll = std::clamp(tabScroll, 0, std::max(0, (int)tabs.size() - 1));
     layout();
+    if (active >= 0 && panes.size() > 1 && !paneZoom) inputStatus();
     if (active >= 0 && IsWindow(tabs[active]->terminal)) SetFocus(tabs[active]->terminal);
     else if (active < 0) SetFocus(control(Quick));
 }
 void App::setSplit(int count) {
     if (active < 0 || count < 1 || count > 4 || count > (int)tabs.size()) return;
     splitCount = count; panes = {tabs[active].get()};
+    paneZoom = false;
     for (auto &t : tabs) if ((int)panes.size() < count && t.get() != tabs[active].get()) panes.push_back(t.get());
     layout();
 }
@@ -248,9 +330,15 @@ void App::splitMenu() {
     HMENU menu = CreatePopupMenu();
     const wchar_t *labels[] = {L"Single pane", L"2 panes — side by side", L"3 panes — left + stacked right", L"4 panes — grid"};
     for (int i = 1; i <= 4; ++i) AppendMenuW(menu, MF_STRING | (splitCount == i ? MF_CHECKED : 0) | ((int)tabs.size() < i ? MF_GRAYED : 0), i, labels[i - 1]);
+    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(menu, MF_STRING | (panes.size() < 2 ? MF_GRAYED : 0), 5, paneZoom ? L"Restore split\tCtrl+Shift+Enter" : L"Zoom active pane\tCtrl+Shift+Enter");
+    AppendMenuW(menu, MF_STRING | (panes.size() < 2 || paneZoom ? MF_GRAYED : 0), 6, L"Sync keyboard\tCtrl+Shift+B");
+    AppendMenuW(menu, MF_STRING | (panes.size() < 2 || paneZoom ? MF_GRAYED : 0), 7, L"Focus command bar\tCtrl+Shift+K");
     RECT r; GetWindowRect(control(Split), &r);
     int choice = TrackPopupMenu(menu, TPM_RETURNCMD, r.left, r.bottom, 0, hwnd, nullptr);
-    DestroyMenu(menu); if (choice) setSplit(choice);
+    DestroyMenu(menu);
+    if (choice >= 1 && choice <= 4) setSplit(choice);
+    else if (choice >= 5 && choice <= 7) command(choice + 7);
 }
 void App::paint(HDC dc) {
     ui::fill(dc, ui::rect(0, 0, width, height), ui::bg);
@@ -314,19 +402,29 @@ void App::paint(HDC dc) {
         }
     } else {
         auto &tab = *tabs[active];
-        int toolbarSpace = 562;
-        ui::label(dc, tab.preview ? L"Terminal preview" : tab.profile.displayName(), ui::rect(sidebar + 22, 61, std::max(100, width - sidebar - toolbarSpace), 24), ui::TextSize::body, ui::bright, true);
+        int titleWidth = std::max(40, toolbarLeft - sidebar - 34);
+        ui::label(dc, tab.preview ? L"Terminal preview" : tab.profile.displayName(), ui::rect(sidebar + 22, 61, titleWidth, 24), ui::TextSize::body, ui::bright, true);
         std::wstring endpoint = tab.preview ? L"Local preview · no connection" : tab.profile.protocol == L"local" ? L"Local terminal · this computer" : tab.profile.protocol + L"  /  " + (tab.profile.user.empty() ? L"" : tab.profile.user + L"@") + tab.profile.host + L":" + std::to_wstring(tab.profile.port);
-        ui::label(dc, endpoint, ui::rect(sidebar + 22, 85, std::max(100, width - sidebar - toolbarSpace), 19), ui::TextSize::caption, ui::muted, false, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        ui::label(dc, endpoint, ui::rect(sidebar + 22, 85, titleWidth, 19), ui::TextSize::caption, ui::muted);
         ui::fill(dc, ui::rect(sidebar, 112, width - sidebar, 1), ui::raised);
         if (panes.size() > 1) {
             for (size_t i = 0; i < panes.size(); ++i) {
                 auto r = paneRects[i]; bool focused = panes[i] == &tab;
-                ui::fill(dc, ui::rect(r.x, r.y, r.width, r.height), hostColor(panes[i]->profile));
-                ui::fill(dc, ui::rect(r.x+2, r.y+2, r.width-4, r.height-4), ui::bg);
-                ui::fill(dc, ui::rect(r.x+2, r.y+2, r.width-4, 24), focused ? ui::raised : ui::panel);
+                if (r.width == 0) continue;
+                ui::fill(dc, ui::rect(r.x, r.y, r.width, r.height), focused ? ui::accent : ui::line);
+                ui::fill(dc, ui::rect(r.x+paneInset, r.y+paneInset, r.width-paneInset*2, r.height-paneInset*2), ui::bg);
+                ui::fill(dc, ui::rect(r.x+paneInset, r.y+paneInset, r.width-paneInset*2, paneHeader-paneInset), focused ? ui::raised : ui::panel);
+                ui::fill(dc, ui::rect(r.x+9,r.y+9,3,26), hostColor(panes[i]->profile));
                 ui::label(dc, std::to_wstring(i+1) + L"  " + panes[i]->profile.displayName(),
-                    ui::rect(r.x+8,r.y+2,r.width-16,22), ui::TextSize::caption, hostColor(panes[i]->profile), focused);
+                    ui::rect(r.x+18,r.y+4,r.width-86,20), ui::TextSize::caption, focused ? ui::bright : ui::text, focused);
+                bool sync = SendMessageW(control(SyncInput), BM_GETCHECK, 0, 0) == BST_CHECKED;
+                std::wstring state = focused ? L"ACTIVE" : L"INACTIVE";
+                state += panes[i]->files ? L" · SFTP" : panes[i]->preview ? L" · PREVIEW" : panes[i]->ended ? L" · ENDED" :
+                    !isTarget(panes[i]) ? L" · EXCLUDED" : sync ? L" · SYNC ON" : L" · SYNC OFF";
+                ui::label(dc, state, ui::rect(r.x+18,r.y+23,r.width-86,17), ui::TextSize::caption, focused || (sync && isTarget(panes[i])) ? ui::accent : ui::muted, focused);
+                auto zoom = ui::rect(r.x+r.width-62,r.y+8,53,28);
+                ui::round(dc, zoom, ui::raised);
+                ui::label(dc, paneZoom ? L"Back" : L"Zoom", zoom, ui::TextSize::caption, ui::text, false, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
                 if (!IsWindow(panes[i]->terminal)) ui::label(dc, panes[i]->ended ? L"Session ended · Reconnect" : L"Connecting…", ui::rect(r.x+12,r.y+40,r.width-24,28), ui::TextSize::body, ui::muted);
             }
         } else if (!IsWindow(tab.terminal)) {
@@ -335,9 +433,9 @@ void App::paint(HDC dc) {
             ui::label(dc, tab.ended ? L"Reconnect to start again, or open another host." : L"Complete any connection or configuration dialog to continue.", ui::rect(cx, 279, width - cx - 40, 30), ui::TextSize::body, ui::muted);
         }
     }
-    if (active >= 0 && panes.size() > 1) {
-        ui::round(dc, ui::rect(sidebar+12,height-113,width-sidebar-125,42), ui::raised);
-        ui::label(dc, commandStatus, ui::rect(sidebar+420,height-71,width-sidebar-432,25), ui::TextSize::caption, ui::accent);
+    if (active >= 0 && panes.size() > 1 && !paneZoom) {
+        ui::round(dc, ui::rect(sidebar+12,height-143,width-sidebar-125,42), ui::raised);
+        ui::label(dc, commandStatus, ui::rect(sidebar+18,height-68,width-sidebar-36,28), ui::TextSize::caption, ui::accent);
     }
     ui::fill(dc, ui::rect(0, height - 32, width, 32), ui::panel);
     ui::fill(dc, ui::rect(0, height - 33, width, 1), ui::line);
@@ -446,6 +544,7 @@ void App::poll() {
     }
 }
 void App::command(int code) {
+    if (code >= 30 && code <= 33) { movePane(code - 30); return; }
     if (code >= 20 && code < 29) { select(code - 21); return; }
     switch (code) {
     case 1: select(-1); SetFocus(control(Quick)); break;
@@ -481,17 +580,26 @@ void App::command(int code) {
     case 9: SendMessageW(hwnd, WM_CLOSE, 0, 0); break;
     case 10: localShell(); break;
     case 11: splitMenu(); break;
+    case 12: zoomPane(); break;
+    case 13:
+        if (active >= 0 && panes.size() > 1 && !paneZoom) SendMessageW(control(SyncInput), BM_CLICK, 0, 0);
+        break;
+    case 14:
+        if (active >= 0 && panes.size() > 1 && !paneZoom) SetFocus(control(CommandText));
+        break;
     }
 }
 void App::action(int id) {
     if (id == SendCommand) { sendCommand(); return; }
     if (id == SendAll || id == SyncInput) {
-        commandStatus = SendMessageW(control(SyncInput), BM_GETCHECK, 0, 0) == BST_CHECKED ? L"LIVE INPUT → visible terminals" :
-            SendMessageW(control(SendAll), BM_GETCHECK, 0, 0) == BST_CHECKED ? L"Commands → visible terminals" : L"Current pane only";
-        layout(); return;
+        inputStatus(); layout();
+        if (id == SyncInput && active >= 0 && IsWindow(tabs[active]->terminal)) SetFocus(tabs[active]->terminal);
+        else if (id == SendAll) SetFocus(control(CommandText));
+        return;
     }
     switch (id) {
     case Split: splitMenu(); break;
+    case Targets: targetsMenu(); break;
     case NewHost: case HomeNew: { Profile p; if (editHost(hwnd, p, false)) refresh(); break; }
     case EditHost: {
         auto selected = selectedHost(); if (!selected) break;
@@ -648,8 +756,9 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             SendMessageW(app->control(CommandText), EM_SETLIMITTEXT, 8192, 0);
             SetWindowSubclass(app->control(CommandText), editProc, 1, (DWORD_PTR)app);
             addButton(SendCommand, L"Send");
-            app->controls[SendAll-Search] = ui::checkbox(hwnd, L"Send to all panes", SendAll);
+            app->controls[SendAll-Search] = ui::checkbox(hwnd, L"Send to targets", SendAll);
             app->controls[SyncInput-Search] = ui::checkbox(hwnd, L"Sync keyboard", SyncInput);
+            addButton(Targets, L"Targets");
             app->refresh(); app->layout(); SetTimer(hwnd, 1, 350, nullptr); return 0;
         }
         if (!app) return DefWindowProcW(hwnd, msg, wp, lp);
@@ -719,8 +828,11 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             POINT p{GET_X_LPARAM(lp),GET_Y_LPARAM(lp)};
             if (app->active >= 0 && app->panes.size() > 1) {
                 for (size_t i=0;i<app->panes.size();++i) {
-                    auto r=app->paneRects[i]; RECT header=ui::rect(r.x,r.y,r.width,26);
-                    if (PtInRect(&header,p)) for (size_t j=0;j<app->tabs.size();++j) if (app->tabs[j].get()==app->panes[i]) { app->select((int)j); return 0; }
+                    auto r=app->paneRects[i]; RECT header=ui::rect(r.x,r.y,r.width,paneHeader);
+                    RECT zoom=ui::rect(r.x+r.width-62,r.y+8,53,28);
+                    if (r.width > 0 && PtInRect(&header,p)) for (size_t j=0;j<app->tabs.size();++j) if (app->tabs[j].get()==app->panes[i]) {
+                        app->select((int)j); if (PtInRect(&zoom,p)) app->zoomPane(); return 0;
+                    }
                 }
             }
             if (PtInRect(&app->home,p)) { app->select(-1); return 0; }
@@ -779,7 +891,8 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             if (app->active < 0) return 0;
             for (size_t i=0;i<app->tabs.size();++i) if (app->tabs[i]->terminal==(HWND)wp && (int)i!=app->active &&
                 std::find(app->panes.begin(),app->panes.end(),app->tabs[i].get())!=app->panes.end()) {
-                app->active=(int)i; app->layout(); break;
+                if (app->paneZoom) break;
+                app->active=(int)i; app->inputStatus(); app->layout(); break;
             }
             return 0;
         }
@@ -872,6 +985,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
                 else if (ctrl && shift && msg.wParam=='P') command=7;
                 else if (ctrl && shift && msg.wParam=='L') command=10;
                 else if (ctrl && shift && msg.wParam=='S') command=11;
+                else if (ctrl && shift && msg.wParam==VK_RETURN) command=12;
+                else if (ctrl && shift && msg.wParam=='B') command=13;
+                else if (ctrl && shift && msg.wParam=='K') command=14;
+                else if (ctrl && alt && msg.wParam>=VK_LEFT && msg.wParam<=VK_DOWN) command=30+(int)(msg.wParam-VK_LEFT);
                 else if (alt && msg.wParam>='1' && msg.wParam<='9') command=20+(int)(msg.wParam-'1');
                 else if (msg.wParam==VK_F11) command=8;
                 if (command) {

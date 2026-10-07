@@ -2,6 +2,7 @@
 #include "backup.hpp"
 #include "credentials.hpp"
 #include "split.hpp"
+#include "broadcast.h"
 #include <algorithm>
 #include <shellapi.h>
 #include <filesystem>
@@ -21,6 +22,21 @@ template<typename Fn> static void rejects(Fn fn, const char *name) {
 #include "password_test.inc"
 int wmain() {
     try {
+        auto grid = wook::splitRects(4, 0, 0, 1000, 800);
+        check(wook::adjacentPane(grid, 0, 2) == 1 && wook::adjacentPane(grid, 0, 3) == 2, "spatial pane navigation");
+        check(wook::adjacentPane(grid, 3, 0) == 2 && wook::adjacentPane(grid, 3, 1) == 1, "reverse pane navigation");
+        check(wook::adjacentPane(grid, 0, 0) == 0 && wook::adjacentPane(grid, 0, 1) == 0, "pane edges do not wrap");
+        auto triple = wook::splitRects(3, 0, 0, 1000, 800);
+        check(wook::adjacentPane(triple, 2, 1) == 1 && wook::adjacentPane(triple, 2, 0) == 0, "asymmetric layout navigation");
+        struct { WsInputHeader header; uint16_t text[2]; } packet{{1, 0, 2}, {'a', 'b'}};
+        check(wsInputValid(&packet, sizeof(packet)), "valid Unicode input packet");
+        packet.header.length = INT32_MAX;
+        check(!wsInputValid(&packet, sizeof(packet)), "reject oversized Unicode count");
+        packet.header = {4, 0, sizeof(WsInputKey)};
+        check(!wsInputValid(&packet, sizeof(packet)), "reject truncated key state packet");
+        packet.header = {2, 0, -2};
+        memset(packet.text, 'x', sizeof(packet.text));
+        check(!wsInputValid(&packet, sizeof(packet)), "reject unterminated encoded key packet");
         for (int count=1;count<=4;++count) for(int width:{421,800,1301}) {
             auto frames=wook::splitRects(count,13,17,width,611);
             check((int)frames.size()==count,"requested split pane count");

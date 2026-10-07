@@ -40,6 +40,7 @@ void runUiSmoke(App &app) {
     static int phase = 0;
     static int waits = 0;
     static int checks = 0;
+    static std::vector<Tab *> zoomGroup;
     auto require = [&](bool value, const char *message) {
         if (!value) throw std::runtime_error(message);
         ++checks;
@@ -290,6 +291,11 @@ void runUiSmoke(App &app) {
             }
             phase=35;waits=0;
         } else if (phase == 35 && ready() && waits>2) {
+            RECT splitButton{}, duplicateButton{}, reconnectButton{};
+            GetWindowRect(app.control(Split), &splitButton); GetWindowRect(app.control(Duplicate), &duplicateButton);
+            GetWindowRect(app.control(Reconnect), &reconnectButton);
+            require(!IsWindowVisible(app.control(FilesSession)), "Local CMD must hide Files");
+            require(duplicateButton.left-splitButton.right==ui::px(9) && reconnectButton.left-duplicateButton.right==ui::px(9), "Local toolbar must have no Files-sized gap");
             const wchar_t *colors[] = {L"d14d41",L"4385be",L"879a39",L"8b7ec8"};
             for (int i=0;i<4;++i) { app.tabs[i]->profile.alias=L"Server "+std::to_wstring(i+1); app.tabs[i]->profile.tabColor=colors[i]; }
             captureTestWindow(app.hwnd,L"ui-split.bmp");
@@ -309,6 +315,21 @@ void runUiSmoke(App &app) {
             app.setSplit(1);int visible=0;for(auto&t:app.tabs)visible+=IsWindowVisible(t->terminal)!=0;
             require(visible==1,"Single view must hide other live terminals");
             app.setSplit(4); app.select(0);
+            zoomGroup = app.panes;
+            app.zoomPane();
+            int zoomVisible = 0; for (auto &tab : app.tabs) zoomVisible += IsWindowVisible(tab->terminal) != 0;
+            require(zoomVisible == 1 && app.panes == zoomGroup && !IsWindowVisible(app.control(CommandText)), "Zoom preserves pane group and hides broadcast bar");
+            phase=54;waits=0;
+        } else if (phase == 54 && waits>3) {
+            captureTestWindow(app.hwnd,L"ui-split-zoom.bmp");
+            app.zoomPane();
+            require(app.panes == zoomGroup && IsWindowVisible(app.control(CommandText)), "Restore keeps the original split group");
+            phase=55;waits=0;
+        } else if (phase == 55 && waits>3) {
+            captureTestWindow(app.hwnd,L"ui-split-restored.bmp");
+            app.movePane(2); require(app.tabs[app.active].get() == zoomGroup[1], "Move focus right within split");
+            app.movePane(3); require(app.tabs[app.active].get() == zoomGroup[3], "Move focus down within split");
+            app.select(0);
             require(SendMessageW(app.control(SendAll),BM_GETCHECK,0,0)==BST_UNCHECKED && SendMessageW(app.control(SyncInput),BM_GETCHECK,0,0)==BST_UNCHECKED,"Broadcast defaults must be off");
             SetWindowTextW(app.control(CommandText),(L"echo single>\""+app.directory+L"\\single-%WSHELL_PANE%.ready\"").c_str()); app.sendCommand();
             phase=38;waits=0;
@@ -325,11 +346,18 @@ void runUiSmoke(App &app) {
             phase=41;waits=0;
         } else if (phase == 41 && waits>3) {
             auto target=app.tabs[app.active]->terminal;
-            for(auto c:std::wstring(L"echo livX"))PostMessageW(target,WM_CHAR,c,1);
+            GUITHREADINFO info{sizeof(info)};
+            GetGUIThreadInfo(GetWindowThreadProcessId(target,nullptr),&info);
+            require(info.hwndFocus==target, "Enabling Sync keyboard must restore terminal keyboard focus");
+            for(auto c:std::wstring(L"echo lXveZ"))PostMessageW(target,WM_CHAR,c,1);
             PostMessageW(target,WM_KEYDOWN,VK_BACK,0x000e0001);PostMessageW(target,WM_KEYUP,VK_BACK,0xc00e0001);
-            PostMessageW(target,WM_KEYDOWN,VK_LEFT,0x014b0001);PostMessageW(target,WM_KEYUP,VK_LEFT,0xc14b0001);
-            PostMessageW(target,WM_KEYDOWN,VK_RIGHT,0x014d0001);PostMessageW(target,WM_KEYUP,VK_RIGHT,0xc14d0001);
-            for(auto c:L"e>\""+app.directory+L"\\live-%WSHELL_PANE%.ready\"\r")PostMessageW(target,WM_CHAR,c,1);
+            for (int i=0;i<3;++i) {PostMessageW(target,WM_KEYDOWN,VK_LEFT,0x014b0001);PostMessageW(target,WM_KEYUP,VK_LEFT,0xc14b0001);}
+            PostMessageW(target,WM_KEYDOWN,VK_DELETE,0x01530001);PostMessageW(target,WM_KEYUP,VK_DELETE,0xc1530001);
+            PostMessageW(target,WM_CHAR,'i',1);
+            PostMessageW(target,WM_KEYDOWN,VK_HOME,0x01470001);PostMessageW(target,WM_KEYUP,VK_HOME,0xc1470001);
+            PostMessageW(target,WM_CHAR,'@',1);
+            PostMessageW(target,WM_KEYDOWN,VK_END,0x014f0001);PostMessageW(target,WM_KEYUP,VK_END,0xc14f0001);
+            for(auto c:L">\""+app.directory+L"\\live-%WSHELL_PANE%.ready\"\r")PostMessageW(target,WM_CHAR,c,1);
             for(auto c:L"echo 한글\U0001f642>\""+app.directory+L"\\unicode-%WSHELL_PANE%.ready\"\r")PostMessageW(target,WM_IME_CHAR,c,1);
             phase=40;waits=0;
         } else if (phase == 40 && received(L"unicode-0.ready") && received(L"unicode-1.ready") && received(L"unicode-2.ready") && received(L"unicode-3.ready")) {
@@ -348,7 +376,58 @@ void runUiSmoke(App &app) {
             phase=42;waits=0;
         } else if (phase == 42 && received(L"scoped-3.ready") && received(L"scoped-1.ready") && waits>2) {
             require(!received(L"scoped-0.ready") && !received(L"scoped-2.ready"),"Hidden tabs must not receive common commands");
-            app.setSplit(4);for(int i=3;i>=0;--i)closeTestSession(i);phase=37;waits=0;
+            app.setSplit(4); app.select(0);
+            app.toggleTarget(app.tabs[1].get());
+            SendMessageW(app.control(SendAll),BM_CLICK,0,0);
+            SendMessageW(app.control(SyncInput),BM_CLICK,0,0);
+            SetWindowTextW(app.control(CommandText),(L"echo selected>\""+app.directory+L"\\selected-%WSHELL_PANE%.ready\"").c_str());app.sendCommand();
+            auto target=app.tabs[app.active]->terminal;
+            for(auto c:L"echo target>\""+app.directory+L"\\target-%WSHELL_PANE%.ready\"\r")PostMessageW(target,WM_CHAR,c,1);
+            phase=50;waits=0;
+        } else if (phase == 50 && received(L"target-0.ready") && received(L"target-2.ready") && received(L"target-3.ready") && waits>2) {
+            require(!received(L"selected-1.ready") && !received(L"target-1.ready"), "Excluded panes receive neither commands nor live keyboard input");
+            for (int i : {0,2,3}) require(received((L"selected-"+std::to_wstring(i)+L".ready").c_str()), "Selected panes receive one common command");
+            captureTestWindow(app.hwnd,L"ui-broadcast-targets.bmp");
+            app.zoomPane(); app.zoomPane();
+            require(SendMessageW(app.control(SendAll),BM_GETCHECK,0,0)==BST_UNCHECKED && SendMessageW(app.control(SyncInput),BM_GETCHECK,0,0)==BST_UNCHECKED,"Zoom and restore must stop broadcast modes");
+            for(int i=3;i>=0;--i)closeTestSession(i);phase=51;waits=0;
+        } else if (phase == 51 && app.tabs.empty()) {
+            wchar_t port[32]{}, fingerprint[200]{}; GetEnvironmentVariableW(L"WOOK_TEST_PORT",port,32);
+            GetEnvironmentVariableW(L"WOOK_TEST_FINGERPRINT",fingerprint,200);
+            for (auto user : {L"sync-normal",L"sync-application",L"sync-excluded",L"sync-hidden"}) {
+                Profile p; p.name=user; p.user=user; p.host=L"127.0.0.1";p.port=_wtoi(port);
+                wook::saveProfile(p);
+                auto *path=wsPath(L"sessions",wook::utf8(p.name).c_str());auto *store=wsOpen(path,1);free(path);
+                require(store != nullptr, "Cannot create broadcast SSH fixture");
+                wsSet(store,"SSHManualHostKeys",wook::utf8(fingerprint).c_str());require(wsSave(store),"Cannot pin broadcast fixture");wsClose(store);
+                app.connect(p,true);
+            }
+            phase=52;waits=0;
+        } else if (phase == 52 && ready() && received(L"sync-normal.ready") && received(L"sync-application.ready") && received(L"sync-excluded.ready") && received(L"sync-hidden.ready") && waits>3) {
+            app.select(0);app.setSplit(3);app.toggleTarget(app.tabs[2].get());
+            SendMessageW(app.control(SyncInput),BM_CLICK,0,0);
+            auto target=app.tabs[0]->terminal;
+            app.active=1; // Simulate input arriving before the queued focus notification.
+            SendMessageW(target,WM_CHAR,'x',1);
+            require(app.active==0, "First input after focus change must select and broadcast from the focused pane");
+            for (auto key : {VK_UP,VK_DOWN,VK_RIGHT,VK_LEFT,VK_HOME,VK_END,VK_DELETE,VK_BACK,VK_TAB,VK_ESCAPE,VK_RETURN}) {
+                LPARAM flags=1|(MapVirtualKeyW(key,MAPVK_VK_TO_VSC)<<16);
+                if (key>=VK_PRIOR && key<=VK_DELETE) flags|=1<<24;
+                PostMessageW(target,WM_KEYDOWN,key,flags);PostMessageW(target,WM_KEYUP,key,flags|0xc0000000);
+            }
+            PostMessageW(target,WM_CHAR,3,1);
+            // Paste through the same public terminal command as Ctrl+Shift+V.
+            if (OpenClipboard(app.hwnd)) {
+                EmptyClipboard(); auto text=GlobalAlloc(GMEM_MOVEABLE,12*sizeof(wchar_t));
+                auto *buffer=(wchar_t*)GlobalLock(text);wcscpy_s(buffer,12,L"paste-한글");GlobalUnlock(text);
+                SetClipboardData(CF_UNICODETEXT,text);CloseClipboard();
+                PostMessageW(target,WM_SYSCOMMAND,0x01A0,0);
+            } else throw std::runtime_error("Cannot open clipboard for broadcast paste test");
+            phase=53;waits=0;
+        } else if (phase == 53 && received(L"sync-input-normal.ready") && received(L"sync-input-application.ready") && waits>3) {
+            require(true,"Navigation, editing, control keys and Unicode paste use each SSH terminal's mode");
+            require(!received(L"sync-input-excluded.ready") && !received(L"sync-input-hidden.ready"), "Excluded and hidden SSH sessions receive no live input");
+            for(int i=3;i>=0;--i)closeTestSession(i);phase=37;waits=0;
         } else if (phase == 37 && app.tabs.empty()) {
             std::ofstream result(std::filesystem::path(app.directory) / L"ui-smoke-result.json");
             result << "{\"passed\":true,\"checks\":" << checks << "}\n";
