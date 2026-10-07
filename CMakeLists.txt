@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.24)
-project(WookShell VERSION 0.4.1 LANGUAGES C CXX RC)
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" WSHELL_VERSION LIMIT_COUNT 1)
+project(WookShell VERSION ${WSHELL_VERSION} LANGUAGES C CXX RC)
+configure_file(assets/version.h.in "${CMAKE_CURRENT_SOURCE_DIR}/build/version.h" @ONLY)
+configure_file(assets/app.manifest "${CMAKE_CURRENT_SOURCE_DIR}/build/app.manifest" @ONLY)
 if(NOT TARGET wshell-terminal)
     message(FATAL_ERROR "Use scripts/build.ps1 to build wShell with its statically linked terminal.")
 endif()
@@ -15,6 +18,8 @@ set(workspace_sources src/main.cpp src/dialog.cpp src/resources.cpp src/key_dial
 # windres does not emit dependencies for binary RCDATA and nested resource scripts.
 set_property(SOURCE assets/app.rc APPEND PROPERTY OBJECT_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/assets/app.manifest"
+    "${CMAKE_CURRENT_SOURCE_DIR}/build/app.manifest"
+    "${CMAKE_CURRENT_SOURCE_DIR}/build/version.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/assets/wshell.ico"
     "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/JetBrainsMono-Regular.ttf"
     "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/JetBrainsMono-Bold.ttf"

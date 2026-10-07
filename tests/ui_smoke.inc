@@ -120,6 +120,7 @@ void runUiSmoke(App &app) {
             require(GetEnvironmentVariableW(L"WOOK_TEST_FINGERPRINT", fingerprint, 200) > 0, "Missing host key pin");
             Profile p; p.name = L"한글 SSH 연결"; p.host = L"127.0.0.1"; p.user = L"key"; p.port = _wtoi(port);
             p.keyFile = app.directory + L"\\client-key.ppk";
+            require(editHost(app.hwnd, p, false), "Public key authentication host must save");
             wook::saveProfile(p);
             wchar_t *path = wsPath(L"sessions", wook::utf8(p.name).c_str());
             auto store = wsOpen(path, 1); free(path);
@@ -175,6 +176,36 @@ void runUiSmoke(App &app) {
             captureTestWindow(app.hwnd, L"ui-password-retry.bmp");
             closeTestSession(0); phase = 17; waits = 0;
         } else if (phase == 17 && app.tabs.empty()) {
+            app.localShell(); phase = 19; waits = 0;
+        } else if (phase == 19 && ready() && waits > 8) {
+            require(app.tabs[0]->profile.protocol == L"local", "CMD must use the local terminal backend");
+            auto command = L"echo wshell-cmd-ok>\"" + app.directory + L"\\local-cmd.ready\"\r";
+            for (auto c : command) PostMessageW(app.tabs[0]->terminal, WM_CHAR, c, 1);
+            phase = 20; waits = 0;
+        } else if (phase == 20 && received(L"local-cmd.ready")) {
+            captureTestWindow(app.hwnd, L"ui-local-cmd.bmp");
+            app.command(2); phase = 21; waits = 0;
+        } else if (phase == 21 && ready() && waits > 6) {
+            require(app.tabs.size() == 2 && app.tabs[0]->pid != app.tabs[1]->pid, "Local duplicate must have a separate process");
+            auto command = L"echo wshell-duplicate-ok>\"" + app.directory + L"\\local-duplicate.ready\"\r";
+            for (auto c : command) PostMessageW(app.tabs[1]->terminal, WM_CHAR, c, 1);
+            phase = 22; waits = 0;
+        } else if (phase == 22 && received(L"local-duplicate.ready")) {
+            closeTestSession(1); closeTestSession(0); phase = 23; waits = 0;
+        } else if (phase == 23 && app.tabs.empty()) {
+            app.localShell(true); phase = 24; waits = 0;
+        } else if (phase == 24 && ready() && waits > 10) {
+            auto command = L"[IO.File]::WriteAllText(\"" + app.directory + L"\\local-powershell.ready\",'wshell-powershell-ok')\r";
+            for (auto c : command) PostMessageW(app.tabs[0]->terminal, WM_CHAR, c, 1);
+            phase = 25; waits = 0;
+        } else if (phase == 25 && received(L"local-powershell.ready")) {
+            captureTestWindow(app.hwnd, L"ui-local-powershell.bmp");
+            for (auto c : std::wstring(L"exit\r")) PostMessageW(app.tabs[0]->terminal, WM_CHAR, c, 1);
+            phase = 26; waits = 0;
+        } else if (phase == 26 && app.tabs[0]->ended) {
+            require(true, "PowerShell exit must finish the tab");
+            closeTestSession(0); phase = 27; waits = 0;
+        } else if (phase == 27 && app.tabs.empty()) {
             std::ofstream result(std::filesystem::path(app.directory) / L"ui-smoke-result.json");
             result << "{\"passed\":true,\"checks\":" << checks << "}\n";
             result.close(); phase = -1; DestroyWindow(app.hwnd);

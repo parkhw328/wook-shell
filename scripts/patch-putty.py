@@ -83,11 +83,14 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
 
     putty = original("windows/putty.c")
     putty = replace(putty, "static strbuf *demo_terminal_data = NULL;", "static strbuf *demo_terminal_data = NULL;\nstatic bool wookPreview = false;")
+    putty = replace(putty, "static bool wookPreview = false;", "static bool wookPreview = false;\nstatic bool wookLocal = false;\nextern const BackendVtable conpty_backend;")
     putty = replace(putty, "    bool demo_config_box = false;", "    bool demo_config_box = false;\n    bool wookConfig = false;")
     putty = replace(putty, '            } else if (!strcmp(p, "-cleanup")) {', '''            } else if (!strcmp(p, "--terminal")) {
                 /* Internal mode of the single wShell executable. */
             } else if (!strcmp(p, "-wook-config")) {
                 wookConfig = true;
+            } else if (!strcmp(p, "-wook-local")) {
+                wookLocal = true;
             } else if (!strcmp(p, "-wook-preview")) {
                 wookPreview = true;
                 demo_terminal_data = strbuf_new();
@@ -111,6 +114,12 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
         special_launchable_argument = true;
     }
     if (demo_config_box) {''')
+    putty = replace(putty, "    cmdline_run_saved(conf);", '''    cmdline_run_saved(conf);
+    if (wookLocal) {
+        special_launchable_argument = true;
+        conf_set_int(conf, CONF_protocol, -1);
+    }''')
+    putty = replace(putty, "const struct BackendVtable *backend_vt_from_conf(Conf *conf)\n{", "const struct BackendVtable *backend_vt_from_conf(Conf *conf)\n{\n    if (wookLocal) return &conpty_backend;")
     putty = replace(putty, '        load_open_settings(NULL, conf);\n        conf_set_str(conf, CONF_host, "demo-server.example.com");\n        conf_set_int(conf, CONF_close_on_exit, FORCE_OFF);',
                     '        if (!wookPreview) load_open_settings(NULL, conf);\n        conf_set_str(conf, CONF_host, "demo-server.example.com");\n        conf_set_int(conf, CONF_close_on_exit, FORCE_OFF);')
     putty = replace(putty, "        schedule_timer(TICKSPERSEC, demo_terminal_screenshot, (void *)hwnd);", "        if (!wookPreview) schedule_timer(TICKSPERSEC, demo_terminal_screenshot, (void *)hwnd);")
@@ -208,7 +217,8 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
                     'message(STATUS "ConPTY not available; optional pterm is not built")')
     cmake += '''
 if(WSHELL_ROOT)
-  add_library(wshell-terminal OBJECT window.c putty.c help.c ${CMAKE_SOURCE_DIR}/stubs/no-console.c)
+  add_library(wshell-terminal OBJECT window.c putty.c conpty.c help.c ${CMAKE_SOURCE_DIR}/stubs/no-console.c)
+  target_compile_definitions(wshell-terminal PRIVATE _WIN32_WINNT=0x0A00 NTDDI_VERSION=0x0A000006)
   be_list(wshell-terminal wShell SSH SERIAL OTHERBACKENDS)
   add_dependencies(wshell-terminal generated_licence_h)
   add_library(wshell-keys STATIC "${WSHELL_ROOT}/src/keys.c")

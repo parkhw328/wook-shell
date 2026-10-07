@@ -20,7 +20,7 @@ using wook::Profile;
 extern "C" int WINAPI wshellTerminalMain(HINSTANCE, HINSTANCE, LPSTR, int);
 namespace {
 enum { Search = 100, HostList, NewHost, ConnectHost, EditHost, Quick, QuickConnect, Preview,
-       Advanced, Duplicate, Reconnect, SessionSettings, Tools, About, SaveCurrent, HomeNew, HomePreview };
+       Advanced, Duplicate, Reconnect, SessionSettings, Tools, About, SaveCurrent, HomeNew, HomePreview, LocalCmd, LocalPowerShell };
 struct Tab {
     Profile profile;
     std::wstring storageName;
@@ -52,6 +52,7 @@ struct App {
     void filter();
     void select(int index);
     void connect(const Profile &profile, bool saved, bool preview = false, bool advanced = false);
+    void localShell(bool powershell = false);
     void closeTab(int index);
     void command(int code);
     void action(int id);
@@ -110,15 +111,18 @@ void App::layout() {
     int left = sidebar + 48, span = std::max(360, width - left - 48), card = (span - 17) / 2;
     ui::place(control(Quick), left + 17, 246, std::max(100, span - 166), 25);
     ui::place(control(QuickConnect), left + span - 123, 235, 123, 46);
-    ui::place(control(HomeNew), left + 22, 459, 146, 37);
-    ui::place(control(HomePreview), left + card + 39, 459, 146, 37);
+    ui::place(control(HomeNew), left + 22, 437, card - 44, 40);
+    ui::place(control(HomePreview), left + card + 39, 437, card - 44, 40);
+    ui::place(control(LocalCmd), left + span - 336, 536, 166, 40);
+    ui::place(control(LocalPowerShell), left + span - 160, 536, 138, 40);
     ui::place(control(Duplicate), width - 330, 64, 95, 33);
     ui::place(control(Reconnect), width - 226, 64, 102, 33);
     ui::place(control(SessionSettings), width - 115, 64, 95, 33);
     ui::place(control(SaveCurrent), width - 126, height - 30, 116, 27);
-    for (int id : {Quick, QuickConnect, HomeNew, HomePreview}) visible(control(id), active < 0);
+    for (int id : {Quick, QuickConnect, HomeNew, HomePreview, LocalCmd, LocalPowerShell}) visible(control(id), active < 0);
     for (int id : {Duplicate, Reconnect, SessionSettings}) visible(control(id), active >= 0);
-    visible(control(SaveCurrent), active >= 0 && !tabs[active]->preview && tabs[active]->transient);
+    visible(control(SaveCurrent), active >= 0 && !tabs[active]->preview && tabs[active]->transient && tabs[active]->profile.protocol != L"local");
+    EnableWindow(control(SessionSettings), active >= 0 && tabs[active]->profile.protocol != L"local");
     for (size_t i = 0; i < tabs.size(); ++i) {
         auto &tab = *tabs[i];
         if (IsWindow(tab.terminal)) {
@@ -184,20 +188,25 @@ void App::paint(HDC dc) {
         ui::label(dc, L"QUICK CONNECT", ui::rect(left, 299, 140, 23), ui::TextSize::caption, ui::muted, true);
         ui::label(dc, L"user@hostname:22   or   ssh://user@[::1]:22", ui::rect(left + 139, 299, span - 139, 23), ui::TextSize::caption, ui::muted, false, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         int gap = 17, card = (span - gap) / 2;
-        ui::round(dc, ui::rect(left, 357, card, 167), ui::panel, ui::raised, 16);
-        ui::round(dc, ui::rect(left + card + gap, 357, card, 167), ui::panel, ui::raised, 16);
-        ui::label(dc, L"A home for every host", ui::rect(left + 22, 376, card - 40, 30), ui::TextSize::section, ui::bright, true);
-        ui::label(dc, L"Save it once. Open it in a new tab.", ui::rect(left + 22, 415, card - 40, 24), ui::TextSize::body, ui::muted);
-        ui::label(dc, L"Made for the command line", ui::rect(left + card + gap + 22, 376, card - 40, 30), ui::TextSize::section, ui::bright, true);
-        ui::label(dc, L"Warm colors. Sharp type. Full color.", ui::rect(left + card + gap + 22, 415, card - 40, 24), ui::TextSize::body, ui::muted);
-        int y = std::max(550, height - 142);
+        ui::round(dc, ui::rect(left, 348, card, 145), ui::panel, ui::raised, 16);
+        ui::round(dc, ui::rect(left + card + gap, 348, card, 145), ui::panel, ui::raised, 16);
+        ui::label(dc, L"A home for every host", ui::rect(left + 22, 365, card - 44, 30), ui::TextSize::section, ui::bright, true);
+        ui::label(dc, L"Save it once. Open it in a new tab.", ui::rect(left + 22, 402, card - 44, 24), ui::TextSize::body, ui::muted);
+        ui::label(dc, L"Made for the command line", ui::rect(left + card + gap + 22, 365, card - 44, 30), ui::TextSize::section, ui::bright, true);
+        ui::label(dc, L"Warm colors. Sharp type. Full color.", ui::rect(left + card + gap + 22, 402, card - 44, 24), ui::TextSize::body, ui::muted);
+        ui::round(dc, ui::rect(left, 511, span, 84), ui::panel, ui::raised, 16);
+        ui::label(dc, L"Local terminal", ui::rect(left + 22, 526, span - 376, 27), ui::TextSize::section, ui::bright, true);
+        ui::label(dc, L"Work on this computer.", ui::rect(left + 22, 558, span - 376, 22), ui::TextSize::body, ui::muted);
+        if (height >= 738) {
+        int y = std::max(620, height - 142);
         ui::label(dc, L"BUILT TO STAY OUT OF YOUR WAY", ui::rect(left, y, span, 21), ui::TextSize::caption, ui::muted, true);
-        ui::label(dc, L"SSH  /  Telnet  /  Serial     ·     Tabs that travel with you", ui::rect(left, y + 32, span, 26), ui::TextSize::body, ui::text);
+        ui::label(dc, L"SSH  /  Local shell  /  Serial     ·     Tabs that travel with you", ui::rect(left, y + 32, span, 26), ui::TextSize::body, ui::text);
         ui::label(dc, L"Ctrl + Shift + T   new connection       Ctrl + Tab   switch tabs", ui::rect(left, y + 66, span, 22), ui::TextSize::caption, ui::muted, false, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        }
     } else {
         auto &tab = *tabs[active];
         ui::label(dc, tab.preview ? L"Terminal preview" : tab.profile.name, ui::rect(sidebar + 22, 61, std::max(100, width - sidebar - 370), 24), ui::TextSize::body, ui::bright, true);
-        std::wstring endpoint = tab.preview ? L"Local preview · no connection" : tab.profile.protocol + L"  /  " + (tab.profile.user.empty() ? L"" : tab.profile.user + L"@") + tab.profile.host + L":" + std::to_wstring(tab.profile.port);
+        std::wstring endpoint = tab.preview ? L"Local preview · no connection" : tab.profile.protocol == L"local" ? L"Local terminal · this computer" : tab.profile.protocol + L"  /  " + (tab.profile.user.empty() ? L"" : tab.profile.user + L"@") + tab.profile.host + L":" + std::to_wstring(tab.profile.port);
         ui::label(dc, endpoint, ui::rect(sidebar + 22, 85, std::max(100, width - sidebar - 370), 19), ui::TextSize::caption, ui::muted, false, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         ui::fill(dc, ui::rect(sidebar, 112, width - sidebar, 1), ui::raised);
         if (!IsWindow(tab.terminal)) {
@@ -211,12 +220,13 @@ void App::paint(HDC dc) {
     ui::label(dc, L"●  LOCAL DATA", ui::rect(20, height - 30, 125, 26), ui::TextSize::caption, ui::accent, true);
     ui::label(dc, std::to_wstring(tabs.size()) + L" tabs", ui::rect(158, height - 30, 75, 26), ui::TextSize::caption, ui::muted);
     ui::label(dc, L"Flexoki Dark   /   JetBrains Mono", ui::rect(sidebar + 20, height - 30, 300, 26), ui::TextSize::caption, ui::muted);
-    if (active < 0 || !tabs[active]->transient || tabs[active]->preview)
+    if (active < 0 || !tabs[active]->transient || tabs[active]->preview || tabs[active]->profile.protocol == L"local")
         ui::label(dc, L"NATIVE  ·  WINDOWS x64", ui::rect(width - 200, height - 30, 180, 26), ui::TextSize::caption, ui::muted, false, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
 }
 void App::connect(const Profile &profile, bool saved, bool preview, bool advanced) {
     if (tabs.size() >= 32) throw std::runtime_error("Close a tab before opening more than 32 sessions.");
-    if (!preview && !advanced) wook::validateProfile(profile);
+    bool local = profile.protocol == L"local";
+    if (!preview && !advanced && !local) wook::validateProfile(profile);
     wchar_t self[32768]; GetModuleFileNameW(nullptr, self, 32768);
     std::wstring engine = self;
     auto tab = std::make_unique<Tab>(); tab->profile = profile; tab->preview = preview; tab->transient = !saved;
@@ -230,19 +240,32 @@ void App::connect(const Profile &profile, bool saved, bool preview, bool advance
         set("HostName", profile.host); set("UserName", profile.user); set("Protocol", profile.protocol);
         set("PortNumber", std::to_wstring(profile.port)); set("PublicKeyFile", profile.keyFile);
         if (profile.protocol == L"serial") { set("SerialLine", profile.host); set("SerialSpeed", std::to_wstring(profile.port)); }
+        if (local) {
+            wchar_t system[32768]{}; GetSystemDirectoryW(system, 32768);
+            auto shell = std::wstring(system) + (profile.host == L"powershell" ? L"\\WindowsPowerShell\\v1.0\\powershell.exe" : L"\\cmd.exe");
+            auto options = profile.host == L"powershell" ? L" -NoLogo" : L" /D";
+#ifdef WOOK_UI_TEST
+            if (profile.host == L"powershell") options = L" -NoLogo -NoProfile";
+#endif
+            set("RemoteCommand", wook::quoteArg(shell) + options);
+            wsSet(store, "RemoteCommandUTF8", "1");
+        }
         bool ok = wsSave(store); wsClose(store);
         if (!ok) throw std::runtime_error("Cannot save temporary session settings.");
     }
     std::wstring args = wook::quoteArg(engine) + L" --terminal -load " + wook::quoteArg(tab->storageName);
     if (preview) args += L" -wook-preview";
     if (advanced) args += L" -wook-config";
+    if (local) args += L" -wook-local";
     SetEnvironmentVariableW(L"WOOK_PARENT_HWND", std::to_wstring((uintptr_t)hwnd).c_str());
     SetEnvironmentVariableW(L"WOOK_PARENT_PID", std::to_wstring(GetCurrentProcessId()).c_str());
     SetEnvironmentVariableW(L"WOOK_EDIT_SESSION", advanced && saved ? tab->storageName.c_str() : nullptr);
     SetEnvironmentVariableW(L"WOOK_PASSWORD_SESSION", saved ? tab->storageName.c_str() : nullptr);
     STARTUPINFOW startup{sizeof(startup)}; PROCESS_INFORMATION process{};
+    wchar_t homeDirectory[32768]{};
+    if (local) GetEnvironmentVariableW(L"USERPROFILE", homeDirectory, 32768);
     BOOL created = CreateProcessW(engine.c_str(), args.data(), nullptr, nullptr, FALSE, CREATE_SUSPENDED,
-                                  nullptr, directory.c_str(), &startup, &process);
+                                  nullptr, local && *homeDirectory ? homeDirectory : directory.c_str(), &startup, &process);
     DWORD error = GetLastError();
     SetEnvironmentVariableW(L"WOOK_PARENT_HWND", nullptr);
     SetEnvironmentVariableW(L"WOOK_PARENT_PID", nullptr);
@@ -257,11 +280,16 @@ void App::connect(const Profile &profile, bool saved, bool preview, bool advance
     ResumeThread(process.hThread); CloseHandle(process.hThread);
     tabs.push_back(std::move(tab)); select((int)tabs.size() - 1);
 }
+void App::localShell(bool powershell) {
+    Profile profile; profile.name = powershell ? L"PowerShell" : L"Command Prompt";
+    profile.protocol = L"local"; profile.host = powershell ? L"powershell" : L"cmd";
+    connect(profile, false);
+}
 void App::closeTab(int index) {
     if (index < 0 || index >= (int)tabs.size()) return;
     auto &tab = *tabs[index];
     if (!tab.ended && !tab.preview && !tab.closing &&
-        MessageBoxW(hwnd, L"Close this session? Commands on the remote server may still be running.", L"Close tab", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) != IDYES) return;
+        MessageBoxW(hwnd, L"Close this session? Commands may still be running.", L"Close tab", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) != IDYES) return;
     if (tab.ended || WaitForSingleObject(tab.process, 0) == WAIT_OBJECT_0) {
         if (tab.transient) { wchar_t *path = wsPath(L"sessions", wook::utf8(tab.storageName).c_str()); wsRemove(path); free(path); }
         tabs.erase(tabs.begin() + index); if (active >= index) --active;
@@ -319,6 +347,7 @@ void App::command(int code) {
         }
         fullscreen = !fullscreen; break;
     case 9: SendMessageW(hwnd, WM_CLOSE, 0, 0); break;
+    case 10: localShell(); break;
     }
 }
 void App::action(int id) {
@@ -336,6 +365,8 @@ void App::action(int id) {
         connect(p, false); break;
     }
     case Preview: case HomePreview: { Profile p; p.name = L"Color preview"; connect(p, false, true); break; }
+    case LocalCmd: localShell(); break;
+    case LocalPowerShell: localShell(true); break;
     case Advanced: {
         if (auto p = selectedHost()) connect(*p, true, false, true);
         else { Profile empty; empty.name = L"Connection settings"; connect(empty, false, false, true); }
@@ -344,7 +375,7 @@ void App::action(int id) {
     case Duplicate: command(2); break;
     case Reconnect: command(4); break;
     case SessionSettings:
-        if (active >= 0 && IsWindow(tabs[active]->terminal)) PostMessageW(tabs[active]->terminal, WM_SYSCOMMAND, 0x0050, 0);
+        if (active >= 0 && tabs[active]->profile.protocol != L"local" && IsWindow(tabs[active]->terminal)) PostMessageW(tabs[active]->terminal, WM_SYSCOMMAND, 0x0050, 0);
         break;
     case SaveCurrent:
         if (active >= 0 && !tabs[active]->preview) { Profile p = tabs[active]->profile; if (editHost(hwnd, p, false)) refresh(); }
@@ -355,6 +386,9 @@ void App::action(int id) {
 }
 void App::toolsMenu() {
     HMENU menu = CreatePopupMenu();
+    AppendMenuW(menu, MF_STRING, 10, L"Command Prompt\tCtrl+Shift+L");
+    AppendMenuW(menu, MF_STRING, 11, L"PowerShell");
+    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING, 1, L"SSH key manager…");
     AppendMenuW(menu, MF_STRING, 6, L"Export settings…");
     AppendMenuW(menu, MF_STRING, 7, L"Import settings…");
@@ -365,7 +399,8 @@ void App::toolsMenu() {
     RECT r; GetWindowRect(control(Tools), &r);
     int selected = TrackPopupMenu(menu, TPM_RETURNCMD, r.left, r.top, 0, hwnd, nullptr);
     DestroyMenu(menu);
-    if (selected == 1) showKeyManager(hwnd);
+    if (selected == 10 || selected == 11) localShell(selected == 11);
+    else if (selected == 1) showKeyManager(hwnd);
     else if (selected == 4) wook::showLicenses(hwnd);
     else if (selected == 6 || selected == 7) {
         wchar_t path[32768] = L"wShell-settings.wshell";
@@ -395,7 +430,7 @@ void App::hostMenu(POINT point) {
     AppendMenuW(menu, MF_STRING, 1, L"Connect in new tab");
     AppendMenuW(menu, MF_STRING, 2, L"Edit host…");
     AppendMenuW(menu, MF_STRING, 3, L"Duplicate host…");
-    AppendMenuW(menu, MF_STRING, 4, L"Connection settings…");
+    AppendMenuW(menu, MF_STRING, 4, L"Connection settings");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING, 5, L"Delete host");
     int choice = TrackPopupMenu(menu, TPM_RETURNCMD, point.x, point.y, 0, hwnd, nullptr); DestroyMenu(menu);
@@ -454,10 +489,11 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 LBS_OWNERDRAWFIXED | LBS_HASSTRINGS | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP);
             SendMessageW(app->control(HostList), LB_SETITEMHEIGHT, 0, ui::px(65));
             SetWindowSubclass(app->control(HostList), editProc, 1, (DWORD_PTR)app);
-            addButton(NewHost, L"+  New host"); addButton(ConnectHost, L"Connect  →"); addButton(EditHost, L"Edit");
-            addButton(QuickConnect, L"Connect  →"); addButton(HomeNew, L"+  Add a host"); addButton(HomePreview, L"Color preview  →");
-            addButton(Advanced, L"Connection settings…"); addButton(Duplicate, L"Duplicate"); addButton(Reconnect, L"Reconnect");
-            addButton(SessionSettings, L"Settings"); addButton(Tools, L"Tools  ···"); addButton(About, L"About");
+            addButton(NewHost, L"+ New host"); addButton(ConnectHost, L"Connect →"); addButton(EditHost, L"Edit");
+            addButton(QuickConnect, L"Connect →"); addButton(HomeNew, L"+ Add a host"); addButton(HomePreview, L"Color preview →");
+            addButton(Advanced, L"Connection settings"); addButton(Duplicate, L"Duplicate"); addButton(Reconnect, L"Reconnect");
+            addButton(SessionSettings, L"Settings"); addButton(Tools, L"Tools"); addButton(About, L"About");
+            addButton(LocalCmd, L"Command Prompt"); addButton(LocalPowerShell, L"PowerShell");
             addButton(SaveCurrent, L"Save host…");
             app->refresh(); app->layout(); SetTimer(hwnd, 1, 350, nullptr); return 0;
         }
@@ -663,6 +699,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
                 else if (ctrl && shift && msg.wParam=='W') command=3;
                 else if (ctrl && shift && msg.wParam=='R') command=4;
                 else if (ctrl && shift && msg.wParam=='P') command=7;
+                else if (ctrl && shift && msg.wParam=='L') command=10;
                 else if (alt && msg.wParam>='1' && msg.wParam<='9') command=20+(int)(msg.wParam-'1');
                 else if (msg.wParam==VK_F11) command=8;
                 if (command) {

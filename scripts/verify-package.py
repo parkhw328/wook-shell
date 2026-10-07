@@ -8,15 +8,15 @@ import subprocess
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-NAME = "wshell-0.4.1-win-x64"
-folder = ROOT / "dist" / NAME
-archive = ROOT / "dist" / f"{NAME}.zip"
+VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+NAME = f"wshell-{VERSION}-windows-x64"
+folder = ROOT / "dist" / VERSION / "windows-x64"
+archive = folder / f"{NAME}.zip"
 expected = archive.with_suffix(".zip.sha256").read_text().split()[0]
 assert hashlib.sha256(archive.read_bytes()).hexdigest() == expected, "ZIP checksum mismatch"
 with zipfile.ZipFile(archive) as bundle:
     entries = bundle.namelist()
-    assert entries == [f"{NAME}/wShell.exe"], "Single executable distribution must contain exactly one file"
-    assert all(name.startswith(NAME + "/") and ".." not in name.split("/") for name in entries)
+    assert entries == ["wShell.exe"], "Single executable distribution must contain exactly one file"
     assert not any(set(name.lower().split("/")) & {"data", "node_modules", "build", ".tools"} for name in entries), "User/development data leaked into ZIP"
     assert not any(name.lower().endswith((".ppk", ".pem", ".key", ".ws", ".lock")) for name in entries), "Credential/session material leaked into ZIP"
     assert bundle.testzip() is None, "ZIP CRC error"

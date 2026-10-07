@@ -9,3 +9,5 @@ __pycache__/
 *.dmp
 .vs/
 **/node_modules/
+mac/.build/
+mac/.swiftpm/

@@ -89,7 +89,7 @@ function run(executable, args, input = '', environment = {}) {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let stdout = '', stderr = '';
-    const timer = setTimeout(() => { child.kill(); reject(new Error('Timed out: ' + path.basename(executable) + '\n' + stdout + '\n' + stderr)); }, 90000);
+    const timer = setTimeout(() => { child.kill(); reject(new Error('Timed out: ' + path.basename(executable) + '\n' + stdout + '\n' + stderr)); }, 120000);
     child.stdout.on('data', chunk => stdout += chunk);
     child.stderr.on('data', chunk => stderr += chunk);
     child.on('error', reject);

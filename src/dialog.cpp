@@ -1,4 +1,5 @@
 #include "dialog.hpp"
+#include "../build/version.h"
 #include "ui.hpp"
 #include <commdlg.h>
 #include <stdexcept>
@@ -53,7 +54,7 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         add(Group, L"e.g. Production", 280, 308, 226, form->profile.group);
         form->auth = ui::control(hwnd, L"COMBOBOX", L"", Auth, CBS_DROPDOWNLIST | WS_TABSTOP);
         ui::place(form->auth, 28, 374, 350, 160);
-        for (auto label : {L"Password", L"Private key"}) SendMessageW(form->auth, CB_ADDSTRING, 0, (LPARAM)label);
+        for (auto label : {L"Password", L"Public key authentication"}) SendMessageW(form->auth, CB_ADDSTRING, 0, (LPARAM)label);
         SendMessageW(form->auth, CB_SETCURSEL, form->profile.keyFile.empty() ? 0 : 1, 0);
         add(FontSize, L"11", 402, 381, 106, std::to_wstring(form->profile.fontSize));
         add(Key, L"Select a .ppk key file", 32, 455, 381, form->profile.keyFile);
@@ -84,7 +85,7 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             auto fixture = testPassword(); SetWindowTextW(form->password, fixture.c_str());
             SecureZeroMemory(fixture.data(), fixture.size() * sizeof(wchar_t));
             captureTestWindow(hwnd, L"ui-password-host.bmp");
-        } else captureTestWindow(hwnd, L"ui-host-editor.bmp");
+        } else captureTestWindow(hwnd, form->profile.keyFile.empty() ? L"ui-host-editor.bmp" : L"ui-public-key-host.bmp");
         PostMessageW(hwnd, WM_COMMAND, Save, 0);
         return 0;
 #endif
@@ -101,7 +102,7 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             ui::rect(27,300,239,41), ui::rect(275,300,241,41), ui::rect(397,373,119,41),
             ui::rect(27,447,passwordMode(form) ? 489 : 390,41)};
         for (auto b : boxes) ui::round(dc, b, ui::raised);
-        std::wstring hint = L"Your private key is referenced, never copied.";
+        std::wstring hint = L"Register the matching public key (.pub) on the server. The private key signs in; a public key alone cannot authenticate.";
         if (passwordMode(form)) {
             bool remember = SendMessageW(form->remember, BM_GETCHECK, 0, 0) == BST_CHECKED;
             hint = !remember ? L"Ask in the terminal each time. Saving removes any stored password." :
@@ -138,6 +139,11 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 p.user = wook::trim(ui::value(form->fields[User - Name])); p.group = wook::trim(ui::value(form->fields[Group - Name]));
                 p.keyFile = passwordMode(form) ? L"" : wook::trim(ui::value(form->fields[Key - Name]));
                 p.protocol = protocols[SendMessageW(form->fields[Protocol - Name], CB_GETCURSEL, 0, 0)];
+                if (p.protocol == L"ssh" && !passwordMode(form)) {
+                    if (p.keyFile.empty()) throw std::runtime_error("Public key authentication needs the matching private key. Generate or import a key pair in Tools > SSH key manager.");
+                    if (p.keyFile.size() >= 4 && _wcsicmp(p.keyFile.c_str() + p.keyFile.size() - 4, L".pub") == 0)
+                        throw std::runtime_error("A .pub file belongs on the server in ~/.ssh/authorized_keys. Select its matching private .ppk key here. SSH certificates can be set in Connection settings > SSH > Auth > Credentials.");
+                }
                 auto portText = ui::value(form->fields[Port - Name]), fontText = ui::value(form->fields[FontSize - Name]);
                 if (portText.empty() || fontText.empty() || portText.find_first_not_of(L"0123456789") != std::wstring::npos || fontText.find_first_not_of(L"0123456789") != std::wstring::npos)
                     throw std::runtime_error("Port and font size must be numbers.");
@@ -188,8 +194,9 @@ bool editHost(HWND owner, wook::Profile &profile, bool existing) {
 }
 void showAbout(HWND owner) {
     MessageBoxW(owner,
-        L"wShell 0.4.1\nA quiet workspace for your servers.\n\n"
+        L"wShell " WSHELL_VERSION_WIDE L"\nA quiet workspace for your servers.\n\n"
         L"Native Windows x64 · Portable · MIT License\n\n"
+        L"Created by Hyunwook Park\n\n"
         L"PuTTY 0.85 — modified portable build (MIT)\nFlexoki — Steph Ango (MIT)\nJetBrains Mono — SIL OFL 1.1\n\n"
         L"Full notices are embedded: Tools → Open-source licenses.\n"
         L"Independent project; not affiliated with PuTTY or Termius.\n\n"

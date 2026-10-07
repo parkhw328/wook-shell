@@ -9,6 +9,7 @@ wShell is not affiliated with or endorsed by PuTTY, Termius, JetBrains, or Steph
 | PuTTY | [0.85 official source](https://www.chiark.greenend.org.uk/~sgtatham/putty/releases/0.85.html) | MIT, licenses/PuTTY-MIT.txt | Single-executable entry point, AppData file storage, embedded fonts, tab hosting, keyboard routing, local preview, direct key-management API, custom settings presentation, explicit SSH password-prompt metadata and an optional Windows DPAPI credential provider; SSH cryptographic algorithms unchanged |
 | Flexoki | [kepano/flexoki](https://github.com/kepano/flexoki), commit 8d723bac4a9ac46adfdf99d42155286977aac72a | MIT, licenses/Flexoki-MIT.txt | Palette used in native UI and terminal defaults |
 | JetBrains Mono | [v2.304](https://github.com/JetBrains/JetBrainsMono/tree/v2.304) | SIL OFL 1.1, licenses/JetBrainsMono-OFL.txt | Unmodified Regular and Bold TTF files |
+| SwiftTerm (macOS) | [v1.19.0](https://github.com/migueldeicaza/SwiftTerm/tree/464df5207fc2432e16c9a23abe538187196daf5f), commit 464df5207fc2432e16c9a23abe538187196daf5f | MIT, licenses/SwiftTerm.txt | Unmodified terminal library, statically linked into the AppKit executable |
 | LLVM libc++ / libc++abi / compiler-rt / libunwind | [LLVM MinGW 20260922](https://github.com/mstorsjo/llvm-mingw/releases/tag/20260922), LLVM 23.1.2 | Apache 2.0 with LLVM exceptions and accompanying legacy notices, licenses/LLVM-*.txt | Statically linked runtime code |
 | MinGW-w64 runtime | Included with LLVM MinGW 20260922 | Permissive licenses, licenses/MinGW-w64-runtime.txt | Statically linked Windows runtime support |
 | winpthreads | Included with LLVM MinGW 20260922 | MIT/BSD notices, licenses/winpthreads.txt | Runtime support bundled by the static toolchain |
@@ -27,3 +28,8 @@ Open Tools → Open-source licenses in the application to read those notices; no
 The `ssh2` package and its transitive dependencies are development-only fixtures under tests/ssh;
 they are not included in the portable ZIP. Their package manifests retain their own licenses.
 The AI-generated wShell branding assets and exact generation prompts are documented in assets/branding/README.md.
+
+The macOS application uses the operating system's OpenSSH client, ssh-keygen and login shell; it does not redistribute those tools.
+It embeds JetBrains Mono, Flexoki colors and the license notices in wShell.app. SwiftTerm is pinned by commit in mac/Package.swift;
+development-only Swift package dependencies are pinned in mac/Package.resolved and are not app runtime dependencies.
+Windows local terminals use the existing PuTTY ConPTY backend with Windows pseudoconsole APIs.
