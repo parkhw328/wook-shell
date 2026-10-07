@@ -56,9 +56,9 @@ def dependencies(sdk):
     work.mkdir(exist_ok=True)
     sysroot = subprocess.check_output(['xcrun', '--sdk', sdk, '--show-sdk-path'], text=True).strip()
     target = 'ios64-xcrun' if sdk == 'iphoneos' else 'iossimulator-xcrun'
-    env = dict(os.environ, SDKROOT=sysroot)
+    env = dict(os.environ, SDKROOT=sysroot, CFLAGS='-arch arm64', LDFLAGS='-arch arm64')
     run('perl', ssl / 'Configure', target, 'no-shared', 'no-tests', 'no-apps', 'no-module',
-        'no-dso', 'no-engine', '--prefix=' + str(prefix), '-arch', 'arm64',
+        'no-dso', 'no-engine', '--prefix=' + str(prefix),
         '-miphoneos-version-min=17.0' if sdk == 'iphoneos' else '-mios-simulator-version-min=17.0', cwd=work, env=env)
     run('make', '-j', '4', cwd=work, env=env)
     run('make', 'install_sw', cwd=work, env=env)
