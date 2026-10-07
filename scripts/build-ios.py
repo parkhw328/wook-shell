@@ -160,6 +160,15 @@ def main():
         run('xcodebuild', '-skipPackagePluginValidation', '-disableAutomaticPackageResolution', '-project', directory, '-scheme', 'wShell', '-configuration', 'Release',
             '-sdk', sdk, '-destination', 'generic/platform=iOS Simulator' if sdk == 'iphonesimulator' else 'generic/platform=iOS',
             '-derivedDataPath', BUILD / 'DerivedData', 'ARCHS=arm64', 'CODE_SIGNING_ALLOWED=NO', 'build')
+        if sdk == 'iphonesimulator':
+            entitlements = BUILD / 'simulator-entitlements.plist'
+            entitlements.write_bytes(plistlib.dumps({
+                'application-identifier':'WSHELLTEST.com.wshell.ipad',
+                'keychain-access-groups':['WSHELLTEST.com.wshell.ipad'],
+                'com.apple.developer.team-identifier':'WSHELLTEST',
+                'get-task-allow':True}))
+            run('codesign', '--force', '--sign', '-', '--entitlements', entitlements,
+                BUILD / 'DerivedData/Build/Products/Release-iphonesimulator/wShell.app')
     app = BUILD / 'DerivedData/Build/Products/Release-iphoneos/wShell.app'
     output = ROOT / 'dist/ipad' / VERSION; output.mkdir(parents=True, exist_ok=True)
     archive = output / f'wshell-ipad-{VERSION}-unsigned.ipa'

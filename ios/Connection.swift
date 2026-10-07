@@ -44,17 +44,26 @@ final class Connection: ObservableObject, Identifiable {
                     DispatchQueue.main.async { self.status = "Connected · SSH"; self.ready = true }
                     var buffer = [UInt8](repeating: 0, count: 32768)
                     var outgoing = Data()
+                    var writePending = false
                     while !stopped {
                         lock.lock()
-                        outgoing.append(pending); pending.removeAll(keepingCapacity: true)
+                        // libssh2 requires the same bytes and length when retrying EAGAIN.
+                        if outgoing.isEmpty { outgoing = pending; pending = Data() }
                         let size = dimensions
                         lock.unlock()
-                        if let size, wssh_resize(s, size.0, size.1) == 0 {
-                            lock.lock(); if dimensions?.0 == size.0 && dimensions?.1 == size.1 { dimensions = nil }; lock.unlock()
+                        var canWrite = true
+                        if !writePending, let size {
+                            let resized = wssh_resize(s, size.0, size.1)
+                            try check(resized, s)
+                            canWrite = resized == 0
+                            if resized == 0 {
+                                lock.lock(); if dimensions?.0 == size.0 && dimensions?.1 == size.1 { dimensions = nil }; lock.unlock()
+                            }
                         }
-                        if !outgoing.isEmpty {
+                        if canWrite && !outgoing.isEmpty {
                             let n = outgoing.withUnsafeBytes { wssh_write(s, $0.baseAddress, Int32(min(outgoing.count, 32768))) }
                             if n < 0 { throw AppError(String(cString: wssh_error(s))) }
+                            writePending = n == 0
                             if n > 0 { outgoing.removeFirst(Int(n)) }
                         }
                         let n = wssh_read(s, &buffer, Int32(buffer.count))
