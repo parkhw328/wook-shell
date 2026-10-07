@@ -68,6 +68,7 @@ inline std::wstring value(HWND hwnd) {
 inline void drawButton(const DRAWITEMSTRUCT *d, bool primary = false) {
     bool disabled = (d->itemState & ODS_DISABLED) != 0, pressed = (d->itemState & ODS_SELECTED) != 0;
     COLORREF color = primary ? accent : (pressed ? line : raised);
+    fill(d->hDC, d->rcItem, panel);
     round(d->hDC, d->rcItem, color, primary ? accent : line);
     label(d->hDC, value(d->hwndItem), d->rcItem, 10, disabled ? muted : primary ? bg : text, primary,
           DT_CENTER | DT_VCENTER | DT_SINGLELINE);
@@ -76,6 +77,6 @@ inline void drawButton(const DRAWITEMSTRUCT *d, bool primary = false) {
     }
 }
 inline void error(HWND owner, const std::exception &e) {
-    auto str = wook::wide(e.what()); MessageBoxW(owner, str.c_str(), L"Wook Shell", MB_OK | MB_ICONEXCLAMATION);
+    auto str = wook::wide(e.what()); MessageBoxW(owner, str.c_str(), L"wShell", MB_OK | MB_ICONEXCLAMATION);
 }
 }

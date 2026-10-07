@@ -2,6 +2,9 @@
 #include "ui.hpp"
 #include <commdlg.h>
 #include <stdexcept>
+#ifdef WOOK_UI_TEST
+#include "../tests/capture.hpp"
+#endif
 
 namespace {
 enum { Name = 300, Host, Protocol, Port, User, Key, Group, FontSize, Browse, Save, Cancel };
@@ -36,9 +39,20 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         add(FontSize, L"11", 32, 455, 110, std::to_wstring(form->profile.fontSize));
         ui::place(ui::button(hwnd, L"Cancel", Cancel), 288, 548, 100, 40);
         ui::place(ui::button(hwnd, L"Save host", Save), 398, 548, 118, 40);
-        SetFocus(form->fields[0]); return 0;
+        SetFocus(form->fields[0]);
+#ifdef WOOK_UI_TEST
+        SetTimer(hwnd, 90, 600, nullptr);
+#endif
+        return 0;
     }
     switch (msg) {
+#ifdef WOOK_UI_TEST
+    case WM_TIMER:
+        KillTimer(hwnd, 90);
+        captureTestWindow(hwnd, L"ui-host-editor.bmp");
+        PostMessageW(hwnd, WM_COMMAND, Save, 0);
+        return 0;
+#endif
     case WM_PAINT: {
         PAINTSTRUCT ps; auto dc = BeginPaint(hwnd, &ps); RECT r; GetClientRect(hwnd, &r); ui::fill(dc, r, ui::panel);
         ui::label(dc, form->existing ? L"Edit host" : L"A new connection", ui::rect(28, 17, 490, 34), 18, ui::bright, true);
@@ -98,7 +112,7 @@ bool editHost(HWND owner, wook::Profile &profile, bool existing) {
     Form form; form.profile = profile; form.existing = existing;
     RECT r{0,0,ui::px(545),ui::px(612)}; AdjustWindowRectExForDpi(&r, WS_CAPTION | WS_SYSMENU, FALSE, 0, ui::dpi);
     RECT parent; GetWindowRect(owner, &parent);
-    HWND dialog = CreateWindowExW(WS_EX_DLGMODALFRAME, wc.lpszClassName, L"Wook Shell · Host", WS_CAPTION | WS_SYSMENU,
+    HWND dialog = CreateWindowExW(WS_EX_DLGMODALFRAME, wc.lpszClassName, L"wShell · Host", WS_CAPTION | WS_SYSMENU,
         parent.left + ((parent.right - parent.left) - (r.right - r.left)) / 2,
         parent.top + std::max(0L, ((parent.bottom - parent.top) - (r.bottom - r.top)) / 2), r.right - r.left, r.bottom - r.top,
         owner, nullptr, wc.hInstance, &form);
@@ -114,12 +128,12 @@ bool editHost(HWND owner, wook::Profile &profile, bool existing) {
 }
 void showAbout(HWND owner) {
     MessageBoxW(owner,
-        L"Wook Shell 0.1.0\nA quiet workspace for your servers.\n\n"
+        L"wShell 0.1.0\nA quiet workspace for your servers.\n\n"
         L"Native Windows x64 · Portable · MIT License\n\n"
         L"PuTTY 0.85 — modified portable build (MIT)\nFlexoki — Steph Ango (MIT)\nJetBrains Mono — SIL OFL 1.1\n\n"
         L"Full copyright and license notices are included in the licenses folder.\n"
         L"Independent project; not affiliated with PuTTY or Termius.\n\n"
         L"Ctrl+Shift+T  New connection\nCtrl+Shift+D  Duplicate tab\nCtrl+Tab  Next tab\nCtrl+Shift+W  Close tab\n"
         L"Ctrl+Shift+P  Find hosts\nCtrl+Shift+C / V  Copy / paste\nAlt+1…9  Switch tabs\nF11  Full screen",
-        L"About Wook Shell", MB_OK | MB_ICONINFORMATION);
+        L"About wShell", MB_OK | MB_ICONINFORMATION);
 }

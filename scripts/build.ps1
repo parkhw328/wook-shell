@@ -28,5 +28,7 @@ try {
         }
         python scripts/package.py
         if ($LASTEXITCODE) { throw 'Packaging failed' }
+        python scripts/verify-package.py
+        if ($LASTEXITCODE) { throw 'Portable package verification failed' }
     }
 } finally { Pop-Location }

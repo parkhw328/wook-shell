@@ -3,9 +3,14 @@
 #include "ui.hpp"
 #include <windowsx.h>
 #include <shellapi.h>
+#include <objidl.h>
+#include <gdiplus.h>
 #include <memory>
 #include <stdexcept>
 #include <vector>
+#ifdef WOOK_UI_TEST
+#include "../tests/capture.hpp"
+#endif
 
 using wook::Profile;
 namespace {
@@ -25,6 +30,7 @@ struct App {
     HWND hwnd = nullptr, controls[24]{};
     HANDLE job = nullptr;
     std::wstring directory;
+    std::unique_ptr<Gdiplus::Image> wordmark;
     std::vector<Profile> profiles;
     std::vector<size_t> filtered;
     std::vector<std::unique_ptr<Tab>> tabs;
@@ -51,6 +57,9 @@ struct App {
     void tabMenu(int index, POINT point);
     Profile *selectedHost();
 };
+#ifdef WOOK_UI_TEST
+void runUiSmoke(App &app);
+#endif
 constexpr int sidebar = 252;
 void visible(HWND hwnd, bool show) { ShowWindow(hwnd, show ? SW_SHOWNA : SW_HIDE); }
 std::wstring lower(std::wstring text) { std::transform(text.begin(), text.end(), text.begin(), towlower); return text; }
@@ -75,6 +84,7 @@ void App::filter() {
     InvalidateRect(control(HostList), nullptr, TRUE);
     EnableWindow(control(ConnectHost), !filtered.empty());
     EnableWindow(control(EditHost), !filtered.empty());
+    visible(control(HostList), !filtered.empty());
     InvalidateRect(hwnd, nullptr, FALSE);
 }
 void App::refresh() { auto next = wook::loadProfiles(); filtered.clear(); profiles = std::move(next); filter(); }
@@ -130,10 +140,12 @@ void App::paint(HDC dc) {
     ui::fill(dc, ui::rect(0, 0, width, height), ui::bg);
     ui::fill(dc, ui::rect(0, 0, sidebar, height), ui::panel);
     ui::fill(dc, ui::rect(sidebar, 0, 1, height), ui::line);
-    ui::round(dc, ui::rect(19, 21, 35, 35), ui::accent, ui::accent, 10);
-    ui::label(dc, L">_", ui::rect(19, 21, 35, 35), 13, ui::bg, true, DT_CENTER | DT_VCENTER | DT_SINGLELINE, true);
-    ui::label(dc, L"wook shell", ui::rect(65, 15, 171, 29), 16, ui::bright, true);
-    ui::label(dc, L"YOUR PERSONAL WORKSPACE", ui::rect(66, 46, 180, 16), 7, ui::muted, true);
+    if (wordmark && wordmark->GetLastStatus() == Gdiplus::Ok) {
+        Gdiplus::Graphics graphics(dc);
+        graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+        graphics.DrawImage(wordmark.get(), ui::px(10), ui::px(3), ui::px(226), ui::px(75));
+    } else ui::label(dc, L"wShell", ui::rect(24, 15, 212, 43), 23, ui::bright, true);
+    ui::label(dc, L"YOUR PERSONAL WORKSPACE", ui::rect(24, 67, 211, 14), 7, ui::muted, true);
     ui::round(dc, ui::rect(18, 90, sidebar - 36, 45), ui::raised);
     ui::label(dc, L"SAVED HOSTS", ui::rect(21, 200, 150, 23), 8, ui::muted, true);
     ui::label(dc, std::to_wstring(profiles.size()), ui::rect(sidebar - 56, 200, 34, 23), 9, ui::muted, false, DT_RIGHT | DT_VCENTER | DT_SINGLELINE, true);
@@ -287,7 +299,7 @@ void App::command(int code) {
                 closeTab(active); connect(p, saved, preview);
             } else if (IsWindow(t.terminal) &&
                 MessageBoxW(hwnd, L"Restart this connection? The current session will be disconnected.", L"Reconnect", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) == IDYES)
-                PostMessageW(t.terminal, WM_SYSCOMMAND, 0x0040, 0);
+                PostMessageW(t.terminal, WM_APP + 60, 0, 0);
         } break;
     case 5: select(active >= (int)tabs.size() - 1 ? -1 : active + 1); break;
     case 6: select(active < 0 ? (int)tabs.size() - 1 : active - 1); break;
@@ -390,10 +402,19 @@ void App::tabMenu(int index, POINT point) {
     AppendMenuW(menu, MF_STRING, 3, L"Close tab\tCtrl+Shift+W");
     AppendMenuW(menu, MF_STRING, 4, L"Move left");
     AppendMenuW(menu, MF_STRING, 5, L"Move right");
+    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(menu, MF_STRING, 6, L"Event log");
+    AppendMenuW(menu, MF_STRING, 7, L"Copy all terminal output");
+    AppendMenuW(menu, MF_STRING, 8, L"Clear scrollback");
+    AppendMenuW(menu, MF_STRING, 9, L"Reset terminal");
     int choice = TrackPopupMenu(menu, TPM_RETURNCMD, point.x, point.y, 0, hwnd, nullptr); DestroyMenu(menu);
     if (choice == 1) command(2); else if (choice == 2) command(4); else if (choice == 3) command(3);
     else if (choice == 4 && index > 0) { std::swap(tabs[index], tabs[index - 1]); select(index - 1); }
     else if (choice == 5 && index + 1 < (int)tabs.size()) { std::swap(tabs[index], tabs[index + 1]); select(index + 1); }
+    else if (choice >= 6 && choice <= 9 && IsWindow(tabs[index]->terminal)) {
+        const int messages[] = {0x0010, 0x0170, 0x0060, 0x0070};
+        PostMessageW(tabs[index]->terminal, WM_SYSCOMMAND, messages[choice - 6], 0);
+    }
 }
 
 LRESULT CALLBACK editProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR data) {
@@ -523,7 +544,12 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             for (auto hit:app->hits) if (!hit.close && PtInRect(&hit.rect,p)) { app->closeTab(hit.index); break; }
             return 0;
         }
-        case WM_TIMER: app->poll(); return 0;
+        case WM_TIMER:
+            app->poll();
+#ifdef WOOK_UI_TEST
+            runUiSmoke(*app);
+#endif
+            return 0;
         case WM_APP + 42: {
             HWND terminal=(HWND)wp; DWORD pid=0; GetWindowThreadProcessId(terminal,&pid);
             for (size_t i=0;i<app->tabs.size();++i) if (app->tabs[i]->pid==pid && pid==(DWORD)lp && GetParent(terminal)==hwnd) {
@@ -541,12 +567,26 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             }
             app->command((int)wp); return 0;
         }
+        case WM_COPYDATA: {
+            bool owned = false;
+            for (auto &t : app->tabs) if (t->terminal == (HWND)wp) owned = true;
+            auto *data = (const COPYDATASTRUCT *)lp;
+            if (!owned || !data || data->dwData != 44 || !data->lpData || data->cbData < 2 || data->cbData > 101) return FALSE;
+            auto *name = (const char *)data->lpData;
+            if (name[data->cbData - 1] != '\0') return FALSE;
+            auto session = wook::wide(std::string(name, data->cbData - 1));
+            app->refresh();
+            for (auto &profile : app->profiles) if (profile.name == session) {
+                Profile copy = profile; app->connect(copy, true); return TRUE;
+            }
+            return FALSE;
+        }
         case WM_SETFOCUS:
             if (app->active>=0 && IsWindow(app->tabs[app->active]->terminal)) SetFocus(app->tabs[app->active]->terminal);
             break;
         case WM_CLOSE: {
             bool live=false; for (auto &tab:app->tabs) if (!tab->ended && !tab->preview) live=true;
-            if (live && MessageBoxW(hwnd,L"Close Wook Shell and disconnect all active sessions?",L"Close workspace",MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2)!=IDYES) return 0;
+            if (live && MessageBoxW(hwnd,L"Close wShell and disconnect all active sessions?",L"Close workspace",MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2)!=IDYES) return 0;
             for (auto &tab:app->tabs) if (IsWindow(tab->terminal)) PostMessageW(tab->terminal,WM_CLOSE,0,0);
             DestroyWindow(hwnd); return 0;
         }
@@ -555,14 +595,26 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     } catch (const std::exception &e) { ui::error(hwnd,e); }
     return DefWindowProcW(hwnd,msg,wp,lp);
 }
+#ifdef WOOK_UI_TEST
+#include "../tests/ui_smoke.inc"
+#endif
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) {
+    Gdiplus::GdiplusStartupInput imageInput;
+    ULONG_PTR imageToken = 0;
+    Gdiplus::GdiplusStartup(&imageToken, &imageInput, nullptr);
+    struct ImageRuntime { ULONG_PTR token; ~ImageRuntime() { if (token) Gdiplus::GdiplusShutdown(token); } } imageRuntime{imageToken};
     try {
         SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32 | LOAD_LIBRARY_SEARCH_APPLICATION_DIR);
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_STANDARD_CLASSES}; InitCommonControlsEx(&controls);
         App app; app.directory=wook::executableDirectory();
+        app.wordmark.reset(Gdiplus::Image::FromFile((app.directory + L"\\assets\\branding\\wshell-wordmark.png").c_str()));
+#ifdef WOOK_UI_TEST
+        auto isolated = app.directory + L"\\ui-data-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64());
+        SetEnvironmentVariableW(L"WOOK_DATA_DIR", isolated.c_str());
+#endif
         AddFontResourceExW((app.directory+L"\\fonts\\JetBrainsMono-Regular.ttf").c_str(),FR_PRIVATE,nullptr);
         AddFontResourceExW((app.directory+L"\\fonts\\JetBrainsMono-Bold.ttf").c_str(),FR_PRIVATE,nullptr);
         wook::initializeDefaults();
@@ -572,9 +624,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
         if (!app.job || !SetInformationJobObject(app.job,JobObjectExtendedLimitInformation,&limit,sizeof(limit)))
             throw std::runtime_error("Cannot initialize process supervision.");
         WNDCLASSEXW wc{sizeof(wc)}; wc.lpfnWndProc=windowProc; wc.hInstance=instance; wc.lpszClassName=L"WookShellMain";
-        wc.hCursor=LoadCursorW(nullptr,IDC_ARROW); wc.hIcon=LoadIconW(instance,MAKEINTRESOURCEW(101)); wc.hIconSm=wc.hIcon;
+        wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);
+        wc.hIcon=(HICON)LoadImageW(instance,MAKEINTRESOURCEW(101),IMAGE_ICON,GetSystemMetrics(SM_CXICON),GetSystemMetrics(SM_CYICON),LR_SHARED);
+        wc.hIconSm=(HICON)LoadImageW(instance,MAKEINTRESOURCEW(101),IMAGE_ICON,GetSystemMetrics(SM_CXSMICON),GetSystemMetrics(SM_CYSMICON),LR_SHARED);
         RegisterClassExW(&wc); ui::dpi=GetDpiForSystem();
-        HWND hwnd=CreateWindowExW(0,wc.lpszClassName,L"Wook Shell",WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
+        HWND hwnd=CreateWindowExW(0,wc.lpszClassName,L"wShell",WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
                                   CW_USEDEFAULT,CW_USEDEFAULT,ui::px(1230),ui::px(820),nullptr,nullptr,instance,&app);
         if (!hwnd) throw std::runtime_error("Cannot create the application window.");
         ShowWindow(hwnd,show); UpdateWindow(hwnd);

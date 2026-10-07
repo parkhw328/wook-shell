@@ -22,7 +22,7 @@ int wmain() {
         check(wook::parseEndpoint(L"telnet://router").port == 23, "protocol default");
         check(wook::parseEndpoint(L"::1").host == L"::1", "bare IPv6");
         check(wook::parseEndpoint(L"alice@example.com").user == L"alice", "SSH username");
-        for (const auto *bad : {L"", L"-proxycmd", L"example.com:0", L"example.com:65536", L"host:x", L"ssh://[::1", L"ssh://host/path", L"https://host", L"host name"})
+        for (const auto *bad : {L"", L"-proxycmd", L"example.com:0", L"example.com:65536", L"host:x", L"ssh://[::1", L"ssh://host/path", L"https://host", L"host name", L"ssh://alice:secret@host"})
             rejects([&] { wook::parseEndpoint(bad); }, "reject malformed endpoint");
         std::vector<std::wstring> args{L"", L"simple", L"has spaces", L"C:\\한글 폴더\\key.ppk", L"trailing\\", L"slash\\\"quote", L"& | $(anything)"};
         std::wstring cmd = L"test.exe";

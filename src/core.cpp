@@ -94,7 +94,7 @@ void validateProfile(const Profile &p) {
         throw std::runtime_error("Choose a host name of 1-100 UTF-8 bytes, excluding reserved names.");
     if (p.host.empty() || p.host.size() > 253 || p.host.front() == L'-' || p.host.find_first_of(L" \t\r\n/\\\"@[]") != std::wstring::npos)
         throw std::runtime_error("Enter a hostname, IP address, or serial port such as COM3.");
-    if (p.user.find_first_of(L"\r\n\t \"@") != std::wstring::npos || p.user.size() > 128)
+    if (p.user.find_first_of(L"\r\n\t \"@:") != std::wstring::npos || p.user.size() > 128)
         throw std::runtime_error("The username contains unsupported characters.");
     if (p.protocol != L"ssh" && p.protocol != L"telnet" && p.protocol != L"rlogin" && p.protocol != L"raw" && p.protocol != L"serial")
         throw std::runtime_error("Select a supported protocol.");

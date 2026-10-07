@@ -1,0 +1,7 @@
+{
+  "name": "wook-shell-ssh-tests",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {"test": "node integration.cjs"},
+  "devDependencies": {"ssh2": "1.17.0"}
+}

@@ -5,14 +5,21 @@ import shutil
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-NAME = "wook-shell-0.1.0-win-x64"
+NAME = "wshell-0.1.0-win-x64"
 OUT = ROOT / "dist" / NAME
 OUT.mkdir(parents=True, exist_ok=True)
-files = [(ROOT / "build/app/WookShell.exe", "WookShell.exe")]
+files = [(ROOT / "build/app/wShell.exe", "wShell.exe")]
 for binary in ("putty", "puttygen", "pageant", "plink", "pscp", "psftp"):
     files.append((ROOT / f"build/engine/{binary}.exe", "wook-putty.exe" if binary == "putty" else f"{binary}.exe"))
 for path in (ROOT / "assets/fonts").glob("*.ttf"):
     files.append((path, f"fonts/{path.name}"))
+for folder in ("branding", "screenshots"):
+    for path in (ROOT / "assets" / folder).glob("*.png"):
+        files.append((path, f"assets/{folder}/{path.name}"))
+files.append((ROOT / "assets/branding/README.md", "assets/branding/README.md"))
+files.append((ROOT / "assets/wshell.ico", "assets/wshell.ico"))
+for path in (ROOT / "rules").glob("*.md"):
+    files.append((path, f"rules/{path.name}"))
 for path in (ROOT / "licenses").iterdir():
     if path.is_file():
         files.append((path, f"licenses/{path.name}"))

@@ -1,0 +1,29 @@
+#pragma once
+#include <windows.h>
+#include <filesystem>
+#include <fstream>
+#include <vector>
+
+inline void captureTestWindow(HWND window, const wchar_t *name) {
+    RECT r{}; GetClientRect(window, &r);
+    HDC source = GetDC(window), target = CreateCompatibleDC(source);
+    BITMAPINFO info{}; info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    info.bmiHeader.biWidth = r.right; info.bmiHeader.biHeight = -r.bottom;
+    info.bmiHeader.biPlanes = 1; info.bmiHeader.biBitCount = 32; info.bmiHeader.biCompression = BI_RGB;
+    void *pixels = nullptr;
+    auto bitmap = CreateDIBSection(source, &info, DIB_RGB_COLORS, &pixels, nullptr, 0);
+    if (!bitmap) throw std::runtime_error("Cannot capture the test window.");
+    auto old = SelectObject(target, bitmap);
+    RedrawWindow(window, nullptr, nullptr, RDW_UPDATENOW | RDW_ALLCHILDREN | RDW_INVALIDATE);
+    BitBlt(target, 0,0,r.right,r.bottom,source,0,0,SRCCOPY);
+    BITMAPFILEHEADER header{}; header.bfType = 0x4d42;
+    header.bfOffBits = sizeof(header) + sizeof(BITMAPINFOHEADER);
+    header.bfSize = header.bfOffBits + r.right * r.bottom * 4;
+    auto path = std::filesystem::path(wook::executableDirectory()) / name;
+    std::ofstream out(path, std::ios::binary);
+    out.write((char *)&header, sizeof(header));
+    out.write((char *)&info.bmiHeader, sizeof(BITMAPINFOHEADER));
+    out.write((char *)pixels, r.right * r.bottom * 4);
+    SelectObject(target, old); DeleteObject(bitmap); DeleteDC(target); ReleaseDC(window, source);
+    if (!out) throw std::runtime_error("Cannot write screenshot artifact.");
+}

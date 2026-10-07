@@ -1,9 +1,22 @@
 * text=auto
+.gitattributes text eol=lf
+.gitignore text eol=lf
+CMakeLists.txt text eol=lf
+# Preserve upstream license text without imposing source-code whitespace rules.
+licenses/*.txt text eol=lf -whitespace
+*.c text eol=lf
+*.h text eol=lf
 *.cpp text eol=lf
 *.hpp text eol=lf
-*.c text eol=lf
+*.inc text eol=lf
 *.py text eol=lf
 *.ps1 text eol=crlf
 *.md text eol=lf
-*.ttf binary
+*.yml text eol=lf
+*.json text eol=lf
+*.cjs text eol=lf
+*.rc text eol=lf
+*.manifest text eol=lf
+*.png binary
 *.ico binary
+*.ttf binary

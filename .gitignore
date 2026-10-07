@@ -8,3 +8,4 @@ __pycache__/
 *.log
 *.dmp
 .vs/
+**/node_modules/

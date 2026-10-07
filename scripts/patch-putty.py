@@ -24,10 +24,31 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
                      "    if (!wookParent) {\n        ShowWindow(wgs->term_hwnd, show);\n        SetForegroundWindow(wgs->term_hwnd);\n    }")
     window = replace(window, "    gui_terminal_ready(wgs->term_hwnd, &wgs->seat, wgs->backend);",
                      "    wookWindowAttach(wgs->term_hwnd);\n    if (wookParent) reset_window(wgs, 2);\n    gui_terminal_ready(wgs->term_hwnd, &wgs->seat, wgs->backend);")
+    window = replace(window, "    gui_term_process_cmdline(wgs->conf, cmdline);",
+                     "    gui_term_process_cmdline(wgs->conf, cmdline);\n    if (wookParent) conf_set_bool(wgs->conf, CONF_warn_on_close, false);")
     window = replace(window, "    switch (message) {\n      case WM_CREATE:",
-                     "    if (wookKey(hwnd, message, wParam, lParam)) return 0;\n    switch (message) {\n      case WM_CREATE:")
-    # Route upstream menu duplication into the host's tab model.
-    window = replace(window, "          case IDM_DUPSESS:\n", "          case IDM_DUPSESS:\n            if (wookParent && wParam == IDM_DUPSESS) {\n                PostMessageW(wookParent, WM_APP + 43, 2, (LPARAM)hwnd);\n                break;\n            }\n")
+                     "    if (wookKey(hwnd, message, wParam, lParam)) return 0;\n    switch (message) {\n      case WM_APP + 60:\n        if (wookParent && wgs) {\n            close_session(wgs);\n            term_pwron(wgs->term, false);\n            start_backend(wgs);\n        }\n        return 0;\n      case WM_CREATE:")
+    window = replace(window, "static void clear_full_screen(WinGuiSeat *wgs)\n{",
+                     "static void clear_full_screen(WinGuiSeat *wgs)\n{\n    if (wookParent) return;")
+    window = replace(window, "static bool is_full_screen(WinGuiSeat *wgs)\n{",
+                     "static bool is_full_screen(WinGuiSeat *wgs)\n{\n    if (wookParent) return false;")
+    window = replace(window, "static void make_full_screen(WinGuiSeat *wgs)\n{",
+                     "static void make_full_screen(WinGuiSeat *wgs)\n{\n    if (wookParent) { PostMessageW(wookParent, WM_APP + 43, 8, (LPARAM)wgs->term_hwnd); return; }")
+    window = replace(window, "                if (nflg != flag || nexflag != exflag) {",
+                     "                if (wookParent) {\n                    nflg &= ~(WS_CAPTION | WS_BORDER | WS_THICKFRAME | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_SYSMENU);\n                    nexflag &= ~(WS_EX_CLIENTEDGE | WS_EX_TOPMOST);\n                }\n                if (nflg != flag || nexflag != exflag) {")
+    # Route upstream new/duplicate/saved-session menus into managed tabs.
+    window = replace(window, "          case IDM_SAVEDSESS: {", '''          case IDM_SAVEDSESS: {
+            if (wookParent) {
+                if (wParam == IDM_SAVEDSESS) {
+                    unsigned int sessno = ((lParam - IDM_SAVED_MIN) / MENU_SAVED_STEP) + 1;
+                    if (sessno < (unsigned)sesslist.nsessions) {
+                        const char *name = sesslist.sessions[sessno];
+                        COPYDATASTRUCT data = {44, (DWORD)strlen(name) + 1, (void *)name};
+                        SendMessageW(wookParent, WM_COPYDATA, (WPARAM)hwnd, (LPARAM)&data);
+                    }
+                } else PostMessageW(wookParent, WM_APP + 43, wParam == IDM_DUPSESS ? 2 : 1, (LPARAM)hwnd);
+                break;
+            }''')
     (SOURCE / "windows/window.c").write_text(window, encoding="utf-8")
 
     putty = original("windows/putty.c")
@@ -39,7 +60,7 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
                 wookPreview = true;
                 demo_terminal_data = strbuf_new();
                 put_dataz(demo_terminal_data,
-                    "\\033[2J\\033[H\\r\\n  \\033[38;2;58;169;159mWOOK SHELL\\033[0m  /  Terminal preview\\r\\n\\r\\n"
+                    "\\033[2J\\033[H\\r\\n  \\033[38;2;58;169;159mwShell\\033[0m  /  Terminal preview\\r\\n\\r\\n"
                     "  A little color. A lot of possibility.\\r\\n"
                     "  Flexoki Dark + JetBrains Mono\\r\\n\\r\\n"
                     "  \\033[32mSSH\\033[0m   \\033[34mUTF-8\\033[0m   \\033[35m256 colors\\033[0m   \\033[36mTrue Color\\033[0m\\r\\n\\r\\n"
@@ -63,6 +84,15 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
     putty = replace(putty, "        schedule_timer(TICKSPERSEC, demo_terminal_screenshot, (void *)hwnd);", "        if (!wookPreview) schedule_timer(TICKSPERSEC, demo_terminal_screenshot, (void *)hwnd);")
     putty = replace(putty, 'return L"SimonTatham.PuTTY";', 'return L"WookShell.Terminal";')
     (SOURCE / "windows/putty.c").write_text(putty, encoding="utf-8")
+    manifest = original("windows/putty.mft")
+    manifest = replace(manifest, "       <dpiAware>true</dpiAware>",
+                       '       <dpiAware>true</dpiAware>\n       <activeCodePage xmlns="http://schemas.microsoft.com/SMI/2019/WindowsSettings">UTF-8</activeCodePage>')
+    (SOURCE / "windows/putty.mft").write_text(manifest, encoding="utf-8")
+    resource = original("windows/putty.rc")
+    resource = resource.replace('#define APPNAME "PuTTY"', '#define APPNAME "wShell Terminal (modified PuTTY)"')
+    resource = replace(resource, 'IDI_MAINICON ICON "putty.ico"', 'IDI_MAINICON ICON "wshell.ico"')
+    resource = replace(resource, 'IDI_CFGICON ICON "puttycfg.ico"', 'IDI_CFGICON ICON "wshell.ico"')
+    (SOURCE / "windows/putty.rc").write_text(resource, encoding="utf-8")
 
     cmake = original("windows/CMakeLists.txt")
     cmake = replace(cmake, "  storage.c)", "  storage.c wook-store.c)")
@@ -79,4 +109,5 @@ shutil.copyfile(ROOT / "src/store.c", SOURCE / "windows/wook-store.c")
 shutil.copyfile(ROOT / "src/store.h", SOURCE / "windows/wook-store.h")
 # Shared implementation includes this short local filename.
 shutil.copyfile(ROOT / "src/store.h", SOURCE / "windows/store.h")
+shutil.copyfile(ROOT / "assets/wshell.ico", SOURCE / "windows/wshell.ico")
 print("Applied portable storage, private fonts, preview, and tab-host integration.")

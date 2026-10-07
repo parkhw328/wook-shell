@@ -9,3 +9,14 @@
 - 영속 설정은 파일 잠금과 원자적 교체로 보호한다. 저장 실패를 사용자에게 알린다.
 - 연결 수명주기, 탭 모델, 주소 파싱, 설정 저장과 포터블 저장을 테스트한다.
 - 의미 있는 구현 단위로 명령형 커밋 메시지를 작성하고 검증 후 `origin`에 푸시한다.
+
+## 빌드와 회귀 검증
+
+- 최초 빌드: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 -Bootstrap`.
+- 이후 빌드: `scripts/build.ps1`; CTest의 `core-tests`와 배포 ZIP 생성까지 수행한다.
+- SSH/UI: `npm --prefix tests/ssh ci --ignore-scripts --omit=optional` 후 `node tests/ssh/integration.cjs`.
+- 테스트는 임시 루프백 SSH 서버와 `build/` 아래 격리 데이터만 사용한다. 테스트 창은 자동 종료한다.
+- 실행파일 이름은 `wShell.exe`, ZIP 이름은 `wshell-<version>-win-x64.zip`이다.
+- UI 변경은 생성된 `build/app/ui-*.bmp` 화면을 확인한다. 암호·실제 서버 정보를 스크린샷에 포함하지 않는다.
+- 아이콘 원본은 `assets/branding/wshell-icon.png`, ICO 재생성은 `scripts/make-icon.ps1`이다.
+- 공개 PR에는 문제/변경 동작, 관련 이슈, 실행한 검증과 UI 변경 스크린샷을 적는다.

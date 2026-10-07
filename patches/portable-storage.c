@@ -22,7 +22,10 @@ settings_w *open_settings_w(const char *name, char **errmsg) {
     if (!store) { *errmsg = dupstr("Cannot open portable session file. Check folder permissions, name length, or file corruption."); return NULL; }
     settings_w *out = snew(settings_w); out->store = store; return out;
 }
-void write_setting_s(settings_w *h, const char *key, const char *value) { if (h) wsSet(h->store, key, value); }
+void write_setting_s(settings_w *h, const char *key, const char *value) {
+    /* PuTTY supports persisting proxy passwords; wShell deliberately does not. */
+    if (h) wsSet(h->store, key, !strcmp(key, "ProxyPassword") ? "" : value);
+}
 void write_setting_i(settings_w *h, const char *key, int value) {
     char text[40]; snprintf(text, sizeof(text), "%d", value); write_setting_s(h, key, text);
 }
