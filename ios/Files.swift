@@ -6,6 +6,7 @@ final class FileBrowser: ObservableObject {
     @Published var locals: [URL] = []
     @Published var path = "."
     @Published var busy = false
+    @Published var showHidden = false
     @Published var message = ""
     let connection: Connection
     let directory: URL
@@ -16,7 +17,7 @@ final class FileBrowser: ObservableObject {
         catch { message = error.localizedDescription }
     }
     func refreshLocal() throws {
-        locals = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]).filter { (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+        locals = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.isRegularFileKey, .isHiddenKey]).filter { (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true }.sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
     func perform(_ operation: @escaping (FileClient) throws -> Void) {
         guard !busy else { return }; busy = true; message = "Working"
@@ -69,9 +70,14 @@ final class FileBrowser: ObservableObject {
 }
 struct FilesPane: View {
     @StateObject var browser: FileBrowser
-    @State private var local: URL?, remote: String?, importing = false
-    @State private var overwrite = false, uploading = false
-    @State private var folder = "", folderDialog = false, deleteDialog = false
+    @State private var local: URL?
+    @State private var remote: String?
+    @State private var importing = false
+    @State private var overwrite = false
+    @State private var uploading = false
+    @State private var folder = ""
+    @State private var folderDialog = false
+    @State private var deleteDialog = false
     init(_ connection: Connection) { _browser = StateObject(wrappedValue: FileBrowser(connection)) }
     private var selected: SftpEntry? { browser.entries.first { $0.name == remote } }
     var body: some View {
@@ -83,11 +89,13 @@ struct FilesPane: View {
                 Button("Refresh") { browser.refresh() }
                 Button("Cancel") { browser.connection.stop() }.disabled(!browser.busy)
             }
+            Toggle(isOn: $browser.showHidden) { Label("Show hidden files", systemImage: browser.showHidden ? "checkmark.square.fill" : "square") }
+                .toggleStyle(.button).frame(maxWidth: .infinity, alignment: .leading).disabled(browser.busy)
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading) {
                     Text("ON MY IPAD").foregroundStyle(Palette.muted)
                     Text("wShell / Files").lineLimit(1)
-                    List(browser.locals, id: \.self, selection: $local) { url in
+                    List(browser.locals.filter { browser.showHidden || (!$0.lastPathComponent.hasPrefix(".") && (try? $0.resourceValues(forKeys: [.isHiddenKey]).isHidden) != true) }, id: \.self, selection: $local) { url in
                         Text(url.lastPathComponent).tag(url).listRowBackground(Palette.panel)
                     }.scrollContentBackground(.hidden)
                     Button("Upload →") { transfer(true) }.disabled(local == nil || browser.busy)
@@ -99,7 +107,7 @@ struct FilesPane: View {
                         Button("↑") { browser.refresh(remoteJoin(browser.path, "..")) }
                         Text(browser.path).lineLimit(1).truncationMode(.middle)
                     }
-                    List(browser.entries, id: \.name, selection: $remote) { entry in
+                    List(browser.entries.filter { browser.showHidden || !$0.name.hasPrefix(".") }, id: \.name, selection: $remote) { entry in
                         HStack {
                             Image(systemName: entry.directory ? "folder" : entry.regular ? "doc" : "link")
                             Text(entry.name).lineLimit(1)
@@ -118,6 +126,7 @@ struct FilesPane: View {
             Text(browser.message).frame(maxWidth: .infinity, alignment: .leading).foregroundStyle(Palette.muted)
             Text("Files only · No folder recursion · Cancelling disconnects this tab; remote .part files may remain.").font(Palette.font(11)).foregroundStyle(Palette.muted)
         }.padding(16)
+        .onChange(of: browser.showHidden) { _, _ in local = nil; remote = nil }
         .task { if browser.connection.ready { browser.refresh() } }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.data], allowsMultipleSelection: true) { result in
             switch result { case .success(let urls): browser.importFiles(urls); case .failure(let error): browser.message = error.localizedDescription }

@@ -17,11 +17,20 @@ private struct TrustRequest: Identifiable { let id = UUID(); let host: Host; let
 struct Workspace: View {
     @ObservedObject var store: HostStore
     @Environment(\.scenePhase) private var phase
-    @State private var sessions: [Connection] = [], selected: UUID?
-    @State private var splitCount = 1, panes: [UUID] = []
-    @State private var editor: Host?, openRequest: OpenRequest?, trustRequest: TrustRequest?
+    @State private var sessions: [Connection] = []
+    @State private var selected: UUID?
+    @State private var splitCount = 1
+    @State private var panes: [UUID] = []
+    @State private var editor: Host?
+    @State private var openRequest: OpenRequest?
+    @State private var trustRequest: TrustRequest?
     @State private var pendingConnection: (() -> Void)?
-    @State private var error = "", showError = false, about = false, importing = false, exporting = false, backupInfo = false
+    @State private var error = ""
+    @State private var showError = false
+    @State private var about = false
+    @State private var importing = false
+    @State private var exporting = false
+    @State private var backupInfo = false
     @State private var backup = BackupDocument(Data())
     @State private var search = ""
     var body: some View {
@@ -198,7 +207,11 @@ private struct AuthenticationSheet: View {
     let host: Host
     let connect: (String, Data?, String) -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var password = "", passphrase = "", error = "", remember = false, hasSaved = false
+    @State private var password = ""
+    @State private var passphrase = ""
+    @State private var error = ""
+    @State private var remember = false
+    @State private var hasSaved = false
     var body: some View {
         NavigationStack {
             Form {
@@ -234,7 +247,12 @@ private struct HostEditor: View {
     @ObservedObject var store: HostStore
     @State var host: Host
     @Environment(\.dismiss) private var dismiss
-    @State private var importing = false, key: Data?, keyName = "", error = "", delete = false, forgetTrust = false
+    @State private var importing = false
+    @State private var key: Data?
+    @State private var keyName = ""
+    @State private var error = ""
+    @State private var delete = false
+    @State private var forgetTrust = false
     var body: some View {
         NavigationStack {
             Form {
