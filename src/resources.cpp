@@ -72,7 +72,7 @@ LRESULT CALLBACK licenseProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 void showLicenses(HWND owner) {
     WNDCLASSW wc{}; wc.lpfnWndProc = licenseProc; wc.hInstance = GetModuleHandleW(nullptr);
     wc.lpszClassName = L"wShellLicenses"; wc.hCursor = LoadCursorW(nullptr, IDC_ARROW); RegisterClassW(&wc);
-    auto window = CreateWindowExW(0, wc.lpszClassName, L"wShell · Open-source licenses", WS_OVERLAPPEDWINDOW,
+    auto window = CreateWindowExW(0, wc.lpszClassName, L"wShell · Open-source licenses", WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
                                   CW_USEDEFAULT, CW_USEDEFAULT, ui::px(850), ui::px(620), owner, nullptr, wc.hInstance, nullptr);
     ShowWindow(window, SW_SHOWNORMAL);
 }

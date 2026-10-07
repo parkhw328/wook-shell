@@ -65,7 +65,7 @@ template<typename Check> void testBundledFonts(App &app, Check require) {
 }
 template<typename Check> void testWorkspaceChrome(App &app, Check require) {
     auto rectangle = [&](HWND control) { RECT r{}; GetWindowRect(control, &r); MapWindowPoints(nullptr, app.hwnd, (POINT *)&r, 2); return r; };
-    const int actions[] = {NavigationToggle, NewHost, ConnectHost, FilesHost, EditHost, Advanced, Tools, About};
+    const int actions[] = {NewHost, ConnectHost, FilesHost, EditHost, Advanced, Tools, About};
     RECT window{}; GetWindowRect(app.hwnd, &window);
     SetWindowPos(app.hwnd, nullptr, 0, 0, ui::px(980), ui::px(740), SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
     int right = 0;
@@ -76,6 +76,9 @@ template<typename Check> void testWorkspaceChrome(App &app, Check require) {
         right = r.right;
     }
     auto quick = rectangle(app.control(Quick));
+    auto toggle = rectangle(app.control(NavigationToggle));
+    require(toggle.top >= ui::px(appBarHeight) && toggle.right < ui::px(sidebarExpanded) &&
+            toggle.bottom < rectangle(app.control(Search)).top, "Hide hosts must be beside Connections in the navigation header");
     require(app.navigationVisible && IsWindowVisible(app.control(Search)), "Navigation must start expanded");
     SetFocus(app.control(NavigationToggle)); SendMessageW(app.control(NavigationToggle), BM_CLICK, 0, 0);
     require(!app.navigationVisible && !wook::loadNavigationVisible() && !IsWindowVisible(app.control(Search)) && !IsWindowVisible(app.control(HostList)),
@@ -83,6 +86,10 @@ template<typename Check> void testWorkspaceChrome(App &app, Check require) {
     require(GetFocus() == app.control(Quick) && rectangle(app.control(Quick)).left < quick.left,
             "Hiding navigation on the home screen must reclaim space and keep input usable");
     for (auto id : actions) require(IsWindowVisible(app.control(id)), "Navigation toggle must not hide top actions");
+    toggle = rectangle(app.control(NavigationToggle));
+    require(IsWindowVisible(app.control(NavigationToggle)) && toggle.left >= 0 && toggle.right <= ui::px(app.sidebar) &&
+            toggle.top >= ui::px(appBarHeight) && ui::value(app.control(NavigationToggle)) == L"Show hosts",
+            "Collapsed navigation must keep an accessible restore button in its own rail");
     captureTestWindow(app.hwnd, L"ui-navigation-collapsed.bmp");
     app.command(7);
     require(app.navigationVisible && wook::loadNavigationVisible() && GetFocus() == app.control(Search),

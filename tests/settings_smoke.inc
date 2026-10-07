@@ -42,6 +42,13 @@ void runSettingsSmoke(Settings *s) {
         if (!s->live && s->testStep < (int)s->pages.size()) {
             choose(s, s->testStep++);
             auto &page = s->pages[s->selected];
+            // A stale page can leave pixels in the gaps between its controls.
+            // A normal paint (without WM_ERASEBKGND) must clear those pixels.
+            RedrawWindow(s->page, nullptr, nullptr, RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW);
+            auto dc = GetDC(s->page); SetPixel(dc, 1, 1, RGB(255, 0, 255)); ReleaseDC(s->page, dc);
+            InvalidateRect(s->page, nullptr, FALSE); UpdateWindow(s->page);
+            dc = GetDC(s->page); auto gap = GetPixel(dc, 1, 1); ReleaseDC(s->page, dc);
+            check(gap == ui::bg, "Repainting a settings page must clear previous-page remnants without requiring background erasure");
             int controls = 0;
             for (HWND control = GetWindow(s->page, GW_CHILD); control; control = GetWindow(control, GW_HWNDNEXT)) {
                 LOGFONTW font{}; GetObjectW((HFONT)SendMessageW(control, WM_GETFONT, 0, 0), sizeof(font), &font);
@@ -51,6 +58,21 @@ void runSettingsSmoke(Settings *s) {
                 ++controls;
             }
             check(controls > 0, "Settings page has no controls");
+            // Measure real control rectangles; ignore enclosing group boxes.
+            std::vector<RECT> fields;
+            for (HWND control = GetWindow(s->page, GW_CHILD); control; control = GetWindow(control, GW_HWNDNEXT)) {
+                wchar_t kind[32]{}; GetClassNameW(control, kind, 32);
+                if (!IsWindowVisible(control) || (!wcscmp(kind, L"Button") &&
+                    (GetWindowLongPtrW(control, GWL_STYLE) & BS_TYPEMASK) == BS_GROUPBOX)) continue;
+                RECT r{}; GetWindowRect(control, &r);
+                for (auto other : fields) { RECT overlap{}; check(!IntersectRect(&overlap, &r, &other), "Settings controls overlap"); }
+                fields.push_back(r);
+                if (!wcscmp(kind, L"ComboBox") && (GetWindowLongPtrW(control, GWL_STYLE) & 3) == CBS_DROPDOWN) {
+                    COMBOBOXINFO combo{sizeof(combo)};
+                    if (GetComboBoxInfo(control, &combo) && IsWindowVisible(combo.hwndItem))
+                        check(testRepaintPreservesControl(control, combo.hwndItem), "Combo redraw must preserve its editable text");
+                }
+            }
             for (const auto &[path, file] : std::vector<std::pair<std::string, std::wstring>>{
                 {"Session", L"ui-settings-connection.bmp"}, {"Connection/Proxy", L"ui-settings-proxy.bmp"},
                 {"Connection/SSH/Tunnels", L"ui-settings-tunnels.bmp"}, {"Terminal/Keyboard", L"ui-settings-keyboard.bmp"},

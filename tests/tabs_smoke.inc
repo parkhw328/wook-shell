@@ -1,3 +1,50 @@
+struct CloseTabsTest {
+    App *app{};
+    int answer{}, prompts{};
+    bool mutate{};
+    uint64_t newTab{};
+};
+CloseTabsTest *closeTabsTest = nullptr;
+void CALLBACK closeTabsTestTimer(HWND, UINT, UINT_PTR, DWORD) {
+    EnumThreadWindows(GetCurrentThreadId(), [](HWND window, LPARAM) -> BOOL {
+        auto &test = *closeTabsTest;
+        if (GetWindow(window, GW_OWNER) != test.app->hwnd) return TRUE;
+        auto title = ui::value(window);
+        if (title != L"Close tabs" && title != L"Close tab") return TRUE;
+        if (++test.prompts == 1 && test.mutate) {
+            test.app->closeTab(1, true);
+            auto tab = std::make_unique<Tab>(); tab->ended = true; tab->profile.name = L"Opened during confirmation";
+            test.newTab = tab->id; test.app->tabs.push_back(std::move(tab)); test.app->layout();
+        }
+        PostMessageW(window, WM_COMMAND, test.answer, 0); return FALSE;
+    }, 0);
+}
+template<typename Check> void testBulkTabConsent(App &app, Check require) {
+    require(app.tabs.empty(), "Bulk close fixture starts without live user sessions");
+    for (int i = 0; i < 4; ++i) {
+        auto tab = std::make_unique<Tab>(); tab->files = true; tab->profile.name = L"Close confirmation fixture";
+        app.tabs.push_back(std::move(tab));
+    }
+    app.select(2); auto anchor = app.tabs[2]->id; app.setSplit(4);
+    SetWindowTextW(app.control(CommandText), L"draft must survive cancellation");
+    CloseTabsTest test{&app, IDNO}; closeTabsTest = &test;
+    auto timer = SetTimer(nullptr, 0, 80, closeTabsTestTimer);
+    app.closeTabs(CloseTabs::others, anchor); KillTimer(nullptr, timer);
+    require(test.prompts == 1 && app.tabs.size() == 4 && app.tabs[app.active]->id == anchor && app.panes.size() == 4 &&
+            ui::value(app.control(CommandText)) == L"draft must survive cancellation", "Cancel must preserve every tab, active pane and input draft");
+    test.answer = IDYES; test.prompts = 0;
+    timer = SetTimer(nullptr, 0, 80, closeTabsTestTimer);
+    app.closeTabs(CloseTabs::others, anchor); KillTimer(nullptr, timer);
+    require(test.prompts == 1 && app.tabs.size() == 1 && app.tabs[app.active]->id == anchor,
+            "Closing multiple active tabs must require exactly one confirmation and preserve the chosen tab");
+    for (int i = 0; i < 3; ++i) { auto tab = std::make_unique<Tab>(); tab->files = true; app.tabs.push_back(std::move(tab)); }
+    test.prompts = 0; test.mutate = true;
+    timer = SetTimer(nullptr, 0, 80, closeTabsTestTimer);
+    app.closeTabs(CloseTabs::all); KillTimer(nullptr, timer); closeTabsTest = nullptr;
+    require(test.prompts == 1 && app.tabs.size() == 1 && app.tabs[0]->id == test.newTab,
+            "A nested message loop must not close a newly opened tab after an original target disappears");
+    app.closeTabs(CloseTabs::all); SetWindowTextW(app.control(CommandText), L"");
+}
 template<typename Check> void testTabOverflow(App &app, Check require) {
     require(app.tabs.empty(), "Tab overflow fixture requires an empty workspace");
     RECT window{}; GetWindowRect(app.hwnd, &window);
@@ -47,7 +94,22 @@ template<typename Check> void testTabOverflow(App &app, Check require) {
     app.tabs.resize(4); app.select(0);
     SetWindowPos(app.hwnd, nullptr, 0, 0, ui::px(1400), ui::px(740), SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
     require(!app.strip.overflow && app.strip.width >= 112 && !IsWindowVisible(app.control(TabsPrevious)), "Tabs compress before showing overflow controls");
-    app.tabs.clear(); app.select(-1);
+    app.setSplit(4);
+    auto keep = app.tabs[2]->id;
+    app.closeTabs(CloseTabs::others, keep);
+    require(app.tabs.size() == 1 && app.tabs[app.active]->id == keep && app.splitCount == 1 && app.panes.size() == 1,
+            "Close other tabs must preserve the selected identity and leave a single pane");
+    for (int i = 0; i < 4; ++i) { auto tab = std::make_unique<Tab>(); tab->ended = true; app.tabs.push_back(std::move(tab)); }
+    auto reference = app.tabs[2]->id;
+    app.select(2); app.closeTabs(CloseTabs::right, reference);
+    require(app.tabs.size() == 3 && app.tabs[app.active]->id == reference && app.tabs.front()->id == keep,
+            "Close tabs to the right must retain the reference and all earlier tabs");
+    app.closeTab(app.active);
+    app.closeTabs(CloseTabs::others, reference);
+    require(app.tabs.size() == 2, "A disappeared menu anchor must not close unrelated tabs");
+    app.closeTabs(CloseTabs::all);
+    require(app.tabs.empty() && app.active == -1 && app.panes.empty(), "Close all tabs must return to the empty workspace");
     require(!IsWindowVisible(app.control(TabsList)) && app.tabScroll == 0, "Closing all tabs resets the strip");
     SetWindowPos(app.hwnd, nullptr, 0, 0, window.right - window.left, window.bottom - window.top, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    testBulkTabConsent(app, require);
 }

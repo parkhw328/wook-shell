@@ -13,6 +13,26 @@ inline std::wstring testPassword() {
     return wook::wide(text);
 }
 
+// Repaint the parent without invalidating its children, as focus, validation
+// and status changes do. Previously this erased inputs until they repainted.
+inline bool testRepaintPreservesControl(HWND parent, HWND control) {
+    HideCaret(control);
+    RedrawWindow(parent, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
+    auto read = [&] {
+        RECT r{}; GetClientRect(control, &r);
+        int width = std::min(180L, r.right), height = std::min(20L, r.bottom);
+        std::vector<COLORREF> pixels;
+        auto dc = GetDC(control);
+        for (int y = 1; y < height - 1; ++y) for (int x = 1; x < width - 1; ++x) pixels.push_back(GetPixel(dc, x, y));
+        ReleaseDC(control, dc); return pixels;
+    };
+    auto before = read();
+    RedrawWindow(parent, nullptr, nullptr, RDW_INVALIDATE | RDW_NOCHILDREN | RDW_UPDATENOW);
+    auto after = read();
+    ShowCaret(control);
+    return !before.empty() && before == after;
+}
+
 inline void captureTestWindow(HWND window, const wchar_t *name) {
     if (IsIconic(window)) { ShowWindow(window, SW_RESTORE); UpdateWindow(window); }
     RECT r{}; GetClientRect(window, &r);

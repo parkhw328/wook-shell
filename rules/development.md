@@ -18,6 +18,7 @@
 - 비밀번호 공급은 SSH 엔진이 지정한 인증 대상 메타데이터만 사용한다. 서버가 보낸 프롬프트 문자열로 비밀번호나 OTP를 추측하지 않는다. 백업에서는 암호문과 연결 정보를 제외한다.
 - 연결 설정의 추상 모델과 핸들러는 유지한다. `patches/wshell-config.h`가 모델을 `src/settings_ui.cpp`의 테마 화면에 연결한다.
 - 키 관리는 직접 라이브러리를 호출한다. RSA 생성은 Windows CNG를 사용하고 PuTTY의 암호 연산 링크 보호를 제거하지 않는다.
+- Windows 키 가져오기·등록·재사용은 [개인키 등록 규칙](keys.md)을 따른다.
 - 텍스트 크기는 `src/ui.hpp`의 `TextSize`를 사용하고 굵기는 실제 내장 Regular/Bold만 사용한다.
 - 탐색창·상단 메뉴·검색·폰트를 변경할 때는 [작업 공간 UI 규칙](workspace-ui.md)을 적용한다. 폰트 캐시 생성 전부터 `WOOK_DATA_DIR`를 격리하고, 자식 터미널도 같은 캐시를 사용한다.
 - 외부 소스·도구는 버전과 SHA-256을 고정하고 검증한다. 빌드 산출물과 개발 도구는 커밋하지 않는다.
@@ -34,6 +35,7 @@
 - SSH/UI: `npm --prefix tests/ssh ci --ignore-scripts --omit=optional` 후 `node tests/ssh/integration.cjs`.
 - 폰트 캐시: `node tests/ssh/font-integration.cjs`. 폰트 선택·탐색 UI와 실제 분할 입력은 SSH/UI 테스트에 포함한다.
 - 실행 인자: `node tests/ssh/launch-integration.cjs`. 배포 EXE로 실제 루프백 SSH 인증, 저장 호스트 재사용, UTF-8 파이프, 일회용 암호 정리와 자식 명령줄을 검증한다.
+- 개인키 등록: `node tests/ssh/key-import-integration.cjs`. 외부 형식 가져오기, 등록 파일 보호와 배포 EXE의 실제 키 인증·재사용을 검증한다.
 - 테스트는 임시 루프백 SSH 서버와 `build/` 아래 격리 데이터만 사용한다. 테스트 창은 자동 종료한다.
 - 데스크톱 버전은 루트 `VERSION`에서 관리한다. 현재 배포 대상은 `dist/<version>/windows-x64/`이며 `scripts/index-dist.py`로 해시 manifest를 생성한다. `dist/<version>/macos-universal/`은 macOS 빌드를 명시적으로 요청받았을 때만 갱신한다.
 - UI 변경은 생성된 `build/ssh-test-*/standalone/ui-*.bmp` 화면을 확인한다. 암호·실제 서버 정보를 스크린샷에 포함하지 않는다.

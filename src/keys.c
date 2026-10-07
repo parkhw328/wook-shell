@@ -58,7 +58,30 @@ WsKey *wsKeyGenerate(int rsaBits) {
     key->comment = dupstr(rsaBits ? "wShell RSA" : "wShell Ed25519");
     random_unref(); return wrap(key);
 }
+int wsKeyInspect(const wchar_t *path, int *encrypted) {
+    if (encrypted) *encrypted = 0;
+    Filename *file = filename_from_wstr(path);
+    int type = key_type(file), result = WS_KEY_INVALID;
+    if (type == SSH_KEYTYPE_SSH2) {
+        result = WS_KEY_PPK;
+        if (encrypted) *encrypted = ppk_encrypted_f(file, NULL);
+    } else if (import_possible(type) && import_target_type(type) == SSH_KEYTYPE_SSH2) {
+        result = WS_KEY_IMPORT;
+        char *comment = NULL;
+        bool protected = import_encrypted(file, type, &comment);
+        if (encrypted) *encrypted = protected;
+        sfree(comment);
+    } else if (type == SSH_KEYTYPE_SSH2_PUBLIC_OPENSSH || type == SSH_KEYTYPE_SSH2_PUBLIC_RFC4716) {
+        result = WS_KEY_PUBLIC;
+        fail("This file contains only a public key. Select the matching private key (.key, .pem, OpenSSH, or .ppk) to sign in.");
+    } else if (type == SSH_KEYTYPE_UNOPENABLE) fail("Cannot read the private key. Check its path and file permissions.");
+    else fail("Unsupported private key format. Select a PuTTY PPK, OpenSSH private key, or traditional PEM RSA/DSA/EC private key.");
+    filename_free(file);
+    return result;
+}
 WsKey *wsKeyLoad(const wchar_t *path, const char *passphrase) {
+    int kind = wsKeyInspect(path, NULL);
+    if (kind == WS_KEY_INVALID || kind == WS_KEY_PUBLIC) return NULL;
     Filename *file = filename_from_wstr(path);
     int type = key_type(file);
     const char *error = NULL;

@@ -37,7 +37,7 @@ iPad용 네이티브 SSH·SFTP 앱은 별도로 준비 중입니다. 무료 Appl
 
 ### Windows
 
-1. **`wShell.exe` 하나**를 원하는 폴더에 복사합니다. `wshell-0.11.0-windows-x64.zip`에도 이 파일만 들어 있습니다.
+1. **`wShell.exe` 하나**를 원하는 폴더에 복사합니다. `wshell-0.12.0-windows-x64.zip`에도 이 파일만 들어 있습니다.
 2. 실행합니다. 설치, 관리자 권한, WebView2, .NET, Node.js가 필요하지 않습니다.
 3. `New host`에서 접속 정보를 저장하거나, 빠른 연결 칸에 `user@hostname:22`를 입력합니다.
 4. 처음 접속하는 SSH 서버의 키 지문을 확인한 뒤 신뢰 여부를 선택합니다.
@@ -57,18 +57,19 @@ macOS의 `.app`은 Finder에서 하나의 앱으로 이동하는 번들이며, �
 
 ### 버전별 배포
 
-루트 `VERSION`에서 앱·패키지 버전을 관리합니다. 성공한 GitHub Actions의 `Desktop builds`에서도 두 플랫폼의 배포물을 받을 수 있습니다.
+루트 `VERSION`에서 앱·패키지 버전을 관리합니다. 0.12.0은 Windows 배포이며 성공한 GitHub Actions의 `Desktop builds`에서 받을 수 있습니다. macOS는 기존 0.11.0, iPad는 기존 0.1.0 산출물을 유지합니다.
 
 ```text
 dist/
   README.md
-  0.11.0/
+  0.12.0/
     manifest.json
     windows-x64/
       wShell.exe
       wShell.exe.sha256
-      wshell-0.11.0-windows-x64.zip
-      wshell-0.11.0-windows-x64.zip.sha256
+      wshell-0.12.0-windows-x64.zip
+      wshell-0.12.0-windows-x64.zip.sha256
+  0.11.0/
     macos-universal/
       wshell-0.11.0-macos-universal.zip
       wshell-0.11.0-macos-universal.zip.sha256
@@ -84,7 +85,7 @@ dist/
 | 로컬 셸 | CMD 기본 / PowerShell 선택 | 시스템 로그인 셸(zsh 등) |
 | 저장 비밀번호 | 현재 Windows 계정 DPAPI | 이 Mac의 로그인 Keychain, 동기화 제외 |
 | 키 생성 | Ed25519 / RSA, 자체 키 관리자 | Ed25519 / RSA, OS ssh-keygen을 앱 내 터미널에서 실행 |
-| 개인키 파일 | PPK; OpenSSH를 키 관리자에서 변환 | OpenSSH 형식 |
+| 개인키 파일 | PPK, OpenSSH·PEM 가져오기와 키 목록 등록 | OpenSSH 형식 |
 | 고급 PuTTY 설정 / Serial·Telnet·Rlogin·Raw | 지원 | 이번 macOS 버전에서는 미지원 |
 | 설정 백업 | `.wshell`, 암호·개인키 제외 | 같은 형식; 호스트 목록 교환 가능 |
 | 분할·공통 명령·키보드 동기화 | 지원 | 지원 |
@@ -98,7 +99,7 @@ macOS의 첫 접속은 비밀번호 공급 전에 서버 키 지문을 별도 �
 
 ## Windows 탐색과 상단 메뉴
 
-0.10.0부터 **Hide hosts / Show hosts** 또는 `Ctrl+Shift+H`로 왼쪽 목록을 접고 펼칩니다. 다음 실행에도 표시 상태를 기억하며, 분할 창·명령 초안·키보드 동기화 대상과 옵션은 그대로 유지됩니다. `Ctrl+Shift+P`는 숨긴 탐색창을 펼치고 검색 칸으로 이동합니다.
+**CONNECTIONS 옆 ‹ 버튼** 또는 `Ctrl+Shift+H`로 왼쪽 목록을 접고 펼칩니다. 접어도 왼쪽의 좁은 탐색 영역에 **› 버튼**이 남아 바로 펼칠 수 있습니다. 버튼의 툴팁은 **Hide hosts / Show hosts**입니다. 다음 실행에도 표시 상태를 기억하며, 분할 창·명령 초안·키보드 동기화 대상과 옵션은 그대로 유지됩니다. `Ctrl+Shift+P`는 숨긴 탐색창을 펼치고 검색 칸으로 이동합니다.
 
 **New host · Connect · SFTP · Edit · Host settings · Tools · About**은 상단에 고정됩니다. 호스트 작업은 목록에서 선택한 저장 연결을 대상으로 하며, 버튼에 마우스를 올리면 대상 이름과 주소를 확인할 수 있습니다. 세션 도구 모음의 **Files / Settings**는 현재 활성 탭에 적용됩니다.
 
@@ -111,6 +112,8 @@ macOS의 첫 접속은 비밀번호 공급 전에 서버 키 지문을 별도 �
 0.11.0부터 탭이 늘면 폭을 줄이고, 최소 폭에 도달하면 **‹ / ›** 버튼과 휠 스크롤을 제공합니다. 탭 줄의 **3–5 / 32 ▾** 같은 표시는 현재 보이는 범위와 전체 개수입니다. 이 버튼을 누르면 숨겨진 탭까지 전체 이름·주소로 선택할 수 있습니다. `Ctrl+Tab` 전환·새 탭·창 크기 변경 시 선택한 탭이 자동으로 보입니다. 탭 줄만 스크롤할 때에는 현재 연결과 분할 입력 대상이 유지됩니다. [0.11.0 변경 내역](docs/releases/0.11.0.md)
 
 ![Scrollable tabs at minimum window size](assets/screenshots/tabs-overflow.png)
+
+탭 우클릭에서 **Close other tabs**(이 탭만 남기기), **Close tabs to the right**(오른쪽 탭 닫기), **Close all tabs**(모두 닫기)를 사용할 수 있습니다. 전체 탭 메뉴에도 나머지·모두 닫기가 있습니다. 실행 중인 연결을 닫을 때에는 한 번만 확인하며, 취소하면 탭과 분할·명령 초안을 유지합니다. [0.12.0 변경 내역](docs/releases/0.12.0.md)
 
 ### 실행 인자로 SSH 접속
 
@@ -163,26 +166,29 @@ Windows에서는 한글 조합을 별도 팝업 대신 **터미널 커서 자리
 
 SSH의 **공개키 인증은 키 쌍을 사용**합니다. 서버의 `~/.ssh/authorized_keys`에 공개키(`.pub`)를 등록하고, wShell은 대응하는 개인키로 서명합니다. 공개키 파일만으로는 로그인할 수 없습니다. 외부 에이전트의 키는 사용하지 않습니다.
 
-`Authentication → Public key authentication`을 선택하고 개인키 경로를 지정하세요. Windows는 `.ppk`, macOS는 OpenSSH 개인키를 사용합니다. 개인키는 서버에 업로드하지 마세요.
+`Authentication → Public key authentication`을 선택하고 개인키 경로를 지정하세요. Windows는 PPK뿐 아니라 **OpenSSH 및 기존 PEM 형식의 `.key`·`.pem` 개인키**를 가져올 수 있습니다. 호스트를 저장하거나 접속할 때 PPK 사본을 등록하며, **Choose or import a registered key → Use key**로 다른 호스트에서도 재사용합니다. macOS는 기존 OpenSSH 경로를 사용합니다. 개인키는 서버에 업로드하지 마세요.
 
 ![Public key authentication](assets/screenshots/public-key-host.png)
 
-`No supported authentication methods available (server sent: publickey,gssapi-keyex,gssapi-with-mic)`가 나오면 서버가 비밀번호 인증을 제공하지 않는 상태입니다. 올바른 사용자 이름과 해당 사용자에 등록된 공개키의 **짝이 되는 개인키**를 확인하세요. `.pem` 또는 `id_ed25519` / `id_rsa` 파일을 가지고 있다면 Windows 키 관리자의 `Import key`로 가져온 뒤 `.ppk`로 저장하여 선택합니다. 개인키가 없다면 새 키 쌍을 생성하고 관리자에게 공개키 등록을 요청해야 합니다. 이름만 `.pub`에서 `.ppk`로 바꿔서는 사용할 수 없습니다. 인증서·조직의 Kerberos 설정은 별도 구성이 필요합니다. [OpenSSH 공개키 인증 설명](https://man.openbsd.org/ssh#AUTHENTICATION)
+`No supported authentication methods available (server sent: publickey,gssapi-keyex,gssapi-with-mic)`가 나오면 서버가 비밀번호 인증을 제공하지 않는 상태입니다. 올바른 사용자 이름과 해당 사용자에 등록된 공개키의 **짝이 되는 개인키**를 확인하세요. Oracle에서 받은 PEM RSA `.key`, `.pem`, `id_ed25519` / `id_rsa`는 호스트의 Browse에서 선택하거나 키 관리자의 **Import & register…**로 가져옵니다. 공개키만 가진 경우에는 개인키가 필요하다고 안내합니다. 개인키가 없다면 새 키 쌍을 생성하고 관리자에게 공개키 등록을 요청해야 합니다. 이름만 `.pub`에서 `.ppk`로 바꿔서는 사용할 수 없습니다. 인증서·조직의 Kerberos 설정은 별도 구성이 필요합니다. [OpenSSH 공개키 인증 설명](https://man.openbsd.org/ssh#AUTHENTICATION)
 
 다음 자체 키 관리자 절차는 Windows에 해당합니다.
 
 `Tools → SSH key manager…`에서 **Ed25519, RSA 3072, RSA 4096** 키를 생성합니다. 개인키와 SHA-256 지문을 앱 안에서 처리하며 별도 프로그램을 실행하지 않습니다.
 
 1. 알고리즘을 선택하고 `Generate`를 누릅니다.
-2. 개인키를 암호화하려면 `Passphrase`에 암호를 입력한 뒤 `Save private key`로 `.ppk`를 저장합니다. 빈 암호로 저장하면 암호화되지 않습니다.
-3. 공개키를 복사하거나 `Save public key`로 `.pub`를 저장하여 서버의 `authorized_keys`에 등록합니다.
-4. `New host`의 `Authentication → Public key authentication`에서 저장한 `.ppk`를 선택합니다.
+2. 개인키를 암호화하려면 `Passphrase`에 암호를 입력한 뒤 **Register key**로 등록합니다. 파일로 꺼내려면 **Export private**를 사용합니다. 빈 암호로 새 키를 저장하면 암호화되지 않습니다.
+3. 공개키를 복사하거나 **Export public**으로 `.pub`를 저장하여 서버의 `authorized_keys`에 등록합니다.
+4. 호스트의 **Choose or import a registered key**에서 등록된 키를 선택하고 **Use key**를 누릅니다.
 
-`Import key…`는 기존 PPK와 OpenSSH 개인키를 읽습니다. 암호화된 키는 가져오기 전에 암호를 입력하세요. 저장은 PPK v3 형식이며, 가져오기와 저장에 사용한 암호 입력은 작업 후 지웁니다.
-인증 화면의 `Generate or import a key pair`로 키 관리자를 열면, 저장한 개인키 경로가 호스트 설정에 자동으로 채워집니다. `.pem`·`.key`·`.txt` 확장자도 가져오기 목록에서 선택할 수 있으며 실제 파일 내용을 기준으로 형식을 판별합니다.
+등록된 키는 `%LOCALAPPDATA%\wShell\keys`에 현재 Windows 사용자와 SYSTEM만 접근할 수 있는 파일로 보관합니다. 원본 파일은 변경하지 않으며 암호화한 키를 가져오면 동일한 키 암호를 유지합니다. 키 암호는 따로 저장하지 않고, 개인키는 설정 백업에 포함하지 않습니다. 키 관리자의 가져오기·내보내기 암호는 아래 Passphrase 칸에 입력합니다. [개인키 등록 규칙](rules/keys.md)
+
+`Import & register…`는 기존 PPK·OpenSSH·PEM 개인키를 읽어 PPK v3로 등록합니다. 암호화된 키는 가져오기 전에 Passphrase에 암호를 입력하세요. 작업이 끝나면 암호 입력을 지웁니다. **Use key**를 누르면 선택한 개인키 경로가 호스트 설정에 채워지며, 새로 생성한 키라면 먼저 등록합니다. 확장자가 아닌 파일 내용으로 형식을 판별합니다.
 RSA 생성은 Windows CNG, Ed25519와 키 형식 처리는 PuTTY 라이브러리를 사용합니다.
 
 ![Native SSH key manager](assets/screenshots/key-manager.png)
+
+![Registered keys ready to reuse for a host](assets/screenshots/key-library.png)
 
 ## SSH 비밀번호 저장
 
@@ -267,6 +273,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1
 npm --prefix tests/ssh ci --ignore-scripts --omit=optional
 node tests/ssh/font-integration.cjs
 node tests/ssh/launch-integration.cjs
+node tests/ssh/key-import-integration.cjs
 node tests/ssh/integration.cjs
 node tests/ssh/sftp-integration.cjs
 git diff --check

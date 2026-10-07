@@ -2,6 +2,7 @@
 #include "../build/version.h"
 #include "ui.hpp"
 #include "key_dialog.hpp"
+#include "key_import.hpp"
 #include <commdlg.h>
 #include <stdexcept>
 #ifdef WOOK_UI_TEST
@@ -60,7 +61,7 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         for (auto label : {L"Password", L"Public key authentication"}) SendMessageW(form->auth, CB_ADDSTRING, 0, (LPARAM)label);
         SendMessageW(form->auth, CB_SETCURSEL, form->profile.keyFile.empty() ? 0 : 1, 0);
         add(FontSize, L"9", 402, 381, 106, std::to_wstring(form->profile.fontSize));
-        add(Key, L"Select a .ppk key file", 32, 455, 381, form->profile.keyFile);
+        add(Key, L"PPK, OpenSSH or PEM private key", 32, 455, 381, form->profile.keyFile);
         ui::place(ui::button(hwnd, L"Browse", Browse), 423, 448, 92, 38);
         form->password = ui::control(hwnd, L"EDIT", L"", Password, ES_PASSWORD | ES_AUTOHSCROLL | WS_TABSTOP);
         ui::place(form->password, 32, 455, 475, 25);
@@ -68,7 +69,7 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         SendMessageW(form->password, EM_SETLIMITTEXT, 1024, 0);
         SendMessageW(form->password, EM_SETCUEBANNER, TRUE, (LPARAM)(form->profile.passwordSaved ? L"Saved — leave blank to keep" : L"Enter password to save"));
         form->remember = ui::checkbox(hwnd, L"Save password encrypted on this PC", Remember);
-        ui::place(ui::button(hwnd, L"Generate or import a key pair", KeyManager), 28, 503, 488, 32);
+        ui::place(ui::button(hwnd, L"Choose or import a registered key", KeyManager), 28, 503, 488, 32);
         ui::place(form->remember, 28, 503, 490, 30);
         SendMessageW(form->remember, BM_SETCHECK, form->profile.passwordSaved ? BST_CHECKED : BST_UNCHECKED, 0);
         form->alias = ui::edit(hwnd, L"Optional tab label", Alias);
@@ -92,6 +93,8 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 #ifdef WOOK_UI_TEST
     case WM_TIMER:
         KillTimer(hwnd, 90);
+        if (!testRepaintPreservesControl(hwnd, form->fields[Name - Name]))
+            throw std::runtime_error("Host editor redraw must not paint over child inputs");
         if (form->profile.name == L"Password SSH test") {
             SendMessageW(form->remember, BM_SETCHECK, BST_CHECKED, 0); updateAuthentication(hwnd, form);
             auto fixture = testPassword(); SetWindowTextW(form->password, fixture.c_str());
@@ -107,7 +110,7 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         const struct { const wchar_t *text; int x, y; } labels[] = {
             {L"NAME",28,61}, {L"ADDRESS / SERIAL PORT",28,135}, {L"PROTOCOL",28,206}, {L"PORT / BAUD",276,206},
             {L"USERNAME",28,278}, {L"GROUP",276,278}, {L"AUTHENTICATION",28,351}, {L"FONT SIZE",398,351},
-            {passwordMode(form) ? L"PASSWORD" : L"PRIVATE KEY (.ppk)",28,425}, {L"ALIAS (OPTIONAL)",28,595}, {L"TAB COLOR",320,595}
+            {passwordMode(form) ? L"PASSWORD" : L"PRIVATE KEY",28,425}, {L"ALIAS (OPTIONAL)",28,595}, {L"TAB COLOR",320,595}
         };
         for (auto l : labels) ui::label(dc, l.text, ui::rect(l.x, l.y, 230, 20), ui::TextSize::caption, ui::muted, true);
         const RECT boxes[] = {ui::rect(27,83,489,41), ui::rect(27,157,489,41), ui::rect(275,228,241,41),
@@ -139,11 +142,11 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         } else if ((LOWORD(wp) == Auth && HIWORD(wp) == CBN_SELCHANGE) || LOWORD(wp) == Remember) {
             updateAuthentication(hwnd, form);
         } else if (LOWORD(wp) == KeyManager) {
-            auto path = showKeyManager(hwnd);
+            auto path = showKeyManager(hwnd, true);
             if (!path.empty()) SetWindowTextW(form->fields[Key - Name], path.c_str());
         } else if (LOWORD(wp) == Browse) {
             wchar_t path[32768]{}; OPENFILENAMEW ofn{sizeof(ofn)}; ofn.hwndOwner = hwnd; ofn.lpstrFile = path;
-            ofn.nMaxFile = 32768; ofn.lpstrFilter = L"PuTTY private keys (*.ppk)\0*.ppk\0All files\0*.*\0";
+            ofn.nMaxFile = 32768; ofn.lpstrFilter = L"SSH private keys (*.ppk; *.pem; *.key; *.openssh; id_*)\0*.ppk;*.pem;*.key;*.openssh;id_*\0All files\0*.*\0";
             ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
             if (GetOpenFileNameW(&ofn)) SetWindowTextW(form->fields[Key - Name], path);
         } else if (LOWORD(wp) == Save || LOWORD(wp) == IDOK) {
@@ -157,9 +160,7 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 p.keyFile = passwordMode(form) ? L"" : wook::trim(ui::value(form->fields[Key - Name]));
                 p.protocol = protocols[SendMessageW(form->fields[Protocol - Name], CB_GETCURSEL, 0, 0)];
                 if (p.protocol == L"ssh" && !passwordMode(form)) {
-                    if (p.keyFile.empty()) throw std::runtime_error("Public key authentication needs the matching private key. Generate or import a key pair in Tools > SSH key manager.");
-                    if (p.keyFile.size() >= 4 && _wcsicmp(p.keyFile.c_str() + p.keyFile.size() - 4, L".pub") == 0)
-                        throw std::runtime_error("A .pub file belongs on the server in ~/.ssh/authorized_keys. Select its matching private .ppk key here. SSH certificates can be set in Connection settings > SSH > Auth > Credentials.");
+                    if (p.keyFile.empty()) throw std::runtime_error("Public key authentication needs the matching private key. Choose or import a registered key below.");
                 }
                 auto portText = ui::value(form->fields[Port - Name]), fontText = ui::value(form->fields[FontSize - Name]);
                 if (portText.empty() || fontText.empty() || portText.find_first_not_of(L"0123456789") != std::wstring::npos || fontText.find_first_not_of(L"0123456789") != std::wstring::npos)
@@ -176,6 +177,12 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 if (action == wook::PasswordAction::keep &&
                     (p.host != form->profile.host || p.port != form->profile.port || p.user != form->profile.user))
                     throw std::runtime_error("The server or username changed. Re-enter the password, or turn off password storage.");
+                wook::validateProfile(p);
+                if (p.protocol == L"ssh" && !p.keyFile.empty()) {
+                    auto key = preparePrivateKey(hwnd, p.keyFile);
+                    if (key.empty()) return 0;
+                    p.keyFile = key; SetWindowTextW(form->fields[Key - Name], key.c_str());
+                }
                 wook::saveProfile(p, form->existing ? form->profile.name : L"", action, password.text);
                 p.passwordSaved = remember;
                 form->profile = p; form->accepted = true; DestroyWindow(hwnd);
@@ -195,7 +202,7 @@ bool editHost(HWND owner, wook::Profile &profile, bool existing) {
     if (!existing) form.profile.passwordSaved = false;
     RECT r{0,0,ui::px(545),ui::px(740)}; AdjustWindowRectExForDpi(&r, WS_CAPTION | WS_SYSMENU, FALSE, 0, ui::dpi);
     RECT parent; GetWindowRect(owner, &parent);
-    HWND dialog = CreateWindowExW(WS_EX_DLGMODALFRAME, wc.lpszClassName, L"wShell · Host", WS_CAPTION | WS_SYSMENU,
+    HWND dialog = CreateWindowExW(WS_EX_DLGMODALFRAME, wc.lpszClassName, L"wShell · Host", WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN,
         parent.left + ((parent.right - parent.left) - (r.right - r.left)) / 2,
         parent.top + std::max(0L, ((parent.bottom - parent.top) - (r.bottom - r.top)) / 2), r.right - r.left, r.bottom - r.top,
         owner, nullptr, wc.hInstance, &form);

@@ -2,6 +2,7 @@
 #include "focus_smoke.inc"
 #include "workspace_smoke.inc"
 #include "tabs_smoke.inc"
+#include "key_import_test.inc"
 template<typename Check> void testNativeKeys(const std::wstring &directory, Check require) {
     using Key = std::unique_ptr<WsKey, decltype(&wsKeyFree)>;
     auto publicText = [](WsKey *key) {
@@ -72,7 +73,7 @@ void runUiSmoke(App &app) {
         }
         app.refresh(); app.connect(p, true, false, false);
     };
-    auto closeTestSession = [&](int index) { app.tabs[index]->closing = true; app.closeTab(index); };
+    auto closeTestSession = [&](int index) { app.closeTab(index, true); };
     auto received = [&](const wchar_t *marker) { return std::filesystem::exists(std::filesystem::path(app.directory) / marker); };
     if (phase < 0) return;
     { std::ofstream progress(std::filesystem::path(app.directory) / L"ui-smoke-progress.json");
@@ -96,6 +97,17 @@ void runUiSmoke(App &app) {
             showKeyManager(app.hwnd);
             require(std::filesystem::exists(std::filesystem::path(app.directory) / L"ui-key-manager.bmp"), "Native key manager must generate and display a key");
             testNativeKeys(app.directory, require);
+            auto generatedKey = showKeyManager(app.hwnd, true);
+            require(!generatedKey.empty() && wsKeyInspect(generatedKey.c_str(), nullptr) == WS_KEY_PPK,
+                    "Use key must register a generated key and return its persistent path in one action");
+            wchar_t rsaPath[32768]{};
+            require(GetEnvironmentVariableW(L"WOOK_TEST_RSA_KEY", rsaPath, 32768) > 0, "Missing Oracle-format RSA fixture");
+            Profile rsa; rsa.name = L"Oracle RSA import"; rsa.host = L"127.0.0.1"; rsa.user = L"oracle"; rsa.keyFile = rsaPath;
+            require(editHost(app.hwnd, rsa, false), "Host editor must accept a traditional PEM .key file");
+            auto library = registeredPrivateKeys();
+            require(library.size() == 2 && std::find(library.begin(), library.end(), rsa.keyFile) != library.end() && wsKeyInspect(rsa.keyFile.c_str(), nullptr) == WS_KEY_PPK,
+                    "Saving the host must register its imported key and bind the resulting PPK");
+            require(showKeyManager(app.hwnd, true) == library.front(), "A registered key must be selectable for another host without exporting it");
             app.action(Preview); phase = 1; waits = 0;
         } else if (phase == 1 && ready()) {
             require(app.tabs.size() == 1, "Preview must open one tab");
@@ -120,9 +132,9 @@ void runUiSmoke(App &app) {
             require(!app.fullscreen, "Full screen did not restore");
             std::swap(app.tabs[0], app.tabs[1]); app.select(0);
             captureTestWindow(app.hwnd, L"ui-tabs.bmp");
-            app.closeTab(1); phase = 4; waits = 0;
+            app.closeTabs(CloseTabs::others, app.tabs[0]->id); phase = 4; waits = 0;
         } else if (phase == 4 && app.tabs.size() == 1) {
-            app.closeTab(0); phase = 5; waits = 0;
+            app.closeTabs(CloseTabs::all); phase = 5; waits = 0;
         } else if (phase == 5 && app.tabs.empty()) {
             require(app.active == -1, "Closing the last tab must return to the workspace");
             wchar_t port[32], fingerprint[200];

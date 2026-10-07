@@ -3,6 +3,7 @@
 #include "ui.hpp"
 #include "resources.hpp"
 #include "key_dialog.hpp"
+#include "key_import.hpp"
 #include "backup.hpp"
 #include "credentials.h"
 #include "sftp_view.hpp"
@@ -13,6 +14,7 @@
 #include <windowsx.h>
 #include <shellapi.h>
 #include <commdlg.h>
+#include <cstdint>
 #include <memory>
 #include <stdexcept>
 #include <vector>
@@ -28,8 +30,11 @@ extern "C" int WINAPI wshellTerminalMain(HINSTANCE, HINSTANCE, LPSTR, int);
 namespace {
 enum { Search = 100, HostList, NewHost, ConnectHost, EditHost, Quick, QuickConnect, Preview,
        Advanced, Duplicate, Reconnect, SessionSettings, Tools, About, SaveCurrent, HomeNew, HomePreview, LocalCmd, LocalPowerShell, FilesHost, FilesSession, Split, CommandText, SendCommand, SendAll, SyncInput, Targets, NavigationToggle, TabsPrevious, TabsNext, TabsList, ControlEnd };
-constexpr int sidebarExpanded = 252, appBarHeight = 48;
+constexpr int sidebarExpanded = 252, sidebarCollapsed = 48, appBarHeight = 48;
+enum class CloseTabs { all, others, right };
 struct Tab {
+    static inline uint64_t nextId = 0;
+    const uint64_t id = ++nextId;
     Profile profile;
     std::wstring storageName;
     std::unique_ptr<wook::LaunchPassword> launchPassword;
@@ -86,7 +91,9 @@ struct App {
     void refreshPaneFocus();
     void connect(const Profile &profile, bool saved, bool preview = false, bool advanced = false, bool files = false, std::wstring_view password = {});
     void localShell(bool powershell = false);
-    void closeTab(int index);
+    int tabIndex(uint64_t id) const;
+    void closeTab(int index, bool confirmed = false);
+    void closeTabs(CloseTabs scope, uint64_t anchor = 0);
     void command(int code);
     void action(int id);
     void poll();
@@ -258,7 +265,7 @@ void App::setNavigation(bool show) {
     wook::saveNavigationVisible(show);
     auto focus = GetFocus();
     bool restoreFocus = focus == control(NavigationToggle) || (!show && (focus == control(Search) || focus == control(HostList)));
-    navigationVisible = show; sidebar = show ? sidebarExpanded : 0;
+    navigationVisible = show; sidebar = show ? sidebarExpanded : sidebarCollapsed;
     layout();
     if (restoreFocus) { if (active < 0) SetFocus(control(Quick)); else focusActive(); }
 }
@@ -322,15 +329,15 @@ void App::layout(bool revealTab) {
                                 appBarHeight + 9, strip.width - 5, 35);
         SendMessageW(tooltips, TTM_NEWTOOLRECTW, 0, (LPARAM)&tip);
     }
-    ui::place(control(NavigationToggle), 130, 8, 112, 32);
+    ui::place(control(NavigationToggle), sidebar - 44, 60, 32, 32);
     SetWindowTextW(control(NavigationToggle), navigationVisible ? L"Hide hosts" : L"Show hosts");
-    ui::place(control(NewHost), 250, 8, 102, 32);
-    ui::place(control(ConnectHost), 360, 8, 82, 32);
-    ui::place(control(FilesHost), 450, 8, 66, 32);
-    ui::place(control(EditHost), 524, 8, 62, 32);
-    ui::place(control(Advanced), 594, 8, 156, 32);
-    ui::place(control(Tools), 758, 8, 80, 32);
-    ui::place(control(About), 846, 8, 70, 32);
+    ui::place(control(NewHost), 130, 8, 102, 32);
+    ui::place(control(ConnectHost), 240, 8, 82, 32);
+    ui::place(control(FilesHost), 330, 8, 66, 32);
+    ui::place(control(EditHost), 404, 8, 62, 32);
+    ui::place(control(Advanced), 474, 8, 156, 32);
+    ui::place(control(Tools), 638, 8, 80, 32);
+    ui::place(control(About), 726, 8, 70, 32);
     ui::place(control(Search), 26, 112, sidebarExpanded - 52, 22);
     ui::place(control(HostList), 10, 158, sidebarExpanded - 20, std::max(55, height - 196));
     visible(control(Search), navigationVisible);
@@ -442,14 +449,14 @@ void App::paint(HDC dc) {
     ui::fill(dc, ui::rect(0, 0, width, appBarHeight), ui::panel);
     ui::fill(dc, ui::rect(0, appBarHeight - 1, width, 1), ui::line);
     ui::label(dc, L"wShell", ui::rect(18, 5, 104, 37), ui::TextSize::title, ui::bright, true);
-    if (auto p = selectedHost(); p && width >= 1090)
-        ui::label(dc, L"Host: " + p->displayName(), ui::rect(934, 8, width - 950, 32), ui::TextSize::caption, ui::muted);
+    if (auto p = selectedHost(); p && width >= 970)
+        ui::label(dc, L"Host: " + p->displayName(), ui::rect(814, 8, width - 830, 32), ui::TextSize::caption, ui::muted);
+    ui::fill(dc, ui::rect(0, appBarHeight, sidebar, height - appBarHeight), ui::panel);
+    ui::fill(dc, ui::rect(sidebar, appBarHeight, 1, height - appBarHeight), ui::line);
     if (navigationVisible) {
-        ui::fill(dc, ui::rect(0, appBarHeight, sidebar, height - appBarHeight), ui::panel);
-        ui::fill(dc, ui::rect(sidebar, appBarHeight, 1, height - appBarHeight), ui::line);
-        ui::label(dc, L"CONNECTIONS", ui::rect(20, 66, 160, 23), ui::TextSize::caption, ui::muted, true);
+        ui::label(dc, L"CONNECTIONS", ui::rect(20, 66, 120, 23), ui::TextSize::caption, ui::muted, true);
         auto count = ui::value(control(Search)).empty() ? std::to_wstring(profiles.size()) : std::to_wstring(filtered.size()) + L" / " + std::to_wstring(profiles.size());
-        ui::label(dc, count, ui::rect(sidebar - 78, 66, 58, 23), ui::TextSize::caption, ui::muted, false, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+        ui::label(dc, count, ui::rect(142, 66, 58, 23), ui::TextSize::caption, ui::muted, false, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
         ui::round(dc, ui::rect(18, 102, sidebar - 36, 40), ui::raised);
         if (filtered.empty()) {
             ui::label(dc, profiles.empty() ? L"No saved connections." : L"No matching connections.", ui::rect(24, 172, 210, 25), ui::TextSize::body, ui::muted);
@@ -549,11 +556,20 @@ void App::paint(HDC dc) {
     if (active < 0 || !tabs[active]->transient || tabs[active]->preview || tabs[active]->profile.protocol == L"local")
         ui::label(dc, L"NATIVE  ·  WINDOWS x64", ui::rect(width - 200, height - 30, 180, 26), ui::TextSize::caption, ui::muted, false, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
 }
-void App::connect(const Profile &profile, bool saved, bool preview, bool advanced, bool files, std::wstring_view password) {
+void App::connect(const Profile &requested, bool saved, bool preview, bool advanced, bool files, std::wstring_view password) {
+    Profile profile = requested;
     if (files && profile.protocol != L"ssh") throw std::runtime_error("SFTP requires an SSH host.");
     if (tabs.size() >= 32) throw std::runtime_error("Close a tab before opening more than 32 sessions.");
     bool local = profile.protocol == L"local";
     if (!preview && !advanced && !local) wook::validateProfile(profile);
+    if (!preview && !advanced && profile.protocol == L"ssh" && !profile.keyFile.empty()) {
+        auto key = preparePrivateKey(hwnd, profile.keyFile);
+        if (key.empty()) return;
+        if (key != profile.keyFile) {
+            profile.keyFile = key;
+            if (saved) { wook::saveProfile(profile, profile.name); refresh(); }
+        }
+    }
     wchar_t self[32768]; GetModuleFileNameW(nullptr, self, 32768);
     std::wstring engine = self;
     auto tab = std::make_unique<Tab>(); tab->profile = profile; tab->preview = preview; tab->transient = !saved;
@@ -617,17 +633,53 @@ void App::localShell(bool powershell) {
     profile.protocol = L"local"; profile.host = powershell ? L"powershell" : L"cmd";
     connect(profile, false);
 }
-void App::closeTab(int index) {
+int App::tabIndex(uint64_t id) const {
+    auto found = std::find_if(tabs.begin(), tabs.end(), [id](const auto &tab) { return tab->id == id; });
+    return found == tabs.end() ? -1 : (int)(found - tabs.begin());
+}
+void App::closeTabs(CloseTabs scope, uint64_t anchor) {
+    int reference = tabIndex(anchor);
+    if (scope != CloseTabs::all && reference < 0) return;
+    std::vector<uint64_t> targets;
+    int live = 0;
+    for (int i = 0; i < (int)tabs.size(); ++i) {
+        auto &tab = *tabs[i];
+        if (scope == CloseTabs::others && tab.id == anchor) continue;
+        if (scope == CloseTabs::right && i <= reference) continue;
+        targets.push_back(tab.id);
+        if (!tab.ended && !tab.preview && !tab.closing) ++live;
+    }
+    if (targets.empty()) return;
+    if (live) {
+        auto message = L"Close " + std::to_wstring(targets.size()) + L" tabs?\n\n" + std::to_wstring(live) +
+            L" active session(s) will be disconnected. Commands or file transfers may still be running.";
+        if (MessageBoxW(hwnd, message.c_str(), L"Close tabs", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) != IDYES) return;
+    }
+    // Timer messages keep running in native menus and confirmation dialogs.
+    // Only close the original identities, even if their indexes have changed.
+    if (scope != CloseTabs::all && tabIndex(anchor) < 0) return;
+    if (scope == CloseTabs::others) select(tabIndex(anchor));
+    for (auto it = targets.rbegin(); it != targets.rend(); ++it) closeTab(tabIndex(*it), true);
+}
+void App::closeTab(int index, bool confirmed) {
     if (index < 0 || index >= (int)tabs.size()) return;
-    auto &tab = *tabs[index];
-    if (!tab.ended && !tab.preview && !tab.closing &&
+    auto id = tabs[index]->id;
+    if (!confirmed && !tabs[index]->ended && !tabs[index]->preview && !tabs[index]->closing &&
         MessageBoxW(hwnd, L"Close this session? Commands may still be running.", L"Close tab", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) != IDYES) return;
+    index = tabIndex(id);
+    if (index < 0) return;
+    auto &tab = *tabs[index];
     if (tab.files || tab.ended || WaitForSingleObject(tab.process, 0) == WAIT_OBJECT_0) {
         if (tab.files && IsWindow(tab.terminal)) DestroyWindow(tab.terminal);
         if (tab.transient) { wchar_t *path = wsPath(L"sessions", wook::utf8(tab.storageName).c_str()); wsRemove(path); free(path); }
-        tabs.erase(tabs.begin() + index); if (active >= index) --active;
+        bool wasActive = active == index;
+        tabs.erase(tabs.begin() + index);
+        if (wasActive) active = std::min(index, (int)tabs.size() - 1);
+        else if (active > index) --active;
+        if (tabs.size() < 2) { splitCount = 1; paneZoom = false; }
         select(std::min(active, (int)tabs.size() - 1)); return;
     }
+    if (tab.closing) return;
     tab.closing = true;
     if (IsWindow(tab.terminal)) PostMessageW(tab.terminal, WM_CLOSE, 0, 0);
     else EnumWindows([](HWND child, LPARAM pidValue) -> BOOL {
@@ -801,11 +853,12 @@ bool App::wheelTabs(UINT message, WPARAM keys, LPARAM position) {
     return true;
 }
 void App::allTabsMenu(POINT point) {
-    std::vector<Tab *> items;
+    std::vector<uint64_t> items;
+    auto anchor = active >= 0 ? tabs[active]->id : 0;
     HMENU menu = CreatePopupMenu();
     AppendMenuW(menu, MF_STRING | (active < 0 ? MF_CHECKED : 0), 1, L"Workspace");
     for (size_t i = 0; i < tabs.size(); ++i) {
-        items.push_back(tabs[i].get());
+        items.push_back(tabs[i]->id);
         auto &t = *tabs[i];
         auto label = std::to_wstring(i + 1) + L"  " + (t.files ? L"SFTP · " : L"") + t.profile.displayName();
         if (!t.preview && t.profile.protocol != L"local") label += L"  —  " + (t.profile.user.empty() ? L"" : t.profile.user + L"@") + t.profile.host;
@@ -813,13 +866,18 @@ void App::allTabsMenu(POINT point) {
         for (size_t p = 0; (p = label.find(L'&', p)) != std::wstring::npos; p += 2) label.insert(p, 1, L'&');
         AppendMenuW(menu, MF_STRING | ((int)i == active ? MF_CHECKED : 0), i + 2, label.c_str());
     }
+    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(menu, MF_STRING | (anchor && tabs.size() > 1 ? 0 : MF_GRAYED), 100, L"Close other tabs");
+    AppendMenuW(menu, MF_STRING | (tabs.empty() ? MF_GRAYED : 0), 101, L"Close all tabs");
     int choice = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTALIGN, point.x, point.y, 0, hwnd, nullptr);
     DestroyMenu(menu);
     if (choice == 1) select(-1);
     else if (choice >= 2 && choice - 2 < (int)items.size()) {
-        auto it = std::find_if(tabs.begin(), tabs.end(), [&](const auto &t) { return t.get() == items[choice - 2]; });
-        if (it != tabs.end()) select((int)(it - tabs.begin()));
+        int index = tabIndex(items[choice - 2]);
+        if (index >= 0) select(index);
     }
+    else if (choice == 100) closeTabs(CloseTabs::others, anchor);
+    else if (choice == 101) closeTabs(CloseTabs::all);
 }
 void App::hostMenu(POINT point) {
     if (!selectedHost()) return;
@@ -838,18 +896,29 @@ void App::hostMenu(POINT point) {
     }
 }
 void App::tabMenu(int index, POINT point) {
+    if (index < 0 || index >= (int)tabs.size()) return;
+    auto anchor = tabs[index]->id;
     select(index); HMENU menu = CreatePopupMenu();
     AppendMenuW(menu, MF_STRING, 1, L"Duplicate tab\tCtrl+Shift+D");
     AppendMenuW(menu, MF_STRING, 2, L"Reconnect");
     AppendMenuW(menu, MF_STRING, 3, L"Close tab\tCtrl+Shift+W");
-    AppendMenuW(menu, MF_STRING, 4, L"Move left");
-    AppendMenuW(menu, MF_STRING, 5, L"Move right");
+    AppendMenuW(menu, MF_STRING | (tabs.size() > 1 ? 0 : MF_GRAYED), 11, L"Close other tabs");
+    AppendMenuW(menu, MF_STRING | (index + 1 < (int)tabs.size() ? 0 : MF_GRAYED), 12, L"Close tabs to the right");
+    AppendMenuW(menu, MF_STRING, 10, L"Close all tabs");
+    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(menu, MF_STRING | (index > 0 ? 0 : MF_GRAYED), 4, L"Move left");
+    AppendMenuW(menu, MF_STRING | (index + 1 < (int)tabs.size() ? 0 : MF_GRAYED), 5, L"Move right");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING, 6, L"Event log");
     AppendMenuW(menu, MF_STRING, 7, L"Copy all terminal output");
     AppendMenuW(menu, MF_STRING, 8, L"Clear scrollback");
     AppendMenuW(menu, MF_STRING, 9, L"Reset terminal");
     int choice = TrackPopupMenu(menu, TPM_RETURNCMD, point.x, point.y, 0, hwnd, nullptr); DestroyMenu(menu);
+    index = tabIndex(anchor);
+    if (!choice || index < 0) return;
+    if (choice == 10) { closeTabs(CloseTabs::all); return; }
+    if (choice == 11 || choice == 12) { closeTabs(choice == 11 ? CloseTabs::others : CloseTabs::right, anchor); return; }
+    select(index);
     if (choice == 1) command(2); else if (choice == 2) command(4); else if (choice == 3) command(3);
     else if (choice == 4 && index > 0) { std::swap(tabs[index], tabs[index - 1]); select(index - 1); }
     else if (choice == 5 && index + 1 < (int)tabs.size()) { std::swap(tabs[index], tabs[index + 1]); select(index + 1); }
@@ -972,7 +1041,9 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 std::wstring detail = p.group.empty() ? (p.user.empty() ? L"" : p.user + L"@") + p.host : p.group + L" / " + p.host;
                 ui::label(d->hDC, detail, ui::rect(57, y + 31, sidebarExpanded - 93, 22), ui::TextSize::caption, ui::muted);
                 if (d->itemState & ODS_FOCUS) { RECT f = r; InflateRect(&f,-3,-3); DrawFocusRect(d->hDC,&f); }
-            } else ui::drawButton(d, d->CtlID == QuickConnect || d->CtlID == ConnectHost || d->CtlID == NewHost,
+            } else if (d->CtlID == NavigationToggle)
+                ui::drawButton(d, false, ui::TextSize::section, app->navigationVisible ? L"‹" : L"›");
+            else ui::drawButton(d, d->CtlID == QuickConnect || d->CtlID == ConnectHost || d->CtlID == NewHost,
                                   d->CtlID == TabsList ? ui::TextSize::caption : ui::TextSize::body);
             return TRUE;
         }
@@ -994,7 +1065,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 }
                 int id = GetDlgCtrlID((HWND)header->idFrom);
                 auto p = app->selectedHost();
-                if (id == NavigationToggle) app->tooltipText = L"Show or hide saved connections (Ctrl+Shift+H)";
+                if (id == NavigationToggle) app->tooltipText = app->navigationVisible ? L"Hide hosts (Ctrl+Shift+H)" : L"Show hosts (Ctrl+Shift+H)";
                 else if (id == Search) app->tooltipText = L"Search by name, alias, address, group or username (Ctrl+Shift+P)";
                 else if (id == NewHost) app->tooltipText = L"Save a new connection";
                 else if (id == SessionSettings) app->tooltipText = L"Change settings for the active terminal";
@@ -1078,7 +1149,8 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             HWND terminal=(HWND)wp; DWORD pid=0; GetWindowThreadProcessId(terminal,&pid);
             for (size_t i=0;i<app->tabs.size();++i) if (app->tabs[i]->pid==pid && pid==(DWORD)lp && GetParent(terminal)==hwnd) {
                 app->tabs[i]->terminal=terminal; app->layout();
-                if ((int)i==app->active) app->focusActive();
+                if (app->tabs[i]->closing) PostMessageW(terminal, WM_CLOSE, 0, 0);
+                else if ((int)i==app->active) app->focusActive();
                 app->refresh(); break;
             }
             return 0;
@@ -1143,8 +1215,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
         bool terminal = command == L"--terminal" || command.starts_with(L"--terminal ");
 #ifdef WOOK_UI_TEST
         bool fontProbe = command == L"--font-probe";
+        bool keyImportProbe = !terminal && GetEnvironmentVariableW(L"WOOK_TEST_KEY_IMPORT_ONLY", nullptr, 0);
         if (!terminal && !fontProbe) {
-            auto isolated = wook::executableDirectory() + L"\\ui-data-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64());
+            auto isolated = wook::executableDirectory() + (keyImportProbe ? L"\\data" :
+                L"\\ui-data-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64()));
             SetEnvironmentVariableW(L"WOOK_DATA_DIR", isolated.c_str());
             fontPresentBeforeLoad = testFontEnumerable();
         }
@@ -1152,6 +1226,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
         wshellLoadFonts();
 #ifdef WOOK_UI_TEST
         if (fontProbe) return testFontEnumerable() ? 0 : 2;
+        if (keyImportProbe) return runKeyImportTest();
 #endif
         if (terminal) {
             auto arguments = wook::utf8(std::wstring(command));
@@ -1165,7 +1240,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
         INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_STANDARD_CLASSES}; InitCommonControlsEx(&controls);
         App app; app.directory=wook::executableDirectory();
         app.navigationVisible = wook::loadNavigationVisible();
-        app.sidebar = app.navigationVisible ? sidebarExpanded : 0;
+        app.sidebar = app.navigationVisible ? sidebarExpanded : sidebarCollapsed;
         std::wstring migrationError;
         if (!GetEnvironmentVariableW(L"WOOK_DATA_DIR", nullptr, 0)) {
             try { wook::migrateLegacySettings(app.directory + L"\\data"); }

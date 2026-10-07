@@ -1,5 +1,6 @@
 /* wShell's settings view. Keep PuTTY's option model and validation handlers. */
 #include "wshell-settings-ui.h"
+#include "wshell-key-import.h"
 
 static void wshell_select_page(void *context, const char *path)
 {
@@ -33,18 +34,29 @@ static void wshell_select_page(void *context, const char *path)
     wsSettingsPageReady(window, path);
     pds->initialised = true;
     SendMessage(page, WM_SETREDRAW, true, 0);
-    RedrawWindow(page, NULL, NULL, RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW);
+    RedrawWindow(page, NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
 }
 
 static void wshell_accept_settings(void *context, int accept)
 {
     PortableDialogStuff *pds = context;
+    bool authorities = ctrl_find_path(pds->ctrlbox, "Main", -1) >= 0;
+    if (accept && !authorities) {
+        Conf *conf = pds->dp->data;
+        Filename *source = conf_get_filename(conf, CONF_keyfile);
+        if (conf_get_int(conf, CONF_protocol) == PROT_SSH && !filename_is_null(source)) {
+            wchar_t *prepared = wsPreparePrivateKey(GetAncestor(pds->dp->hwnd, GA_ROOT), filename_to_wstr(source));
+            if (!prepared) return;
+            Filename *key = filename_from_wstr(prepared);
+            conf_set_filename(conf, CONF_keyfile, key);
+            filename_free(key); free(prepared);
+        }
+    }
     for (int i = 0; i < pds->ctrlbox->nctrlsets; ++i) {
         struct controlset *s = pds->ctrlbox->ctrlsets[i];
         if (*s->pathname) continue;
         for (int j = 0; j < s->ncontrols; ++j) {
             dlgcontrol *c = s->ctrls[j];
-            bool authorities = ctrl_find_path(pds->ctrlbox, "Main", -1) >= 0;
             if (c->type == CTRL_BUTTON && (accept && !authorities ? c->button.isdefault : c->button.iscancel)) {
                 c->handler(c, pds->dp, pds->dp->data, EVENT_ACTION);
                 if (pds->dp->ended)

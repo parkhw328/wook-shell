@@ -17,6 +17,8 @@ const sftpRoot=path.join(artifact,'remote');fs.mkdirSync(sftpRoot);
 fs.writeFileSync(path.join(sftpRoot,'안녕하세요.txt'),'Remote UTF-8 sample\n');fs.mkdirSync(path.join(sftpRoot,'projects'));
 fs.writeFileSync(path.join(sftpRoot,'.env'),'hidden fixture\n');fs.mkdirSync(path.join(sftpRoot,'.config'));
 const importKey = path.join(artifact, 'import-키.openssh');
+const rsaKey = path.join(artifact, 'oracle-format.key');
+fs.writeFileSync(rsaKey, crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' }));
 fs.writeFileSync(importKey, utils.generateKeyPairSync('ed25519', {
   passphrase: 'fixture-passphrase', cipher: 'aes256-cbc',
 }).private);
@@ -147,7 +149,7 @@ function registryDigest() {
   const ui = path.join(standalone, 'wShell.exe');
   fs.copyFileSync(path.join(binaries, 'ui-smoke-tests.exe'), ui);
   assert.deepEqual(fs.readdirSync(standalone), ['wShell.exe'], 'Start from a folder containing only the executable');
-  result = await run(ui, [], '', { WOOK_TEST_PORT: String(port), WOOK_TEST_FINGERPRINT: fingerprint, WOOK_TEST_IMPORT_KEY: importKey, WOOK_TEST_PASSWORD_FILE: passwordFile });
+  result = await run(ui, [], '', { WOOK_TEST_PORT: String(port), WOOK_TEST_FINGERPRINT: fingerprint, WOOK_TEST_IMPORT_KEY: importKey, WOOK_TEST_PASSWORD_FILE: passwordFile, WOOK_TEST_RSA_KEY: rsaKey });
   assert.ok(fs.existsSync(path.join(standalone, 'ui-smoke-result.json')), 'UI exited without a report; code=' + result.code + '; progress=' + fs.readFileSync(path.join(standalone, 'ui-smoke-progress.json'), 'utf8'));
   const report = JSON.parse(fs.readFileSync(path.join(standalone, 'ui-smoke-result.json'), 'utf8'));
   assert.equal(fs.readdirSync(standalone).filter(n => n.toLowerCase().endsWith('.exe')).length, 1, 'Do not extract helper executables');
@@ -187,4 +189,5 @@ function registryDigest() {
   server.close();
   fs.unlinkSync(passwordFile);
   fs.unlinkSync(importKey);
+  fs.unlinkSync(rsaKey);
 });

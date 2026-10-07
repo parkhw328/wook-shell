@@ -262,7 +262,13 @@ bool drawItem(Settings *s, const DRAWITEMSTRUCT *d) {
 }
 INT_PTR CALLBACK pageProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     auto s = state(hwnd); if (!s) return FALSE;
-    if (msg == WM_ERASEBKGND) { ui::fill((HDC)wp, client(hwnd), ui::bg); return TRUE; }
+    if (msg == WM_ERASEBKGND) return TRUE;
+    if (msg == WM_PAINT) {
+        // A page rebuild invalidates without necessarily requesting erasure.
+        // Paint exposed gaps too, so the previous page cannot remain behind.
+        PAINTSTRUCT ps{}; auto dc = BeginPaint(hwnd, &ps); ui::fill(dc, client(hwnd), ui::bg);
+        EndPaint(hwnd, &ps); return TRUE;
+    }
     if (msg == WM_COMMAND || msg == WM_DRAWITEM || msg == WM_MEASUREITEM || msg == WM_NOTIFY || msg >= 0xC000 ||
         msg == WM_CTLCOLORSTATIC || msg == WM_CTLCOLOREDIT || msg == WM_CTLCOLORLISTBOX || msg == WM_LBUTTONUP)
         return SendMessageW(s->window, msg, wp, lp);
@@ -426,6 +432,12 @@ extern "C" void wsSettingsStyleControl(HWND control) {
     SetWindowTheme(control, L"", L"");
     SendMessageW(control, WM_SETFONT, (WPARAM)ui::font(), TRUE);
     auto style = GetWindowLongPtrW(control, GWL_STYLE);
+    if (!wcscmp(kind, L"ComboBox")) {
+        // Editable combos own an Edit child. Our themed background must never
+        // paint over that child's text when the combo regains focus.
+        style |= WS_CLIPCHILDREN;
+        SetWindowLongPtrW(control, GWL_STYLE, style);
+    }
     if (!wcscmp(kind, L"Button") && (style & BS_TYPEMASK) == BS_GROUPBOX) {
         SetWindowLongPtrW(control, GWL_STYLE, style | WS_CLIPSIBLINGS);
         SetWindowPos(control, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);

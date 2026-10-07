@@ -39,7 +39,7 @@ extern "C" int wsPrompt(HWND owner, const char *title, const char *label, int se
         WNDCLASSW wc{}; wc.lpfnWndProc = promptProc; wc.hInstance = GetModuleHandleW(nullptr); wc.lpszClassName = L"wShell.TextPrompt"; wc.hCursor = LoadCursorW(nullptr, IDC_ARROW); RegisterClassW(&wc);
         RECT r{0,0,ui::px(558),ui::px(260)}; AdjustWindowRectEx(&r, WS_CAPTION | WS_SYSMENU, FALSE, WS_EX_DLGMODALFRAME);
         RECT parent{}; if (!GetWindowRect(owner, &parent)) SystemParametersInfoW(SPI_GETWORKAREA, 0, &parent, 0);
-        HWND dialog = CreateWindowExW(WS_EX_DLGMODALFRAME, wc.lpszClassName, wook::wide(title).c_str(), WS_CAPTION | WS_SYSMENU,
+        HWND dialog = CreateWindowExW(WS_EX_DLGMODALFRAME, wc.lpszClassName, wook::wide(title).c_str(), WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN,
             parent.left + (parent.right-parent.left-r.right+r.left)/2, parent.top + (parent.bottom-parent.top-r.bottom+r.top)/2,
             r.right-r.left,r.bottom-r.top,owner,nullptr,wc.hInstance,&p);
         if (!dialog) return 0;
