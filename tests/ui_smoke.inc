@@ -120,8 +120,8 @@ void runUiSmoke(App &app) {
             require(GetEnvironmentVariableW(L"WOOK_TEST_FINGERPRINT", fingerprint, 200) > 0, "Missing host key pin");
             Profile p; p.name = L"한글 SSH 연결"; p.host = L"127.0.0.1"; p.user = L"key"; p.port = _wtoi(port);
             p.keyFile = app.directory + L"\\client-key.ppk";
+            phase = -1;
             require(editHost(app.hwnd, p, false), "Public key authentication host must save");
-            wook::saveProfile(p);
             wchar_t *path = wsPath(L"sessions", wook::utf8(p.name).c_str());
             auto store = wsOpen(path, 1); free(path);
             require(store != nullptr, "Cannot configure SSH fixture");

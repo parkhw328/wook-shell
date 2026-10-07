@@ -33,10 +33,10 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
         do { try body() } catch { _ = Theme.alert("wShell", error.localizedDescription).runModal() }
     }
     func buildSidebar() {
-        sidebarViews = [Theme.label("wShell", size: 25, color: Theme.bright, bold: true),
-            Theme.label("YOUR PERSONAL WORKSPACE", size: 10, color: Theme.muted), search,
+        sidebarViews = [Theme.label("wShell", size: 24, color: Theme.bright, bold: true),
+            Theme.label("YOUR PERSONAL WORKSPACE", size: 11, color: Theme.muted), search,
             ActionButton("+ New host", accent: true) { [weak self] in self?.edit(nil) },
-            Theme.label("SAVED HOSTS", size: 10, color: Theme.muted)]
+            Theme.label("SAVED HOSTS", size: 11, color: Theme.muted)]
         sidebarViews.forEach { sidebar.addSubview($0) }
         search.delegate = self
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("host")); column.width = 212
@@ -66,7 +66,7 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
         homeViews += [card("A home for every host", "Save once. Open in a new tab.", "+ Add a host") { [weak self] in self?.edit(nil) },
             card("Made for the command line", "Warm colors. Sharp type. Full color.", "Color preview →") { [weak self] in self?.openPreview() },
             card("Local terminal", "Your Mac. Your login shell.", "Open Terminal   ⌘⇧L") { [weak self] in self?.openLocal() },
-            Theme.label("SSH / Local shell  ·  One workspace, independent tabs", size: 12, color: Theme.muted)]
+            Theme.label("SSH / Local shell  ·  One workspace, independent tabs", size: 13, color: Theme.muted)]
         homeViews.forEach { home.addSubview($0) }
     }
     func layout() {

@@ -35,6 +35,14 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
                      "static void wookIndependentConf(Conf *conf);\nstatic void wookResetPassword(void);\n\nstatic void start_backend(WinGuiSeat *wgs)\n{\n    wookResetPassword();\n    wookIndependentConf(wgs->conf);")
     window = replace(window, "    spr = cmdline_get_passwd_input(p, &wgs->cmdline_get_passwd_state, true);",
                      "    if (wookSavedPassword(wgs->conf, p)) return SPR_OK;\n    spr = cmdline_get_passwd_input(p, &wgs->cmdline_get_passwd_state, true);")
+    window = replace(window, '    char *title = dupprintf("%s Fatal Error", appname);\n    show_mouseptr(wgs, true);\n    MessageBox(wgs->term_hwnd, msg, title, MB_ICONERROR | MB_OK);', '''    char *title = dupprintf("%s Connection Error", appname);
+    char *auth_help = NULL;
+    if (strstr(msg, "No supported authentication methods available")) {
+        auth_help = dupprintf("%s\\n\\nCheck the server's allowed methods above. For publickey authentication, select the matching private key in Edit host > Public key authentication.\\n\\nRegister its public .pub key on the server for this username. A .pub file alone cannot sign in. Import PEM/OpenSSH keys in the wShell key manager and save a PPK private key. GSSAPI requires a separately configured organization account.", msg);
+    }
+    show_mouseptr(wgs, true);
+    MessageBox(wgs->term_hwnd, auth_help ? auth_help : msg, title, MB_ICONERROR | MB_OK);
+    sfree(auth_help);''')
     window = replace(window, "            conf_cache_data(wgs);",
                      "            wookIndependentConf(wgs->conf);\n            conf_cache_data(wgs);")
     window = replace(window, "    switch (message) {\n      case WM_CREATE:",

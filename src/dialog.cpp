@@ -1,6 +1,7 @@
 #include "dialog.hpp"
 #include "../build/version.h"
 #include "ui.hpp"
+#include "key_dialog.hpp"
 #include <commdlg.h>
 #include <stdexcept>
 #ifdef WOOK_UI_TEST
@@ -8,7 +9,7 @@
 #endif
 
 namespace {
-enum { Name = 300, Host, Protocol, Port, User, Key, Group, FontSize, Browse, Save, Cancel, Auth, Password, Remember };
+enum { Name = 300, Host, Protocol, Port, User, Key, Group, FontSize, Browse, Save, Cancel, Auth, Password, Remember, KeyManager };
 struct Form {
     wook::Profile profile;
     HWND fields[8]{};
@@ -28,6 +29,7 @@ void updateAuthentication(HWND hwnd, Form *form) {
     ShowWindow(form->remember, password ? SW_SHOW : SW_HIDE);
     ShowWindow(form->fields[Key - Name], !password ? SW_SHOW : SW_HIDE);
     ShowWindow(GetDlgItem(hwnd, Browse), !password ? SW_SHOW : SW_HIDE);
+    ShowWindow(GetDlgItem(hwnd, KeyManager), ssh && !password ? SW_SHOW : SW_HIDE);
     EnableWindow(form->fields[Key - Name], ssh); EnableWindow(GetDlgItem(hwnd, Browse), ssh);
     EnableWindow(form->password, SendMessageW(form->remember, BM_GETCHECK, 0, 0) == BST_CHECKED);
     InvalidateRect(hwnd, nullptr, TRUE);
@@ -65,6 +67,7 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         SendMessageW(form->password, EM_SETLIMITTEXT, 1024, 0);
         SendMessageW(form->password, EM_SETCUEBANNER, TRUE, (LPARAM)(form->profile.passwordSaved ? L"Saved — leave blank to keep" : L"Enter password to save"));
         form->remember = ui::checkbox(hwnd, L"Save password encrypted on this PC", Remember);
+        ui::place(ui::button(hwnd, L"Generate or import a key pair", KeyManager), 28, 503, 488, 32);
         ui::place(form->remember, 28, 503, 490, 30);
         SendMessageW(form->remember, BM_SETCHECK, form->profile.passwordSaved ? BST_CHECKED : BST_UNCHECKED, 0);
         ui::place(ui::button(hwnd, L"Cancel", Cancel), 288, 604, 100, 40);
@@ -126,6 +129,8 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             updateAuthentication(hwnd, form);
         } else if ((LOWORD(wp) == Auth && HIWORD(wp) == CBN_SELCHANGE) || LOWORD(wp) == Remember) {
             updateAuthentication(hwnd, form);
+        } else if (LOWORD(wp) == KeyManager) {
+            showKeyManager(hwnd);
         } else if (LOWORD(wp) == Browse) {
             wchar_t path[32768]{}; OPENFILENAMEW ofn{sizeof(ofn)}; ofn.hwndOwner = hwnd; ofn.lpstrFile = path;
             ofn.nMaxFile = 32768; ofn.lpstrFilter = L"PuTTY private keys (*.ppk)\0*.ppk\0All files\0*.*\0";

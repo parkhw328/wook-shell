@@ -22,8 +22,19 @@
 - 이후 빌드: `scripts/build.ps1`; CTest의 `core-tests`와 배포 ZIP 생성까지 수행한다.
 - SSH/UI: `npm --prefix tests/ssh ci --ignore-scripts --omit=optional` 후 `node tests/ssh/integration.cjs`.
 - 테스트는 임시 루프백 SSH 서버와 `build/` 아래 격리 데이터만 사용한다. 테스트 창은 자동 종료한다.
-- 실행파일 이름은 `wShell.exe`, ZIP 이름은 `wshell-<version>-win-x64.zip`이다.
+- 버전은 루트 `VERSION`에서 관리한다. `dist/<version>/windows-x64/`와 `dist/<version>/macos-universal/`로 배포하며 `scripts/index-dist.py`로 해시 manifest를 생성한다.
 - UI 변경은 생성된 `build/ssh-test-*/standalone/ui-*.bmp` 화면을 확인한다. 암호·실제 서버 정보를 스크린샷에 포함하지 않는다.
 - 통합 테스트는 EXE만 복사한 빈 폴더에서 시작하고, 생성한 키의 실제 SSH 서명을 별도 서버 구현으로 검증한다.
 - 아이콘 원본은 `assets/branding/wshell-icon.png`, ICO 재생성은 `scripts/make-icon.ps1`이다.
 - 공개 PR에는 문제/변경 동작, 관련 이슈, 실행한 검증과 UI 변경 스크린샷을 적는다.
+
+## macOS와 로컬 터미널
+
+- macOS 코드는 `mac/`의 Swift 5 언어 모드·Swift 6 도구 체인을 사용하며 공백 4칸, PascalCase 타입과 camelCase 함수를 따른다.
+- AppKit·SwiftTerm을 사용한다. 외부 Swift 패키지는 정확한 커밋과 `Package.resolved`로 고정한다.
+- `python3 scripts/build-mac.py`는 핵심 테스트, arm64/x86_64 빌드, Universal 앱 패키징을 수행한다. macOS 실행 검증은 macOS CI에서 수행한다.
+- `node tests/ssh/mac-integration.cjs`는 앱의 로컬 PTY·SSH 입출력·공개키 서명·Keychain 비밀번호 공급을 실제 루프백 서버로 검증한다.
+- macOS 비밀번호는 동기화하지 않는 현재 사용자 Keychain에 저장한다. SSH password 인증만 자동 공급하며 OTP·키 암호·호스트 신뢰 확인은 수동이다.
+- SwiftTerm의 터미널 명령을 통한 클립보드 읽기/쓰기는 허용하지 않는다. 사용자가 실행한 키보드 복사/붙여넣기는 유지한다.
+- Windows 로컬 셸은 PuTTY ConPTY 백엔드, macOS는 PTY와 로그인 셸을 사용한다. 셸/SSH 프로세스는 탭 종료 시 정리한다.
+- macOS의 고급 연결 기능은 Windows와 범위가 다르다. README 기능표와 실제 검증 범위를 일치시킨다.

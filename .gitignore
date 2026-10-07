@@ -3,6 +3,8 @@
 build/
 dist/
 data/
+# Local SSH keys supplied for connection troubleshooting; never distribute.
+/resources/
 __pycache__/
 *.user
 *.log

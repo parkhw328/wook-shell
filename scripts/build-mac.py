@@ -34,7 +34,7 @@ binary = APP / "Contents/MacOS/wShell"
 resources = APP / "Contents/Resources"
 binary.parent.mkdir(parents=True); resources.mkdir(parents=True)
 run("lipo", "-create", *(path / "wShell" for path in paths), "-output", binary)
-run("lipo", "-verify_arch", "arm64", "x86_64", binary)
+run("lipo", binary, "-verify_arch", "arm64", "x86_64")
 for path in paths[0].glob("*.bundle"):
     shutil.copytree(path, resources / path.name)
 for name in ("JetBrainsMono-Regular.ttf", "JetBrainsMono-Bold.ttf"):

@@ -2,14 +2,16 @@
 
 # wShell
 
-**가볍게 열고, 여러 서버를 한 창에서.** Windows x64용 네이티브 포터블 터미널입니다.
-PuTTY의 연결·터미널 엔진에 탭 작업 공간, 공개 Flexoki Dark 팔레트와 JetBrains Mono를 더했습니다.
+**가볍게 열고, 여러 서버를 한 창에서.** Windows x64와 macOS용 네이티브 터미널입니다.
+탭 작업 공간, 공개 Flexoki Dark 팔레트와 JetBrains Mono를 사용합니다. Created by **Hyunwook Park**.
 
 ![wShell workspace](assets/screenshots/workspace.png)
 
 ## 실행하기
 
-1. **`wShell.exe` 하나**를 원하는 폴더에 복사합니다. `wshell-0.4.1-win-x64.zip`에도 이 파일만 들어 있습니다.
+### Windows
+
+1. **`wShell.exe` 하나**를 원하는 폴더에 복사합니다. `wshell-0.5.0-windows-x64.zip`에도 이 파일만 들어 있습니다.
 2. 실행합니다. 설치, 관리자 권한, WebView2, .NET, Node.js가 필요하지 않습니다.
 3. `New host`에서 접속 정보를 저장하거나, 빠른 연결 칸에 `user@hostname:22`를 입력합니다.
 4. 처음 접속하는 SSH 서버의 키 지문을 확인한 뒤 신뢰 여부를 선택합니다.
@@ -17,17 +19,56 @@ PuTTY의 연결·터미널 엔진에 탭 작업 공간, 공개 Flexoki Dark 팔�
 대상: Windows 10 1903 이상 / Windows 11, x64. 터미널 엔진·폰트·브랜딩·라이선스를 EXE 안에 포함하며, 실행할 때 보조 EXE나 폰트를 임시 폴더에 풀지 않습니다.
 폰트는 프로세스 안에서만 로드합니다. 현재 배포본에는 코드 서명이 없습니다.
 
-빌드한 EXE, ZIP, SHA-256 파일은 `dist/`에 생성됩니다. GitHub Actions의 성공한 `Windows portable build` 실행에서도 내려받을 수 있습니다.
+### macOS
 
-## 연결과 탭
+1. `wshell-0.5.0-macos-universal.zip`을 풀고 **`wShell.app`**을 실행합니다. Applications 폴더로 옮겨도 됩니다.
+2. macOS 13 이상에서 Apple Silicon·Intel을 모두 지원하는 Universal 앱입니다. 별도 런타임이나 WebView 설치가 필요하지 않습니다.
+3. `New host`로 SSH 서버를 추가하거나 `Open Terminal`로 현재 Mac의 로그인 셸을 엽니다.
+
+macOS 배포본은 ad-hoc 서명 상태이며 **Apple Developer ID 서명·공증은 아직 없습니다**. 다운로드한 앱의 첫 실행은 Gatekeeper가 차단할 수 있습니다. 출처를 확인한 경우 시스템 설정의 개인정보 보호 및 보안에서 해당 앱 실행을 허용해야 합니다.
+macOS의 `.app`은 Finder에서 하나의 앱으로 이동하는 번들이며, 내부 실행파일만 꺼내 사용하는 형태는 아닙니다.
+
+### 버전별 배포
+
+루트 `VERSION`에서 앱·패키지 버전을 관리합니다. 성공한 GitHub Actions의 `Desktop builds`에서도 두 플랫폼의 배포물을 받을 수 있습니다.
+
+```text
+dist/
+  README.md
+  0.5.0/
+    manifest.json
+    windows-x64/
+      wShell.exe
+      wShell.exe.sha256
+      wshell-0.5.0-windows-x64.zip
+      wshell-0.5.0-windows-x64.zip.sha256
+    macos-universal/
+      wshell-0.5.0-macos-universal.zip
+      wshell-0.5.0-macos-universal.zip.sha256
+```
+
+| 기능 | Windows | macOS |
+| --- | --- | --- |
+| SSH 비밀번호·공개키 인증, 컬러 터미널, 탭 | 지원 | 지원 |
+| 로컬 셸 | CMD 기본 / PowerShell 선택 | 시스템 로그인 셸(zsh 등) |
+| 저장 비밀번호 | 현재 Windows 계정 DPAPI | 이 Mac의 로그인 Keychain, 동기화 제외 |
+| 키 생성 | Ed25519 / RSA, 자체 키 관리자 | Ed25519 / RSA, OS ssh-keygen을 앱 내 터미널에서 실행 |
+| 개인키 파일 | PPK; OpenSSH를 키 관리자에서 변환 | OpenSSH 형식 |
+| 고급 PuTTY 설정 / Serial·Telnet·Rlogin·Raw | 지원 | 이번 macOS 버전에서는 미지원 |
+| 설정 백업 | `.wshell`, 암호·개인키 제외 | 같은 형식; 호스트 목록 교환 가능 |
+
+macOS는 AppKit·SwiftTerm과 OS의 OpenSSH를 사용합니다. SSH 설정 파일·에이전트·공유 연결은 별도로 사용하지 않으며 호스트 키 저장소도 wShell 전용입니다. Windows와 macOS 엔진의 호스트 신뢰 형식은 서로 다르므로 플랫폼을 바꾸면 지문을 다시 확인하세요. PPK 파일을 OpenSSH 개인키로 자동 변환하지 않습니다.
+
+## Windows 연결과 탭
 
 - **호스트 관리:** 저장·편집·복제·삭제, 이름/주소/그룹/사용자 검색, 더블 클릭으로 연결.
 - **탭:** 새 연결, 독립 세션 복제, 드래그 재정렬, 가운데 클릭으로 닫기, 연결 재시작.
 - **터미널:** UTF-8/한글, ANSI·256색·24비트 True Color, 선택/복사/붙여넣기, 10,000줄 스크롤백, 전체 화면.
-- **연결 설정:** `Connection settings…`에서 프록시, SSH 터널, X11 전달, 키 인증, 로깅, 키보드/터미널 설정을 사용합니다. 설정 이름이나 항목으로 검색할 수 있으며, 긴 페이지는 스크롤합니다. 연결 중에는 `Settings`에서 변경하고 `Apply changes`로 적용하거나 `Cancel`로 취소하세요.
+- **연결 설정:** `Connection settings`에서 프록시, SSH 터널, X11 전달, 키 인증, 로깅, 키보드/터미널 설정을 사용합니다. 설정 이름이나 항목으로 검색할 수 있으며, 긴 페이지는 스크롤합니다. 연결 중에는 `Settings`에서 변경하고 `Apply changes`로 적용하거나 `Cancel`로 취소하세요.
 - **프로토콜:** SSH, Telnet, Rlogin, Raw TCP, Serial. Serial은 `New host`에서 COM 포트와 전송 속도를 지정합니다.
 - **도구:** 자체 SSH 키 관리, 설정 내보내기/가져오기, 데이터 폴더 열기, 내장 라이선스 보기, 탭 목록 선택.
 - **미리 보기:** `Color preview`는 서버 연결 없이 실제 터미널 엔진의 색상을 보여 줍니다.
+- **로컬 셸:** 홈 또는 `Tools`에서 `Command Prompt` / `PowerShell`을 엽니다. `Ctrl+Shift+L`은 CMD를 열며, 탭 복제·전환·종료도 사용할 수 있습니다. ConPTY를 통해 이 PC의 명령을 실행하며 기본 작업 폴더는 현재 사용자의 홈입니다.
 
 각 탭은 같은 `wShell.exe`의 별도 프로세스로 연결을 관리합니다. PuTTYgen, Pageant나 설치된 SSH 서비스에 의존하지 않으며, 외부 에이전트 인증·에이전트 전달·연결 공유는 사용하지 않습니다.
 연결 설정·세션 설정·호스트 인증기관 관리 창은 wShell의 Flexoki Dark 화면을 사용합니다. 기존 엔진의 설정과 검증 로직을 유지하면서 탐색, 검색, 입력, 버튼과 스크롤을 새로 구성했습니다.
@@ -37,14 +78,22 @@ PuTTY의 연결·터미널 엔진에 탭 작업 공간, 공개 Flexoki Dark 팔�
 
 ![wShell connection settings](assets/screenshots/connection-settings.png)
 
-## SSH 키 관리
+## 공개키 인증과 SSH 키 관리
+
+SSH의 **공개키 인증은 키 쌍을 사용**합니다. 서버의 `~/.ssh/authorized_keys`에 공개키(`.pub`)를 등록하고, wShell은 대응하는 개인키로 서명합니다. 공개키 파일만으로는 로그인할 수 없습니다. 외부 에이전트의 키는 사용하지 않습니다.
+
+`Authentication → Public key authentication`을 선택하고 개인키 경로를 지정하세요. Windows는 `.ppk`, macOS는 OpenSSH 개인키를 사용합니다. 개인키는 서버에 업로드하지 마세요.
+
+`No supported authentication methods available (server sent: publickey,gssapi-keyex,gssapi-with-mic)`가 나오면 서버가 비밀번호 인증을 제공하지 않는 상태입니다. 올바른 사용자 이름과 해당 사용자에 등록된 공개키의 **짝이 되는 개인키**를 확인하세요. `.pem` 또는 `id_ed25519` / `id_rsa` 파일을 가지고 있다면 Windows 키 관리자의 `Import key`로 가져온 뒤 `.ppk`로 저장하여 선택합니다. 개인키가 없다면 새 키 쌍을 생성하고 관리자에게 공개키 등록을 요청해야 합니다. 이름만 `.pub`에서 `.ppk`로 바꿔서는 사용할 수 없습니다. 인증서·조직의 Kerberos 설정은 별도 구성이 필요합니다. [OpenSSH 공개키 인증 설명](https://man.openbsd.org/ssh#AUTHENTICATION)
+
+다음 자체 키 관리자 절차는 Windows에 해당합니다.
 
 `Tools → SSH key manager…`에서 **Ed25519, RSA 3072, RSA 4096** 키를 생성합니다. 개인키와 SHA-256 지문을 앱 안에서 처리하며 별도 프로그램을 실행하지 않습니다.
 
 1. 알고리즘을 선택하고 `Generate`를 누릅니다.
 2. 개인키를 암호화하려면 `Passphrase`에 암호를 입력한 뒤 `Save private key`로 `.ppk`를 저장합니다. 빈 암호로 저장하면 암호화되지 않습니다.
 3. 공개키를 복사하거나 `Save public key`로 `.pub`를 저장하여 서버의 `authorized_keys`에 등록합니다.
-4. `New host`의 `Authentication → Private key`에서 저장한 `.ppk`를 선택합니다.
+4. `New host`의 `Authentication → Public key authentication`에서 저장한 `.ppk`를 선택합니다.
 
 `Import key…`는 기존 PPK와 OpenSSH 개인키를 읽습니다. 암호화된 키는 가져오기 전에 암호를 입력하세요. 저장은 PPK v3 형식이며, 가져오기와 저장에 사용한 암호 입력은 작업 후 지웁니다.
 RSA 생성은 Windows CNG, Ed25519와 키 형식 처리는 PuTTY 라이브러리를 사용합니다.
@@ -72,6 +121,7 @@ RSA 생성은 Windows CNG, Ed25519와 키 형식 처리는 PuTTY 라이브러리
 | 단축키 | 동작 |
 | --- | --- |
 | `Ctrl+Shift+T` / 탭 줄의 `+` | 새 연결 화면 |
+| `Ctrl+Shift+L` | 로컬 CMD 탭 |
 | `Ctrl+Shift+D` | 현재 연결을 새 탭으로 복제 |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | 다음 / 이전 탭 |
 | `Ctrl+Shift+W` | 현재 탭 닫기 |
@@ -80,6 +130,8 @@ RSA 생성은 Windows CNG, Ed25519와 키 형식 처리는 PuTTY 라이브러리
 | `Ctrl+Shift+C` / `Ctrl+Shift+V` | 터미널 복사 / 붙여넣기 |
 | `Alt+1` / `Alt+2…9` | 작업 공간 / 연결 탭 1…8 |
 | `F11` | 전체 화면 |
+
+macOS: `⌘⇧L` 로컬 터미널, `⌘⇧T` 새 연결 화면, `⌘⇧D` 탭 복제, `⌘W` 탭 닫기, `⌘⇧R` 재연결, `⌘⇧[` / `⌘⇧]` 이전/다음 탭, `⌘C` / `⌘V` 복사/붙여넣기. `Tabs` 메뉴에서 탭 순서를 바꿀 수 있습니다.
 
 터미널 종류는 `xterm-256color`이고 `COLORTERM=truecolor` 환경변수를 요청합니다.
 서버가 환경변수 전달을 허용하지 않으면 원격 셸에서 `export COLORTERM=truecolor`를 설정하세요.
@@ -109,6 +161,8 @@ SSH 비밀번호는 선택한 호스트에 한해 암호화해 저장하고 백�
 장치를 옮길 때는 개인키를 별도로 이동하고 경로를 다시 지정해야 할 수 있습니다. 설정 폴더와 `.wshell` 백업은 암호화된 비밀 저장소가 아닙니다.
 테스트 또는 별도 데이터 위치에는 `WOOK_DATA_DIR` 환경변수를 사용할 수 있습니다.
 
+macOS는 `~/Library/Application Support/wShell/`의 `settings.json`과 `known_hosts`에 저장합니다. 저장 비밀번호는 Keychain에 별도로 보관하며 `.wshell` 백업에서는 제외됩니다. 호스트 편집 시 비밀번호를 비워 두면 같은 접속 대상의 기존 값을 유지합니다. 저장 체크를 해제하거나 공개키 인증으로 바꾸면 저장 비밀번호를 삭제합니다.
+
 ## 개발 및 검증
 
 빌드 환경은 Windows x64, Python 3.10 이상, PowerShell입니다. C++ 컴파일러·CMake·Ninja·PuTTY 소스는 다음 명령이 저장소 내부로 다운로드하고 SHA-256을 확인합니다.
@@ -128,7 +182,16 @@ node tests/ssh/integration.cjs
 git diff --check
 ```
 
-`src/`는 UI·설정 저장소, `patches/`는 PuTTY 통합, `tests/`는 테스트, `scripts/`는 빌드/패키징, `rules/`는 개발 규칙입니다.
+macOS 빌드는 macOS 13 이상, Xcode Command Line Tools와 Swift 6 이상, Python 3에서 실행합니다. Swift 의존성은 정확한 커밋과 `mac/Package.resolved`로 고정합니다.
+
+```sh
+python3 scripts/build-mac.py       # Swift 테스트, 두 아키텍처 빌드, 앱 번들/아이콘/서명/ZIP 검증
+npm --prefix tests/ssh ci --ignore-scripts --omit=optional
+node tests/ssh/mac-integration.cjs # AppKit, 로컬 PTY, 실제 공개키/Keychain 암호 SSH
+python3 scripts/index-dist.py      # 현재 버전의 배포 manifest 생성
+```
+
+`src/`는 Windows UI·설정 저장소, `patches/`는 PuTTY 통합, `mac/Sources/WShell/`은 AppKit UI, `mac/Sources/WShellCore/`는 macOS 설정·인증·백업, `tests/`와 `mac/Tests/`는 테스트, `scripts/`는 빌드/패키징, `rules/`는 개발 규칙입니다.
 기존 `AGENTS.md`는 보존하며 최신 구현 규칙은 [rules/development.md](rules/development.md)에 기록합니다.
 자동 포맷터나 수치형 커버리지 기준은 아직 없습니다. 기능 변경에는 해당 동작의 회귀 검증을 추가하세요.
 
@@ -140,7 +203,7 @@ UI 검증은 **EXE만 복사한 빈 폴더**에서 시작하며 내장 폰트·�
 ## 라이선스와 출처
 
 자체 코드와 wShell 브랜딩 자산은 [MIT License](LICENSE)로 배포합니다.
-PuTTY와 Flexoki는 MIT, JetBrains Mono는 SIL OFL 1.1이며 정적으로 연결한 런타임 고지도 포함합니다.
+PuTTY·SwiftTerm·Flexoki는 MIT, JetBrains Mono는 SIL OFL 1.1이며 정적으로 연결한 런타임 고지도 포함합니다.
 원문 및 버전/수정 범위는 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), 이미지 생성 기록은 [assets/branding/README.md](assets/branding/README.md)를 참고하세요.
 재배포에 필요한 라이선스 원문은 EXE에 내장되어 있으며 `Tools → Open-source licenses`에서 읽을 수 있습니다.
 

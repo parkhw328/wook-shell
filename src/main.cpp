@@ -248,7 +248,6 @@ void App::connect(const Profile &profile, bool saved, bool preview, bool advance
             if (profile.host == L"powershell") options = L" -NoLogo -NoProfile";
 #endif
             set("RemoteCommand", wook::quoteArg(shell) + options);
-            wsSet(store, "RemoteCommandUTF8", "1");
         }
         bool ok = wsSave(store); wsClose(store);
         if (!ok) throw std::runtime_error("Cannot save temporary session settings.");
