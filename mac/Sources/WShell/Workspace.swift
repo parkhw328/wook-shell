@@ -34,7 +34,7 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
         focusMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             guard let self, event.window === window, selected != nil else { return event }
             let point = content.convert(event.locationInWindow, from: nil)
-            if let session = sessions.first(where: { panes.contains($0.id) && $0.id != selected && $0.view.frame.contains(point) }) {
+            if let session = sessions.first(where: { self.panes.contains($0.id) && $0.id != self.selected && $0.view.frame.contains(point) }) {
                 selected = session.id; rebuildTabs()
             }
             return event
