@@ -1,0 +1,10 @@
+.tools/
+.deps/
+build/
+dist/
+data/
+__pycache__/
+*.user
+*.log
+*.dmp
+.vs/
