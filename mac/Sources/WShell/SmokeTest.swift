@@ -9,9 +9,18 @@ final class SmokeTest {
     init(workspace: Workspace, output: URL) { self.workspace = workspace; self.output = output }
     func capture(_ name: String) throws {
         let view = workspace.root
+        view.layoutSubtreeIfNeeded(); view.displayIfNeeded()
+        workspace.active?.terminal.displayIfNeeded()
+        CATransaction.flush()
         guard let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { throw WShellError("Cannot capture the native window.") }
         view.cacheDisplay(in: view.bounds, to: bitmap)
-        try bitmap.representation(using: .png, properties: [:])!.write(to: output.appendingPathComponent(name + ".png"))
+        try bitmap.representation(using: .png, properties: [:])!.write(to: output.appendingPathComponent(name + "-view.png"))
+        // Layer-backed terminal drawing is not included by NSView bitmap caching.
+        // Capture this fixture window through WindowServer as well.
+        let capture = Process(); capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+        capture.arguments = ["-x", "-l", String(workspace.window.windowNumber), output.appendingPathComponent(name + ".png").path]
+        try capture.run(); capture.waitUntilExit()
+        try require(capture.terminationStatus == 0, "Cannot capture the rendered fixture window.")
     }
     func start() {
         do { try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true); try capture("mac-home") }

@@ -1,3 +1,4 @@
 #pragma once
 #include <windows.h>
-void showKeyManager(HWND owner);
+#include <string>
+std::wstring showKeyManager(HWND owner);

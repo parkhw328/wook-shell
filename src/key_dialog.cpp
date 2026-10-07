@@ -16,7 +16,7 @@ struct KeyForm {
     WsKey *key = nullptr, *next = nullptr;
     bool busy = false, done = false;
     std::thread worker;
-    std::wstring error, status;
+    std::wstring error, status, savedPath;
 #ifdef WOOK_UI_TEST
     int testTicks = 0;
 #endif
@@ -26,7 +26,7 @@ std::wstring chooseFile(HWND hwnd, bool save, bool pub = false) {
     wchar_t path[32768]{};
     if (save) wcscpy_s(path, pub ? L"wshell-key.pub" : L"wshell-key.ppk");
     OPENFILENAMEW dialog{sizeof(dialog)}; dialog.hwndOwner = hwnd; dialog.lpstrFile = path; dialog.nMaxFile = 32768;
-    dialog.lpstrFilter = pub ? L"OpenSSH public key (*.pub)\0*.pub\0\0" : L"SSH private key (*.ppk; id_*)\0*.ppk;id_*\0All files\0*.*\0\0";
+    dialog.lpstrFilter = pub ? L"OpenSSH public key (*.pub)\0*.pub\0\0" : save ? L"PuTTY private key (*.ppk)\0*.ppk\0\0" : L"SSH private keys (*.ppk; *.pem; *.key; *.txt; id_*)\0*.ppk;*.pem;*.key;*.txt;id_*\0All files\0*.*\0\0";
     dialog.lpstrDefExt = pub ? L"pub" : L"ppk";
     dialog.Flags = OFN_NOCHANGEDIR | OFN_PATHMUSTEXIST | (save ? OFN_OVERWRITEPROMPT : OFN_FILEMUSTEXIST);
     return (save ? GetSaveFileNameW(&dialog) : GetOpenFileNameW(&dialog)) ? path : L"";
@@ -99,7 +99,7 @@ LRESULT CALLBACK keyProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (msg == WM_DRAWITEM) { ui::drawButton((DRAWITEMSTRUCT *)lp, ((DRAWITEMSTRUCT *)lp)->CtlID == Generate); return TRUE; }
     if (msg == WM_APP + 80) {
         if (form->worker.joinable()) form->worker.join();
-        if (form->next) { wsKeyFree(form->key); form->key = form->next; form->next = nullptr; refreshKey(hwnd, form); }
+        if (form->next) { wsKeyFree(form->key); form->key = form->next; form->next = nullptr; form->savedPath.clear(); refreshKey(hwnd, form); }
         setBusy(hwnd, form, false);
         if (!form->error.empty()) MessageBoxW(hwnd, form->error.c_str(), L"wShell · Key manager", MB_OK | MB_ICONEXCLAMATION);
         return 0;
@@ -126,6 +126,7 @@ LRESULT CALLBACK keyProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     else if (id == ImportKey) form->next = wsKeyLoad(path.c_str(), secret.c_str());
                     else ok = wsKeySave(form->key, path.c_str(), secret.c_str()) != 0;
                     if (id != SavePrivate) ok = form->next != nullptr;
+                    if (id == SavePrivate && ok) form->savedPath = path;
                     if (!ok) form->error = wook::wide(wsKeyError());
                     else form->status = id == SavePrivate
                         ? (secret.empty() ? L"Private key saved without a passphrase." : L"Private key saved with passphrase encryption.")
@@ -148,17 +149,18 @@ LRESULT CALLBACK keyProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
 }
-void showKeyManager(HWND owner) {
+std::wstring showKeyManager(HWND owner) {
     WNDCLASSW wc{}; wc.lpfnWndProc = keyProc; wc.hInstance = GetModuleHandleW(nullptr);
     wc.lpszClassName = L"wShellKeys"; wc.hCursor = LoadCursorW(nullptr, IDC_ARROW); RegisterClassW(&wc);
     KeyForm form; RECT r{0,0,ui::px(600),ui::px(585)};
     AdjustWindowRectExForDpi(&r, WS_CAPTION | WS_SYSMENU, FALSE, 0, ui::dpi);
     HWND window = CreateWindowExW(WS_EX_DLGMODALFRAME, wc.lpszClassName, L"wShell · SSH key manager", WS_CAPTION | WS_SYSMENU,
         CW_USEDEFAULT, CW_USEDEFAULT, r.right-r.left, r.bottom-r.top, owner, nullptr, wc.hInstance, &form);
-    if (!window) return;
+    if (!window) return L"";
     EnableWindow(owner, FALSE); ShowWindow(window, SW_SHOWNORMAL); MSG msg;
     while (!form.done && GetMessageW(&msg, nullptr, 0, 0) > 0) {
         if (!IsDialogMessageW(window, &msg)) { TranslateMessage(&msg); DispatchMessageW(&msg); }
     }
     EnableWindow(owner, TRUE); SetForegroundWindow(owner);
+    return form.savedPath;
 }

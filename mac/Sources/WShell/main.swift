@@ -4,6 +4,7 @@ import WShellCore
 if ProcessInfo.processInfo.environment["WSHELL_ASKPASS"] == "1" { runAskpass() }
 let application = NSApplication.shared
 application.setActivationPolicy(.regular)
+Theme.loadFonts()
 do {
     let delegate = Workspace(store: try SettingsStore())
     application.delegate = delegate

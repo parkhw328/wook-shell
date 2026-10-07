@@ -130,7 +130,8 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         } else if ((LOWORD(wp) == Auth && HIWORD(wp) == CBN_SELCHANGE) || LOWORD(wp) == Remember) {
             updateAuthentication(hwnd, form);
         } else if (LOWORD(wp) == KeyManager) {
-            showKeyManager(hwnd);
+            auto path = showKeyManager(hwnd);
+            if (!path.empty()) SetWindowTextW(form->fields[Key - Name], path.c_str());
         } else if (LOWORD(wp) == Browse) {
             wchar_t path[32768]{}; OPENFILENAMEW ofn{sizeof(ofn)}; ofn.hwndOwner = hwnd; ofn.lpstrFile = path;
             ofn.nMaxFile = 32768; ofn.lpstrFilter = L"PuTTY private keys (*.ppk)\0*.ppk\0All files\0*.*\0";

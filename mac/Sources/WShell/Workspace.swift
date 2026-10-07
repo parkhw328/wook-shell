@@ -21,6 +21,7 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
         [sidebar, content, tabsScroll, status].forEach { root.addSubview($0) }
         content.addSubview(home); tabsScroll.documentView = tabBar; tabsScroll.hasHorizontalScroller = true
         tabsScroll.drawsBackground = false; tabsScroll.autohidesScrollers = true
+        tabsScroll.scrollerStyle = .overlay; tabsScroll.horizontalScrollElasticity = .none
         root.place = { [weak self] in self?.layout() }
         buildSidebar(); buildHome(); safely { try self.refresh() }; rebuildTabs()
         window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
@@ -43,7 +44,8 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
         table.addTableColumn(column); table.headerView = nil; table.backgroundColor = Theme.panel
         table.rowHeight = 51; table.delegate = self; table.dataSource = self; table.target = self; table.doubleAction = #selector(connectSelected)
         table.selectionHighlightStyle = .regular; table.intercellSpacing = NSSize(width: 0, height: 5)
-        scroll.documentView = table; scroll.hasVerticalScroller = true; scroll.drawsBackground = false; sidebar.addSubview(scroll)
+        scroll.documentView = table; scroll.hasVerticalScroller = true; scroll.drawsBackground = false
+        scroll.autohidesScrollers = true; scroll.scrollerStyle = .overlay; sidebar.addSubview(scroll)
         let actions = [ActionButton("Connect →", accent: true) { [weak self] in self?.connectSelected() },
             ActionButton("Connection settings") { [weak self] in guard let self else { return }; self.edit(self.selectedHost) },
             ActionButton("Tools") { [weak self] in self?.tools() }, ActionButton("About") { [weak self] in self?.about() }]
@@ -91,7 +93,7 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
         homeViews.last?.isHidden = home.bounds.height < 660
         status.frame = NSRect(x: 18,y: height-26,width: width-36,height: 23)
         for session in sessions { session.terminal.frame = content.bounds.insetBy(dx: 10, dy: 8) }
-        tabBar.frame = NSRect(x: 0,y: 0,width: max(width-side, CGFloat(tabButtons.count)*184+12),height: 42)
+        tabBar.frame = NSRect(x: 0,y: 0,width: max(tabsScroll.contentSize.width, CGFloat(tabButtons.count)*184+12),height: 42)
         for (index, button) in tabButtons.enumerated() { button.frame = NSRect(x: 8+CGFloat(index)*184,y: 7,width: 176,height: 32) }
     }
     func refresh() throws {

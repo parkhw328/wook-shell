@@ -96,6 +96,7 @@ SSH의 **공개키 인증은 키 쌍을 사용**합니다. 서버의 `~/.ssh/aut
 4. `New host`의 `Authentication → Public key authentication`에서 저장한 `.ppk`를 선택합니다.
 
 `Import key…`는 기존 PPK와 OpenSSH 개인키를 읽습니다. 암호화된 키는 가져오기 전에 암호를 입력하세요. 저장은 PPK v3 형식이며, 가져오기와 저장에 사용한 암호 입력은 작업 후 지웁니다.
+인증 화면의 `Generate or import a key pair`로 키 관리자를 열면, 저장한 개인키 경로가 호스트 설정에 자동으로 채워집니다. `.pem`·`.key`·`.txt` 확장자도 가져오기 목록에서 선택할 수 있으며 실제 파일 내용을 기준으로 형식을 판별합니다.
 RSA 생성은 Windows CNG, Ed25519와 키 형식 처리는 PuTTY 라이브러리를 사용합니다.
 
 ![Native SSH key manager](assets/screenshots/key-manager.png)
