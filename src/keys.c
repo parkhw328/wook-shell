@@ -5,6 +5,7 @@
 #include "mpint.h"
 #include "keys.h"
 #include <sddl.h>
+#include <aclapi.h>
 #include <bcrypt.h>
 
 struct WsKey { ssh2_userkey *key; };
@@ -112,6 +113,17 @@ static PSECURITY_DESCRIPTOR privateDescriptor(void) {
     }
     free(user); CloseHandle(token); return descriptor;
 }
+static bool protectPrivateFile(HANDLE file, PSECURITY_DESCRIPTOR descriptor) {
+    PACL acl = NULL; BOOL present = FALSE, defaulted = FALSE;
+    if (!GetSecurityDescriptorDacl(descriptor, &present, &acl, &defaulted) || !present || !acl) return false;
+    if (SetSecurityInfo(file, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                        NULL, NULL, acl, NULL) != ERROR_SUCCESS) return false;
+    PSECURITY_DESCRIPTOR actual = NULL; SECURITY_DESCRIPTOR_CONTROL control = 0; DWORD revision = 0;
+    DWORD result = GetSecurityInfo(file, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, NULL, NULL, NULL, NULL, &actual);
+    bool ok = result == ERROR_SUCCESS && GetSecurityDescriptorControl(actual, &control, &revision) && (control & SE_DACL_PROTECTED);
+    if (actual) LocalFree(actual);
+    return ok;
+}
 int wsKeySave(WsKey *key, const wchar_t *path, const char *passphrase) {
     if (!key || !path || !*path) { fail("Choose a key and output file."); return 0; }
     PSECURITY_DESCRIPTOR descriptor = privateDescriptor();
@@ -121,9 +133,16 @@ int wsKeySave(WsKey *key, const wchar_t *path, const char *passphrase) {
     wchar_t *temp = (wchar_t *)calloc(length, sizeof(wchar_t));
     if (!temp) { LocalFree(descriptor); fail("Out of memory."); return 0; }
     swprintf(temp, length, L"%ls.%lu.%llu.tmp", path, GetCurrentProcessId(), GetTickCount64());
-    HANDLE file = CreateFileW(temp, GENERIC_WRITE, 0, &attributes, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+    HANDLE file = CreateFileW(temp, GENERIC_WRITE | READ_CONTROL | WRITE_DAC, 0, &attributes, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+    // Establish and verify inheritance protection on the open file before
+    // writing any private material, instead of relying only on creation flags.
+    bool protected = file != INVALID_HANDLE_VALUE && protectPrivateFile(file, descriptor);
     LocalFree(descriptor);
     if (file == INVALID_HANDLE_VALUE) { free(temp); fail("Cannot create the private-key file."); return 0; }
+    if (!protected) {
+        CloseHandle(file); DeleteFileW(temp); free(temp);
+        fail("Cannot protect the private-key file. Choose a local folder that supports Windows access permissions."); return 0;
+    }
     random_ref();
     strbuf *data = ppk_save_sb(key->key, passphrase && *passphrase ? passphrase : NULL, &ppk_save_default_parameters);
     random_unref();
