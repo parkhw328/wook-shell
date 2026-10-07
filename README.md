@@ -28,6 +28,8 @@
 macOS 배포본은 ad-hoc 서명 상태이며 **Apple Developer ID 서명·공증은 아직 없습니다**. 다운로드한 앱의 첫 실행은 Gatekeeper가 차단할 수 있습니다. 출처를 확인한 경우 시스템 설정의 개인정보 보호 및 보안에서 해당 앱 실행을 허용해야 합니다.
 macOS의 `.app`은 Finder에서 하나의 앱으로 이동하는 번들이며, 내부 실행파일만 꺼내 사용하는 형태는 아닙니다.
 
+![wShell macOS workspace](assets/screenshots/mac-workspace.png)
+
 ### 버전별 배포
 
 루트 `VERSION`에서 앱·패키지 버전을 관리합니다. 성공한 GitHub Actions의 `Desktop builds`에서도 두 플랫폼의 배포물을 받을 수 있습니다.
@@ -71,6 +73,8 @@ macOS의 첫 접속은 비밀번호 공급 전에 서버 키 지문을 별도 �
 - **미리 보기:** `Color preview`는 서버 연결 없이 실제 터미널 엔진의 색상을 보여 줍니다.
 - **로컬 셸:** 홈 또는 `Tools`에서 `Command Prompt` / `PowerShell`을 엽니다. `Ctrl+Shift+L`은 CMD를 열며, 탭 복제·전환·종료도 사용할 수 있습니다. ConPTY를 통해 이 PC의 명령을 실행하며 기본 작업 폴더는 현재 사용자의 홈입니다.
 
+![Local Command Prompt](assets/screenshots/local-cmd.png)
+
 각 탭은 같은 `wShell.exe`의 별도 프로세스로 연결을 관리합니다. PuTTYgen, Pageant나 설치된 SSH 서비스에 의존하지 않으며, 외부 에이전트 인증·에이전트 전달·연결 공유는 사용하지 않습니다.
 연결 설정·세션 설정·호스트 인증기관 관리 창은 wShell의 Flexoki Dark 화면을 사용합니다. 기존 엔진의 설정과 검증 로직을 유지하면서 탐색, 검색, 입력, 버튼과 스크롤을 새로 구성했습니다.
 
@@ -84,6 +88,8 @@ macOS의 첫 접속은 비밀번호 공급 전에 서버 키 지문을 별도 �
 SSH의 **공개키 인증은 키 쌍을 사용**합니다. 서버의 `~/.ssh/authorized_keys`에 공개키(`.pub`)를 등록하고, wShell은 대응하는 개인키로 서명합니다. 공개키 파일만으로는 로그인할 수 없습니다. 외부 에이전트의 키는 사용하지 않습니다.
 
 `Authentication → Public key authentication`을 선택하고 개인키 경로를 지정하세요. Windows는 `.ppk`, macOS는 OpenSSH 개인키를 사용합니다. 개인키는 서버에 업로드하지 마세요.
+
+![Public key authentication](assets/screenshots/public-key-host.png)
 
 `No supported authentication methods available (server sent: publickey,gssapi-keyex,gssapi-with-mic)`가 나오면 서버가 비밀번호 인증을 제공하지 않는 상태입니다. 올바른 사용자 이름과 해당 사용자에 등록된 공개키의 **짝이 되는 개인키**를 확인하세요. `.pem` 또는 `id_ed25519` / `id_rsa` 파일을 가지고 있다면 Windows 키 관리자의 `Import key`로 가져온 뒤 `.ppk`로 저장하여 선택합니다. 개인키가 없다면 새 키 쌍을 생성하고 관리자에게 공개키 등록을 요청해야 합니다. 이름만 `.pub`에서 `.ppk`로 바꿔서는 사용할 수 없습니다. 인증서·조직의 Kerberos 설정은 별도 구성이 필요합니다. [OpenSSH 공개키 인증 설명](https://man.openbsd.org/ssh#AUTHENTICATION)
 
