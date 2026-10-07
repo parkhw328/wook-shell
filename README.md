@@ -5,6 +5,8 @@
 **가볍게 열고, 여러 서버를 한 창에서.** Windows x64와 macOS용 네이티브 터미널입니다.
 탭 작업 공간, 공개 Flexoki Dark 팔레트와 JetBrains Mono를 사용합니다. Created by **Hyunwook Park**.
 
+**현재 작업 범위 (2026-10-07): Windows에 집중합니다.** macOS·iPad 빌드는 당분간 중단하며 해당 플랫폼을 명시적으로 요청받았을 때만 실행합니다. push·PR에서는 Windows만 자동 빌드합니다. [개발 규칙](rules/development.md#현재-작업-범위--windows-집중)
+
 ![wShell workspace](assets/screenshots/workspace.png)
 
 ## 분할 보기
@@ -271,6 +273,8 @@ git diff --check
 ```
 
 분할 포커스만 빠르게 재검증하려면 빌드 후 `node tests/ssh/focus-integration.cjs`를 실행합니다. 전체 UI 통합 테스트에도 같은 검증이 포함됩니다. 이 테스트는 자체 창을 전경으로 가져와 실제 마우스·키보드 입력, 명령창에서의 포커스 복귀, 커서·테두리 깜빡임을 검사합니다. 실행 중에는 테스트 창의 입력이 끝날 때까지 기다려 주세요.
+
+아래 macOS 절차는 해당 플랫폼을 명시적으로 요청받았을 때 사용합니다. CI에서는 `Desktop builds`를 수동 실행하면서 `build_macos`를 선택해야 macOS 작업이 실행됩니다. `iPad personal preview`도 수동 실행 전용입니다.
 
 macOS 빌드는 macOS 13 이상, Xcode Command Line Tools와 Swift 6 이상, Python 3에서 실행합니다. Swift 의존성은 정확한 커밋과 `mac/Package.resolved`로 고정합니다.
 

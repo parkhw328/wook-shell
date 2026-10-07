@@ -1,5 +1,6 @@
 # iPad 개인용 버전
 
+- 2026-10-07부터 Windows에 집중한다. 사용자가 iPad 빌드 또는 재개를 명시적으로 요청할 때까지 iPad 빌드·시뮬레이터 테스트·IPA 생성·서명을 수행하지 않는다. 일반적인 빌드나 전체 점검 요청에는 iPad를 포함하지 않는다. [현재 작업 범위](development.md#현재-작업-범위--windows-집중)를 우선 적용한다.
 - `ios/`는 iPadOS 17 이상용 네이티브 SwiftUI/UIKit 앱이다. `ios/VERSION`으로 데스크톱과 별도 관리한다.
 - 내장 libssh2와 OpenSSL, SwiftTerm을 사용한다. 버전·커밋·다운로드 SHA-256은 `scripts/build-ios.py`에 고정한다. 암호화를 직접 구현하지 않는다.
 - Keychain의 `WhenUnlockedThisDeviceOnly`, 비동기화 항목에 비밀번호·개인키를 저장한다. 키 암호는 저장하지 않는다. 암호를 인수·환경변수·임시 파일에 전달하지 않는다.
@@ -12,5 +13,5 @@
 - 무료 계정의 7일 만료를 안내한다. 개인용 설치에 App Store 배포나 유료 계정이 필수인 것처럼 안내하지 않는다.
 - 사용자의 대상 기기는 iPadOS 26.6이며 유료 개발자 멤버십은 사용하지 않는다. 시뮬레이터 통과를 이 실기기의 설치 성공으로 표시하지 않는다.
 - Derpy 1.0.1의 지원 대상은 App Store에서 받은 IPA다. 개발 서명·프로비저닝과 App Store 배포 암호화를 혼동하지 않는다. 개인 계정으로 서명한 자체 IPA가 Derpy에서 동작하거나 7일 만료가 없어지는 것으로 안내하지 않는다.
-- 기존 `.github/workflows/ipad.yml`을 유지하며 요청 시 macOS CI에서 새 IPA를 만들고 `dist/ipad/<ios-version>/`에 SHA-256과 함께 내려받는다. 프로비저닝·유효한 기기 서명이 없는 파일은 이름과 문서에 unsigned로 표시한다.
+- 기존 `.github/workflows/ipad.yml`은 수동 실행 전용으로 유지한다. iPad 빌드를 명시적으로 요청받았을 때만 macOS CI에서 새 IPA를 만들고 `dist/ipad/<ios-version>/`에 SHA-256과 함께 내려받는다. 프로비저닝·유효한 기기 서명이 없는 파일은 이름과 문서에 unsigned로 표시한다.
 - 자동 갱신은 PC의 서명 도구가 주기적으로 재서명하는 기능이다. 무료 계정의 유효기간 자체가 연장되는 것으로 설명하지 않는다. 근거와 설치 절차는 [iPad 서명 검토](../docs/ipad-signing.md)에 남긴다.

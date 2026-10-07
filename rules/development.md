@@ -1,5 +1,15 @@
 # 개발 규칙
 
+## 현재 작업 범위 — Windows 집중
+
+- 2026-10-07 사용자 요청에 따라 당분간 Windows만 빌드·테스트·패키징한다. macOS와 iPad 빌드는 사용자가 해당 플랫폼의 빌드 또는 재개를 명시적으로 요청할 때까지 중단한다.
+- 일반적인 "빌드", "전체 점검", "배포 파일 갱신" 요청은 Windows 범위로 해석한다. macOS·iPad의 로컬 빌드, CI 수동 실행, 서명·패키징을 함께 수행하지 않는다.
+- push·PR의 자동 CI는 Windows만 실행한다. macOS는 `windows.yml`의 수동 실행에서 `build_macos: true`를 지정할 때만, iPad는 `ipad.yml`을 수동 실행할 때만 빌드할 수 있다. 에이전트는 해당 플랫폼의 명시적 요청 없이 이 경로를 실행하지 않는다.
+- 기존 macOS·iPad 소스와 빌드 절차는 재개를 위해 보존한다. Windows 검증 결과를 다른 플랫폼의 검증 완료로 표시하지 않으며, 이전 산출물을 최신 Windows 변경까지 반영한 것으로 안내하지 않는다.
+- 아래 macOS 및 [iPad 규칙](ipad.md)의 빌드·검증 절차는 해당 플랫폼을 명시적으로 요청받았을 때 적용한다.
+
+## 공통 개발 원칙
+
 - 기존 루트 `AGENTS.md`는 유지하며, 갱신되는 개발 규칙은 이 폴더에 기록한다.
 - C++20과 Win32 API를 사용한다. C/C++ 들여쓰기는 공백 4칸, 타입은 PascalCase, 함수와 변수는 camelCase다.
 - 소스는 `src/`, 테스트는 `tests/`, 빌드 자동화는 `scripts/`, 패치는 `patches/`, 재배포 자산은 `assets/`와 `licenses/`에 둔다.
@@ -25,7 +35,7 @@
 - 폰트 캐시: `node tests/ssh/font-integration.cjs`. 폰트 선택·탐색 UI와 실제 분할 입력은 SSH/UI 테스트에 포함한다.
 - 실행 인자: `node tests/ssh/launch-integration.cjs`. 배포 EXE로 실제 루프백 SSH 인증, 저장 호스트 재사용, UTF-8 파이프, 일회용 암호 정리와 자식 명령줄을 검증한다.
 - 테스트는 임시 루프백 SSH 서버와 `build/` 아래 격리 데이터만 사용한다. 테스트 창은 자동 종료한다.
-- 버전은 루트 `VERSION`에서 관리한다. `dist/<version>/windows-x64/`와 `dist/<version>/macos-universal/`로 배포하며 `scripts/index-dist.py`로 해시 manifest를 생성한다.
+- 데스크톱 버전은 루트 `VERSION`에서 관리한다. 현재 배포 대상은 `dist/<version>/windows-x64/`이며 `scripts/index-dist.py`로 해시 manifest를 생성한다. `dist/<version>/macos-universal/`은 macOS 빌드를 명시적으로 요청받았을 때만 갱신한다.
 - UI 변경은 생성된 `build/ssh-test-*/standalone/ui-*.bmp` 화면을 확인한다. 암호·실제 서버 정보를 스크린샷에 포함하지 않는다.
 - 통합 테스트는 EXE만 복사한 빈 폴더에서 시작하고, 생성한 키의 실제 SSH 서명을 별도 서버 구현으로 검증한다.
 - 아이콘 원본은 `assets/branding/wshell-icon.png`, ICO 재생성은 `scripts/make-icon.ps1`이다.
@@ -33,6 +43,7 @@
 
 ## macOS와 로컬 터미널
 
+- macOS 빌드·검증은 현재 중단 상태이며 위의 Windows 집중 규칙을 우선 적용한다.
 - macOS 코드는 `mac/`의 Swift 5 언어 모드·Swift 6 도구 체인을 사용하며 공백 4칸, PascalCase 타입과 camelCase 함수를 따른다.
 - AppKit·SwiftTerm을 사용한다. 외부 Swift 패키지는 정확한 커밋과 `Package.resolved`로 고정한다.
 - `python3 scripts/build-mac.py`는 핵심 테스트, arm64/x86_64 빌드, Universal 앱 패키징을 수행한다. macOS 실행 검증은 macOS CI에서 수행한다.
