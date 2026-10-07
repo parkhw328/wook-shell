@@ -256,6 +256,40 @@ void runUiSmoke(App &app) {
         } else if (phase == 32 && ready() && SendMessageW(app.tabs[0]->terminal,WM_APP+121,0,0)==1) {
             require(true,"SFTP must reuse the scoped DPAPI password");closeTestSession(0);phase=33;waits=0;
         } else if (phase == 33 && app.tabs.empty()) {
+            for (int i=0;i<4;++i) app.localShell();
+            phase=34;waits=0;
+        } else if (phase == 34 && ready()) {
+            for (int count=2;count<=4;++count) {
+                app.setSplit(count);
+                require((int)app.panes.size()==count,"Split must display requested number of panes");
+                for (int i=0;i<count;++i) {
+                    require(IsWindowVisible(app.panes[i]->terminal),"Each split terminal must be visible");
+                    RECT actual{};GetWindowRect(app.panes[i]->terminal,&actual);
+                    require(actual.right>actual.left+100 && actual.bottom>actual.top+80,"Split terminal must have usable geometry");
+                    for (int j=0;j<i;++j) {RECT other{},overlap{};GetWindowRect(app.panes[j]->terminal,&other);require(!IntersectRect(&overlap,&actual,&other),"Split terminals must not overlap");}
+                }
+            }
+            phase=35;waits=0;
+        } else if (phase == 35 && ready() && waits>2) {
+            captureTestWindow(app.hwnd,L"ui-split.bmp");
+            for (int i=0;i<4;++i) {
+                SendMessageW(app.hwnd,WM_APP+46,(WPARAM)app.tabs[i]->terminal,0);
+                require(app.active==i,"Focused pane must own tab commands");
+                PostMessageW(app.tabs[i]->terminal,WM_CHAR,L'e',1);
+                std::wstring text=L"cho pane > \""+app.directory+L"\\split-"+std::to_wstring(i)+L".ready\"\r";
+                for(wchar_t ch:text)PostMessageW(app.tabs[i]->terminal,WM_CHAR,ch,1);
+            }
+            phase=36;waits=0;
+        } else if (phase == 36 && received(L"split-0.ready") && received(L"split-1.ready") && received(L"split-2.ready") && received(L"split-3.ready")) {
+            require(true,"All four panes must send input to independent local shells");
+            app.setSplit(2);auto first=app.panes[0];app.select(1);
+            require(app.panes.size()==2 && std::find(app.panes.begin(),app.panes.end(),app.tabs[1].get())!=app.panes.end(),"Selecting hidden tab must replace one pane");
+            app.setSplit(4);std::swap(app.tabs[0],app.tabs[3]);app.layout();
+            require(app.panes.size()==4 && std::find(app.panes.begin(),app.panes.end(),first)!=app.panes.end(),"Tab reorder must retain pane identity");
+            app.setSplit(1);int visible=0;for(auto&t:app.tabs)visible+=IsWindowVisible(t->terminal)!=0;
+            require(visible==1,"Single view must hide other live terminals");
+            app.setSplit(4);for(int i=3;i>=0;--i)closeTestSession(i);phase=37;waits=0;
+        } else if (phase == 37 && app.tabs.empty()) {
             std::ofstream result(std::filesystem::path(app.directory) / L"ui-smoke-result.json");
             result << "{\"passed\":true,\"checks\":" << checks << "}\n";
             result.close(); phase = -1; DestroyWindow(app.hwnd);

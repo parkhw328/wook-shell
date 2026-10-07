@@ -11,7 +11,7 @@
 
 ### Windows
 
-1. **`wShell.exe` 하나**를 원하는 폴더에 복사합니다. `wshell-0.6.0-windows-x64.zip`에도 이 파일만 들어 있습니다.
+1. **`wShell.exe` 하나**를 원하는 폴더에 복사합니다. `wshell-0.7.0-windows-x64.zip`에도 이 파일만 들어 있습니다.
 2. 실행합니다. 설치, 관리자 권한, WebView2, .NET, Node.js가 필요하지 않습니다.
 3. `New host`에서 접속 정보를 저장하거나, 빠른 연결 칸에 `user@hostname:22`를 입력합니다.
 4. 처음 접속하는 SSH 서버의 키 지문을 확인한 뒤 신뢰 여부를 선택합니다.
@@ -21,7 +21,7 @@
 
 ### macOS
 
-1. `wshell-0.6.0-macos-universal.zip`을 풀고 **`wShell.app`**을 실행합니다. Applications 폴더로 옮겨도 됩니다.
+1. `wshell-0.7.0-macos-universal.zip`을 풀고 **`wShell.app`**을 실행합니다. Applications 폴더로 옮겨도 됩니다.
 2. macOS 13 이상에서 Apple Silicon·Intel을 모두 지원하는 Universal 앱입니다. 별도 런타임이나 WebView 설치가 필요하지 않습니다.
 3. `New host`로 SSH 서버를 추가하거나 `Open Terminal`로 현재 Mac의 로그인 셸을 엽니다.
 
@@ -37,16 +37,16 @@ macOS의 `.app`은 Finder에서 하나의 앱으로 이동하는 번들이며, �
 ```text
 dist/
   README.md
-  0.6.0/
+  0.7.0/
     manifest.json
     windows-x64/
       wShell.exe
       wShell.exe.sha256
-      wshell-0.6.0-windows-x64.zip
-      wshell-0.6.0-windows-x64.zip.sha256
+      wshell-0.7.0-windows-x64.zip
+      wshell-0.7.0-windows-x64.zip.sha256
     macos-universal/
-      wshell-0.6.0-macos-universal.zip
-      wshell-0.6.0-macos-universal.zip.sha256
+      wshell-0.7.0-macos-universal.zip
+      wshell-0.7.0-macos-universal.zip.sha256
 ```
 
 | 기능 | Windows | macOS |

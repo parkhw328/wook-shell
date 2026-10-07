@@ -6,6 +6,7 @@
 #include "backup.hpp"
 #include "credentials.h"
 #include "sftp_view.hpp"
+#include "split.hpp"
 #include <windowsx.h>
 #include <shellapi.h>
 #include <commdlg.h>
@@ -23,7 +24,7 @@ using wook::Profile;
 extern "C" int WINAPI wshellTerminalMain(HINSTANCE, HINSTANCE, LPSTR, int);
 namespace {
 enum { Search = 100, HostList, NewHost, ConnectHost, EditHost, Quick, QuickConnect, Preview,
-       Advanced, Duplicate, Reconnect, SessionSettings, Tools, About, SaveCurrent, HomeNew, HomePreview, LocalCmd, LocalPowerShell, FilesHost, FilesSession };
+       Advanced, Duplicate, Reconnect, SessionSettings, Tools, About, SaveCurrent, HomeNew, HomePreview, LocalCmd, LocalPowerShell, FilesHost, FilesSession, Split };
 struct Tab {
     Profile profile;
     std::wstring storageName;
@@ -42,6 +43,9 @@ struct App {
     std::vector<size_t> filtered;
     std::vector<std::unique_ptr<Tab>> tabs;
     std::vector<Hit> hits;
+    std::vector<Tab *> panes;
+    std::vector<wook::PaneRect> paneRects;
+    int splitCount = 1;
     int active = -1, tabScroll = 0, dragTab = -1, width = 1200, height = 760;
     POINT dragStart{};
     unsigned sequence = 0;
@@ -63,6 +67,8 @@ struct App {
     void toolsMenu();
     void hostMenu(POINT point);
     void tabMenu(int index, POINT point);
+    void splitMenu();
+    void setSplit(int count);
     Profile *selectedHost();
 };
 #ifdef WOOK_UI_TEST
@@ -122,19 +128,35 @@ void App::layout() {
     ui::place(control(LocalPowerShell), left + span - 160, 536, 138, 40);
     ui::place(control(Duplicate), width - 330, 64, 95, 33);
     ui::place(control(FilesSession), width - 418, 64, 80, 33);
+    ui::place(control(Split), width - 522, 64, 95, 33);
     ui::place(control(Reconnect), width - 226, 64, 102, 33);
     ui::place(control(SessionSettings), width - 115, 64, 95, 33);
     ui::place(control(SaveCurrent), width - 126, height - 30, 116, 27);
     for (int id : {Quick, QuickConnect, HomeNew, HomePreview, LocalCmd, LocalPowerShell}) visible(control(id), active < 0);
     for (int id : {Duplicate, Reconnect, SessionSettings}) visible(control(id), active >= 0);
+    visible(control(Split), active >= 0);
     visible(control(SaveCurrent), active >= 0 && !tabs[active]->preview && tabs[active]->transient && tabs[active]->profile.protocol != L"local");
     visible(control(FilesSession), active >= 0 && !tabs[active]->preview && !tabs[active]->files && tabs[active]->profile.protocol == L"ssh");
     EnableWindow(control(SessionSettings), active >= 0 && !tabs[active]->files && tabs[active]->profile.protocol != L"local");
+    panes.erase(std::remove_if(panes.begin(), panes.end(), [&](Tab *p) {
+        return std::none_of(tabs.begin(), tabs.end(), [&](const auto &t) { return t.get() == p; });
+    }), panes.end());
+    if (active >= 0) {
+        if (splitCount == 1) panes = {tabs[active].get()};
+        else {
+            if (panes.empty()) panes.push_back(tabs[active].get());
+            for (auto &t : tabs) if ((int)panes.size() < splitCount && std::find(panes.begin(), panes.end(), t.get()) == panes.end()) panes.push_back(t.get());
+        }
+    }
+    paneRects = wook::splitRects(std::max(1, (int)panes.size()), sidebar + 1, 113, width - sidebar - 1, std::max(40, height - 148));
     for (size_t i = 0; i < tabs.size(); ++i) {
         auto &tab = *tabs[i];
         if (IsWindow(tab.terminal)) {
-            if ((int)i == active) {
-                ui::place(tab.terminal, sidebar + 1, 113, width - sidebar - 1, std::max(10, height - 148));
+            auto pane = std::find(panes.begin(), panes.end(), &tab);
+            if (active >= 0 && pane != panes.end()) {
+                auto r = paneRects[pane - panes.begin()];
+                int inset = panes.size() > 1 ? 2 : 0, header = panes.size() > 1 ? 26 : 0;
+                ui::place(tab.terminal, r.x + inset, r.y + header, r.width - inset * 2, std::max(10, r.height - header - inset));
                 ShowWindow(tab.terminal, SW_SHOWNA);
             } else ShowWindow(tab.terminal, SW_HIDE);
         }
@@ -142,7 +164,13 @@ void App::layout() {
     InvalidateRect(hwnd, nullptr, TRUE);
 }
 void App::select(int index) {
-    active = std::clamp(index, -1, (int)tabs.size() - 1);
+    int next = std::clamp(index, -1, (int)tabs.size() - 1);
+    if (next >= 0 && splitCount > 1 && std::find(panes.begin(), panes.end(), tabs[next].get()) == panes.end()) {
+        auto old = active >= 0 ? std::find(panes.begin(), panes.end(), tabs[active].get()) : panes.end();
+        if (old != panes.end()) *old = tabs[next].get();
+        else if (!panes.empty()) panes[0] = tabs[next].get();
+    }
+    active = next;
     if (active >= 0 && active < tabScroll) tabScroll = active;
     int capacity = std::max(1, (width - sidebar - 162) / 160);
     if (active >= tabScroll + capacity) tabScroll = active - capacity + 1;
@@ -150,6 +178,20 @@ void App::select(int index) {
     layout();
     if (active >= 0 && IsWindow(tabs[active]->terminal)) SetFocus(tabs[active]->terminal);
     else if (active < 0) SetFocus(control(Quick));
+}
+void App::setSplit(int count) {
+    if (active < 0 || count < 1 || count > 4 || count > (int)tabs.size()) return;
+    splitCount = count; panes = {tabs[active].get()};
+    for (auto &t : tabs) if ((int)panes.size() < count && t.get() != tabs[active].get()) panes.push_back(t.get());
+    layout();
+}
+void App::splitMenu() {
+    HMENU menu = CreatePopupMenu();
+    const wchar_t *labels[] = {L"Single pane", L"2 panes — side by side", L"3 panes — left + stacked right", L"4 panes — grid"};
+    for (int i = 1; i <= 4; ++i) AppendMenuW(menu, MF_STRING | (splitCount == i ? MF_CHECKED : 0) | ((int)tabs.size() < i ? MF_GRAYED : 0), i, labels[i - 1]);
+    RECT r; GetWindowRect(control(Split), &r);
+    int choice = TrackPopupMenu(menu, TPM_RETURNCMD, r.left, r.bottom, 0, hwnd, nullptr);
+    DestroyMenu(menu); if (choice) setSplit(choice);
 }
 void App::paint(HDC dc) {
     ui::fill(dc, ui::rect(0, 0, width, height), ui::bg);
@@ -212,12 +254,21 @@ void App::paint(HDC dc) {
         }
     } else {
         auto &tab = *tabs[active];
-        int toolbarSpace = !tab.preview && !tab.files && tab.profile.protocol == L"ssh" ? 458 : 370;
+        int toolbarSpace = 562;
         ui::label(dc, tab.preview ? L"Terminal preview" : tab.profile.name, ui::rect(sidebar + 22, 61, std::max(100, width - sidebar - toolbarSpace), 24), ui::TextSize::body, ui::bright, true);
         std::wstring endpoint = tab.preview ? L"Local preview · no connection" : tab.profile.protocol == L"local" ? L"Local terminal · this computer" : tab.profile.protocol + L"  /  " + (tab.profile.user.empty() ? L"" : tab.profile.user + L"@") + tab.profile.host + L":" + std::to_wstring(tab.profile.port);
         ui::label(dc, endpoint, ui::rect(sidebar + 22, 85, std::max(100, width - sidebar - toolbarSpace), 19), ui::TextSize::caption, ui::muted, false, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         ui::fill(dc, ui::rect(sidebar, 112, width - sidebar, 1), ui::raised);
-        if (!IsWindow(tab.terminal)) {
+        if (panes.size() > 1) {
+            for (size_t i = 0; i < panes.size(); ++i) {
+                auto r = paneRects[i]; bool focused = panes[i] == &tab;
+                ui::fill(dc, ui::rect(r.x, r.y, r.width, r.height), focused ? ui::accent : ui::line);
+                ui::fill(dc, ui::rect(r.x+2, r.y+2, r.width-4, r.height-4), ui::bg);
+                ui::label(dc, std::to_wstring(i+1) + L"  " + panes[i]->profile.name,
+                    ui::rect(r.x+8,r.y+2,r.width-16,22), ui::TextSize::caption, focused ? ui::accent : ui::muted);
+                if (!IsWindow(panes[i]->terminal)) ui::label(dc, panes[i]->ended ? L"Session ended · Reconnect" : L"Connecting…", ui::rect(r.x+12,r.y+40,r.width-24,28), ui::TextSize::body, ui::muted);
+            }
+        } else if (!IsWindow(tab.terminal)) {
             int cx = sidebar + 56;
             ui::label(dc, tab.ended ? L"This session has ended." : tab.closing ? L"Closing session…" : L"Preparing your terminal…", ui::rect(cx, 220, width - cx - 40, 50), ui::TextSize::title, ui::bright, true);
             ui::label(dc, tab.ended ? L"Reconnect to start again, or open another host." : L"Complete any connection or configuration dialog to continue.", ui::rect(cx, 279, width - cx - 40, 30), ui::TextSize::body, ui::muted);
@@ -362,10 +413,12 @@ void App::command(int code) {
         fullscreen = !fullscreen; break;
     case 9: SendMessageW(hwnd, WM_CLOSE, 0, 0); break;
     case 10: localShell(); break;
+    case 11: splitMenu(); break;
     }
 }
 void App::action(int id) {
     switch (id) {
+    case Split: splitMenu(); break;
     case NewHost: case HomeNew: { Profile p; if (editHost(hwnd, p, false)) refresh(); break; }
     case EditHost: {
         auto selected = selectedHost(); if (!selected) break;
@@ -512,6 +565,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             addButton(SessionSettings, L"Settings"); addButton(Tools, L"Tools"); addButton(About, L"About");
             addButton(LocalCmd, L"Command Prompt"); addButton(LocalPowerShell, L"PowerShell");
             addButton(SaveCurrent, L"Save host…");
+            addButton(Split, L"Split");
             app->refresh(); app->layout(); SetTimer(hwnd, 1, 350, nullptr); return 0;
         }
         if (!app) return DefWindowProcW(hwnd, msg, wp, lp);
@@ -579,6 +633,12 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         case WM_LBUTTONDOWN: {
             POINT p{GET_X_LPARAM(lp),GET_Y_LPARAM(lp)};
+            if (app->active >= 0 && app->panes.size() > 1) {
+                for (size_t i=0;i<app->panes.size();++i) {
+                    auto r=app->paneRects[i]; RECT header=ui::rect(r.x,r.y,r.width,26);
+                    if (PtInRect(&header,p)) for (size_t j=0;j<app->tabs.size();++j) if (app->tabs[j].get()==app->panes[i]) { app->select((int)j); return 0; }
+                }
+            }
             if (PtInRect(&app->home,p)) { app->select(-1); return 0; }
             if (PtInRect(&app->plus,p)) { app->command(1); return 0; }
             for (auto it=app->hits.rbegin();it!=app->hits.rend();++it) if (PtInRect(&it->rect,p)) {
@@ -630,6 +690,14 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 if (!owned) return 0;
             }
             app->command((int)wp); return 0;
+        }
+        case WM_APP + 46: {
+            if (app->active < 0) return 0;
+            for (size_t i=0;i<app->tabs.size();++i) if (app->tabs[i]->terminal==(HWND)wp && (int)i!=app->active &&
+                std::find(app->panes.begin(),app->panes.end(),app->tabs[i].get())!=app->panes.end()) {
+                app->active=(int)i; app->layout(); break;
+            }
+            return 0;
         }
         case WM_COPYDATA: {
             bool owned = false;
@@ -718,6 +786,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
                 else if (ctrl && shift && msg.wParam=='R') command=4;
                 else if (ctrl && shift && msg.wParam=='P') command=7;
                 else if (ctrl && shift && msg.wParam=='L') command=10;
+                else if (ctrl && shift && msg.wParam=='S') command=11;
                 else if (alt && msg.wParam>='1' && msg.wParam<='9') command=20+(int)(msg.wParam-'1');
                 else if (msg.wParam==VK_F11) command=8;
                 if (command) {

@@ -257,7 +257,7 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
                         return CDRF_SKIPDEFAULT;
                     }
                 }
-                if(h->code==NM_SETFOCUS||h->code==NM_CLICK){b->remoteFocused=h->idFrom==RemoteList;InvalidateRect(hwnd,nullptr,FALSE);}
+                if(h->code==NM_SETFOCUS||h->code==NM_CLICK){b->remoteFocused=h->idFrom==RemoteList;PostMessageW(GetParent(hwnd),WM_APP+46,(WPARAM)hwnd,0);InvalidateRect(hwnd,nullptr,FALSE);}
                 if(h->code==NM_DBLCLK&&!b->busy){auto e=b->selected(h->idFrom==RemoteList);if(e.size()==1&&e[0].directory())b->navigate(h->idFrom==RemoteList,h->idFrom==RemoteList?sftp::join(b->remote,e[0].name):(fs::path(b->local)/e[0].name).wstring());}
                 if(h->code==LVN_KEYDOWN){auto key=(NMLVKEYDOWN *)lp;if(key->wVKey==VK_F5)b->action(Refresh);}
             } return 0;

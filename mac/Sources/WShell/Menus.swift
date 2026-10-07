@@ -19,10 +19,15 @@ extension Workspace {
         item(tabs,"Duplicate tab","duplicate","d",shift: true); item(tabs,"Close tab","close","w")
         item(tabs,"Reconnect","restart","r",shift: true); item(tabs,"Next tab","next","]",shift: true)
         item(tabs,"Previous tab","previous","[",shift: true); item(tabs,"Move tab left","left"); item(tabs,"Move tab right","right")
+        tabs.addItem(.separator())
+        for count in 1...4 { item(tabs, count == 1 ? "Single pane" : "\(count) panes", "split-\(count)") }
+        item(tabs,"Split layout","split-menu","s",shift: true)
         NSApp.mainMenu = menu
     }
     @objc func menuAction(_ sender: NSMenuItem) {
+        if let action = sender.representedObject as? String, action.hasPrefix("split-"), let count = Int(action.dropFirst(6)) { setSplit(count); return }
         switch sender.representedObject as? String {
+        case "split-menu": splitMenu()
         case "about": about()
         case "quit": NSApp.terminate(nil)
         case "new": select(nil)

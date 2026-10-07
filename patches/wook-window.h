@@ -87,6 +87,7 @@ static void wookWindowAttach(HWND hwnd) {
 }
 static bool wookKey(HWND hwnd, UINT message, WPARAM key, LPARAM flags) {
     if (!wookParent) return false;
+    if (message == WM_SETFOCUS) PostMessageW(wookParent, WM_APP + 46, (WPARAM)hwnd, 0);
     if (message != WM_KEYDOWN && message != WM_SYSKEYDOWN && message != WM_KEYUP && message != WM_SYSKEYUP) return false;
     bool control = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
     bool shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
@@ -99,6 +100,7 @@ static bool wookKey(HWND hwnd, UINT message, WPARAM key, LPARAM flags) {
     else if (control && shift && key == 'R') command = 4;
     else if (control && shift && key == 'P') command = 7;
     else if (control && shift && key == 'L') command = 10;
+    else if (control && shift && key == 'S') command = 11;
     else if (alt && key >= '1' && key <= '9') command = 20 + (int)(key - '1');
     else if (key == VK_F11) command = 8;
     else if (alt && key == VK_F4) command = 9;

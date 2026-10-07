@@ -125,6 +125,33 @@ final class SmokeTest {
                 try workspace.openSFTP(host); advance(11)
             case 11 where workspace.active?.files?.connected == true && workspace.active?.files?.busy == false:
                 try require(true, "SFTP reuses the scoped Keychain password.")
+                workspace.close(workspace.active!, confirm: false)
+                for _ in 0..<4 { workspace.openLocal() }
+                for count in 2...4 {
+                    workspace.setSplit(count)
+                    try require(workspace.panes.count == count, "Split must show \(count) panes")
+                    let visible = workspace.sessions.filter { !$0.view.isHidden }
+                    try require(visible.count == count, "Visible terminals match split count")
+                    for (index, session) in visible.enumerated() {
+                        try require(session.view.frame.width > 100 && session.view.frame.height > 80, "Usable pane geometry")
+                        for other in visible.prefix(index) { try require(!session.view.frame.intersects(other.view.frame), "Panes must not overlap") }
+                    }
+                }
+                for (index, session) in workspace.sessions.enumerated() {
+                    workspace.select(session.id)
+                    session.terminal.send(txt: "printf pane > split-\(index).ready\r")
+                }
+                advance(12)
+            case 12 where (0..<4).allSatisfy({ FileManager.default.fileExists(atPath: output.appendingPathComponent("split-\($0).ready").path) }):
+                try require(true, "Independent input in all four split PTYs")
+                try capture("mac-split")
+                let ids = workspace.panes
+                workspace.moveTab(-1)
+                try require(workspace.panes == ids, "Reordering tabs retains pane identities")
+                workspace.setSplit(1)
+                try require(workspace.sessions.filter { !$0.view.isHidden }.count == 1, "Single pane hides other sessions without closing")
+                workspace.setSplit(4); workspace.close(workspace.active!, confirm: false)
+                try require(workspace.panes.count == 3 && workspace.sessions.allSatisfy { !$0.view.isHidden }, "Closing split pane keeps other sessions visible")
                 finish(nil)
             default: break
             }

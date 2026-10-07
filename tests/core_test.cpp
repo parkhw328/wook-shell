@@ -1,6 +1,7 @@
 #include "core.hpp"
 #include "backup.hpp"
 #include "credentials.hpp"
+#include "split.hpp"
 #include <algorithm>
 #include <shellapi.h>
 #include <filesystem>
@@ -20,6 +21,15 @@ template<typename Fn> static void rejects(Fn fn, const char *name) {
 #include "password_test.inc"
 int wmain() {
     try {
+        for (int count=1;count<=4;++count) for(int width:{421,800,1301}) {
+            auto frames=wook::splitRects(count,13,17,width,611);
+            check((int)frames.size()==count,"requested split pane count");
+            for(size_t i=0;i<frames.size();++i) {
+                auto a=frames[i];check(a.x>=13&&a.y>=17&&a.x+a.width<=13+width&&a.y+a.height<=628,"split panes bounded");
+                check(a.width>100&&a.height>100,"usable split dimensions");
+                for(size_t j=0;j<i;++j){auto b=frames[j];check(a.x+a.width<=b.x||b.x+b.width<=a.x||a.y+a.height<=b.y||b.y+b.height<=a.y,"non-overlapping split panes");}
+            }
+        }
         auto data = wook::executableDirectory() + L"\\test-data-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64());
         SetEnvironmentVariableW(L"WOOK_DATA_DIR", data.c_str());
         auto endpoint = wook::parseEndpoint(L" ssh://deploy@[2001:db8::1]:2222 ");

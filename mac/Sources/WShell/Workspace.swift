@@ -11,6 +11,10 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
     var sessions: [Session] = [], selected: UUID?, hosts: [Record] = [], allHosts: [Record] = []
     var tabButtons: [ActionButton] = [], sidebarViews: [NSView] = [], homeViews: [NSView] = []
     var smoke: SmokeTest?
+    var splitCount = 1, panes: [UUID] = []
+    var paneHeaders: [UUID:ActionButton] = [:]
+    var focusMonitor: Any?
+    lazy var splitButton = ActionButton("Split") { [weak self] in self?.splitMenu() }
     init(store: SettingsStore) { self.store = store; super.init() }
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.appearance = NSAppearance(named: .darkAqua); Theme.loadFonts(); buildMenu()
@@ -19,7 +23,7 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
         window.setContentSize(NSSize(width: 1200, height: 780))
         root.layer?.backgroundColor = Theme.background.cgColor
         sidebar.wantsLayer = true; sidebar.layer?.backgroundColor = Theme.panel.cgColor
-        [sidebar, content, tabsScroll, status].forEach { root.addSubview($0) }
+        [sidebar, content, tabsScroll, status, splitButton].forEach { root.addSubview($0) }
         content.addSubview(home); tabsScroll.documentView = tabBar; tabsScroll.hasHorizontalScroller = true
         tabsScroll.drawsBackground = false; tabsScroll.autohidesScrollers = true
         tabsScroll.scrollerStyle = .overlay; tabsScroll.horizontalScrollElasticity = .none
@@ -27,6 +31,14 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
         buildSidebar(); buildHome(); safely { try self.refresh() }; rebuildTabs()
         window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
         layout()
+        focusMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            guard let self, event.window === window, selected != nil else { return event }
+            let point = content.convert(event.locationInWindow, from: nil)
+            if let session = sessions.first(where: { panes.contains($0.id) && $0.id != selected && $0.view.frame.contains(point) }) {
+                selected = session.id; rebuildTabs()
+            }
+            return event
+        }
         if let index = CommandLine.arguments.firstIndex(of: "--smoke-test"), CommandLine.arguments.count > index + 1 {
             smoke = SmokeTest(workspace: self, output: URL(fileURLWithPath: CommandLine.arguments[index + 1])); smoke?.start()
         }
@@ -83,7 +95,9 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
             NSRect(x: 154,y: height-189,width: 70,height: 35)]
         for (view, frame) in zip(sidebarViews, positions) { view.frame = frame }
         scroll.frame = NSRect(x: 14,y: 232,width: 214,height: max(60,height-437))
-        tabsScroll.frame = NSRect(x: side + 1,y: 0,width: width-side-1,height: 53)
+        tabsScroll.frame = NSRect(x: side + 1,y: 0,width: width-side-109,height: 53)
+        splitButton.frame = NSRect(x: width-100,y: 8,width: 90,height: 32)
+        splitButton.isEnabled = selected != nil
         content.frame = NSRect(x: side + 1,y: 54,width: width-side-1,height: height-84)
         home.frame = content.bounds
         let span = home.bounds.width - 80, card = (span - 16) / 2
@@ -95,7 +109,26 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
         for (view, frame) in zip(homeViews, homeFrames) { view.frame = frame }
         homeViews.last?.isHidden = home.bounds.height < 660
         status.frame = NSRect(x: 18,y: height-26,width: width-36,height: 23)
-        for session in sessions { session.view.frame = session.files == nil ? content.bounds.insetBy(dx: 10, dy: 8) : content.bounds }
+        panes.removeAll { id in !sessions.contains { $0.id == id } }
+        if let selected {
+            if splitCount == 1 { panes = [selected] }
+            if panes.isEmpty { panes = [selected] }
+            for session in sessions where panes.count < splitCount && !panes.contains(session.id) { panes.append(session.id) }
+        }
+        let frames = SplitLayout.frames(count: panes.count, in: content.bounds)
+        for session in sessions {
+            let index = panes.firstIndex(of: session.id)
+            session.view.isHidden = selected == nil || index == nil
+            paneHeaders[session.id]?.isHidden = selected == nil || index == nil || panes.count == 1
+            guard let index else { continue }
+            let frame = frames[index]
+            if panes.count > 1 {
+                paneHeaders[session.id]?.frame = NSRect(x: frame.minX,y: frame.minY,width: frame.width,height: 26)
+                paneHeaders[session.id]?.accent = selected == session.id
+                paneHeaders[session.id]?.needsDisplay = true
+                session.view.frame = NSRect(x:frame.minX+2,y:frame.minY+28,width:frame.width-4,height:max(10,frame.height-30))
+            } else { session.view.frame = session.files == nil ? frame.insetBy(dx: 10, dy: 8) : frame }
+        }
         tabBar.frame = NSRect(x: 0,y: 0,width: max(tabsScroll.contentSize.width, CGFloat(tabButtons.count)*184+12),height: 42)
         for (index, button) in tabButtons.enumerated() { button.frame = NSRect(x: 8+CGFloat(index)*184,y: 7,width: 176,height: 32) }
     }
@@ -129,15 +162,36 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
         tabButtons.forEach { tabBar.addSubview($0) }; layout()
     }
     func select(_ id: UUID?) {
+        if let id, splitCount > 1, !panes.contains(id) {
+            if let index = panes.firstIndex(where: { $0 == selected }) { panes[index] = id }
+            else if !panes.isEmpty { panes[0] = id }
+        }
         selected = id; home.isHidden = id != nil
-        for session in sessions { session.view.isHidden = session.id != id }
         rebuildTabs()
         if let session = active { window.makeFirstResponder(session.files?.tables[1] ?? session.terminal) } else { window.makeFirstResponder(quick) }
     }
     var active: Session? { sessions.first { $0.id == selected } }
+    func setSplit(_ count: Int) {
+        guard let selected, (1...4).contains(count), sessions.count >= count else { return }
+        splitCount = count; panes = [selected]
+        for session in sessions where panes.count < count && session.id != selected { panes.append(session.id) }
+        layout()
+    }
+    func splitMenu() {
+        let menu = NSMenu()
+        for (index, title) in ["Single pane", "2 panes — side by side", "3 panes — left + stacked right", "4 panes — grid"].enumerated() {
+            let item = NSMenuItem(title: title, action: #selector(menuAction(_:)), keyEquivalent: "")
+            item.target = self; item.representedObject = "split-\(index+1)"; item.state = splitCount == index+1 ? .on : .off
+            item.isEnabled = sessions.count >= index+1 && selected != nil; menu.addItem(item)
+        }
+        menu.autoenablesItems = false; menu.popUp(positioning: nil, at: NSPoint(x:0,y:splitButton.bounds.height), in: splitButton)
+    }
     func attach(_ session: Session) throws {
         guard sessions.count < 32 else { throw WShellError("Close a tab before opening more than 32 sessions.") }
-        sessions.append(session); content.addSubview(session.view); session.terminal.processDelegate = self; select(session.id)
+        sessions.append(session); content.addSubview(session.view)
+        let header = ActionButton(session.title) { [weak self, weak session] in self?.select(session?.id) }
+        paneHeaders[session.id] = header; content.addSubview(header)
+        session.terminal.processDelegate = self; select(session.id)
     }
     func environment() -> [String: String] {
         var env = ProcessInfo.processInfo.environment
@@ -201,7 +255,8 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
             if alert.runModal() != .alertFirstButtonReturn { return }
         }
         session.stop(); session.view.removeFromSuperview(); sessions.removeAll { $0.id == session.id }
-        select(sessions.last?.id)
+        paneHeaders.removeValue(forKey: session.id)?.removeFromSuperview(); panes.removeAll { $0 == session.id }
+        select(selected == session.id ? panes.first ?? sessions.last?.id : selected)
     }
     @objc func closeMenuTab(_ sender: NSMenuItem) { if let id = sender.representedObject as? String, let session = sessions.first(where: { $0.id.uuidString == id }) { close(session) } }
     func duplicate() {
