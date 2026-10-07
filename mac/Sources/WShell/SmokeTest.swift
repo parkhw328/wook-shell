@@ -30,6 +30,12 @@ final class SmokeTest {
     func require(_ condition: Bool, _ message: String) throws { if !condition { throw WShellError(message) }; checks += 1 }
     func advance(_ next: Int) { phase = next; ticks = 0; received = "" }
     func observe() { workspace.active?.terminal.output = { [weak self] text in self?.received += text } }
+    func key(_ code: UInt16, _ text: String, _ flags: NSEvent.ModifierFlags = []) {
+        if let event = NSEvent.keyEvent(with:.keyDown, location:.zero, modifierFlags:flags, timestamp:0,
+            windowNumber:workspace.window.windowNumber, context:nil, characters:text, charactersIgnoringModifiers:text, isARepeat:false, keyCode:code) {
+            workspace.window.sendEvent(event)
+        }
+    }
     func tick() {
         ticks += 1
         do {
@@ -169,7 +175,11 @@ final class SmokeTest {
             case 14 where (0..<4).allSatisfy({FileManager.default.fileExists(atPath:output.appendingPathComponent("all-\($0).ready").path)}):
                 try require(true,"Common command reaches all four panes")
                 workspace.syncInput.state = .on; workspace.inputOptionsChanged()
-                workspace.active!.terminal.insertText("printf live > live-$WSHELL_PANE.ready\n", replacementRange:NSRange(location:NSNotFound,length:0))
+                key(8, "\u{3}", .control); advance(18)
+            case 18 where ticks > 3:
+                workspace.active!.terminal.insertText("printf livX", replacementRange:NSRange(location:NSNotFound,length:0))
+                key(51, "\u{7f}"); key(123, "\u{f702}", [.function,.numericPad]); key(124, "\u{f703}", [.function,.numericPad])
+                workspace.active!.terminal.insertText("e > live-$WSHELL_PANE.ready\n", replacementRange:NSRange(location:NSNotFound,length:0))
                 workspace.active!.terminal.setMarkedText("취소", selectedRange:NSRange(location:2,length:0), replacementRange:NSRange(location:NSNotFound,length:0))
                 workspace.active!.terminal.unmarkText()
                 workspace.active!.terminal.insertText(NSAttributedString(string:"printf '한글🙂' > unicode-$WSHELL_PANE.ready\n"), replacementRange:NSRange(location:NSNotFound,length:0))
@@ -178,6 +188,9 @@ final class SmokeTest {
                 try require(true,"Committed keyboard text reaches all four panes")
                 for index in 0..<4 { try require(try String(contentsOf:output.appendingPathComponent("live-\(index).ready"),encoding:.utf8) == "live","Broadcast delivers exact text once") }
                 for index in 0..<4 { try require(try String(contentsOf:output.appendingPathComponent("unicode-\(index).ready"),encoding:.utf8) == "한글🙂","Broadcast only committed IME Unicode once") }
+                workspace.commandText.stringValue = "printf once >> once-$WSHELL_PANE.ready"; workspace.sendCommand(); advance(17)
+            case 17 where (0..<4).allSatisfy({FileManager.default.fileExists(atPath:output.appendingPathComponent("once-\($0).ready").path)}) && ticks > 2:
+                for index in 0..<4 { try require(try String(contentsOf:output.appendingPathComponent("once-\(index).ready"),encoding:.utf8) == "once","Common command must not rebroadcast while live sync is enabled") }
                 try capture("mac-broadcast")
                 workspace.setSplit(2)
                 try require(workspace.sendAll.state == .off && workspace.syncInput.state == .off,"Changing panes disables broadcast")

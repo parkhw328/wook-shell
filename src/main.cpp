@@ -208,7 +208,7 @@ void App::layout() {
     for (size_t i = 0; i < tabs.size(); ++i) {
         auto &tab = *tabs[i];
         if (IsWindow(tab.terminal)) {
-            if (commandBar && SendMessageW(control(SyncInput), BM_GETCHECK, 0, 0) == BST_CHECKED && !tab.files && !tab.preview)
+            if (commandBar && SendMessageW(control(SyncInput), BM_GETCHECK, 0, 0) == BST_CHECKED && !tab.files && !tab.preview && std::find(panes.begin(), panes.end(), &tab) != panes.end())
                 SetPropW(tab.terminal, L"wShell.SyncInput", (HANDLE)1);
             else RemovePropW(tab.terminal, L"wShell.SyncInput");
             auto pane = std::find(panes.begin(), panes.end(), &tab);
@@ -324,6 +324,7 @@ void App::paint(HDC dc) {
                 auto r = paneRects[i]; bool focused = panes[i] == &tab;
                 ui::fill(dc, ui::rect(r.x, r.y, r.width, r.height), hostColor(panes[i]->profile));
                 ui::fill(dc, ui::rect(r.x+2, r.y+2, r.width-4, r.height-4), ui::bg);
+                ui::fill(dc, ui::rect(r.x+2, r.y+2, r.width-4, 24), focused ? ui::raised : ui::panel);
                 ui::label(dc, std::to_wstring(i+1) + L"  " + panes[i]->profile.displayName(),
                     ui::rect(r.x+8,r.y+2,r.width-16,22), ui::TextSize::caption, hostColor(panes[i]->profile), focused);
                 if (!IsWindow(panes[i]->terminal)) ui::label(dc, panes[i]->ended ? L"Session ended · Reconnect" : L"Connecting…", ui::rect(r.x+12,r.y+40,r.width-24,28), ui::TextSize::body, ui::muted);
@@ -438,6 +439,7 @@ void App::poll() {
         auto &tab = *tabs[i];
         if (!tab.files && !tab.ended && WaitForSingleObject(tab.process, 0) == WAIT_OBJECT_0) {
             tab.ended = true; tab.terminal = nullptr;
+            routingPanes.clear();
             if (tab.closing) { closeTab(i); continue; }
             refresh(); layout();
         }
@@ -452,6 +454,7 @@ void App::command(int code) {
     case 3: closeTab(active); break;
     case 4:
         if (active >= 0) {
+            routingPanes.clear(); layout();
             auto &t = *tabs[active];
             if (t.ended) {
                 Profile p = t.profile; bool saved = !t.transient, preview = t.preview;

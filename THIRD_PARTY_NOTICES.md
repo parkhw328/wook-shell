@@ -19,6 +19,7 @@ Font SHA-256: Regular a0bf60ef0f83c5ed4d7a75d45838548b1f6873372dfac88f7180449189
 Bold 5590990c82e097397517f275f430af4546e1c45cff408bde4255dad142479dcb.
 
 The terminal is **modified PuTTY source statically linked into wShell.exe**, not an official PuTTY binary.
+Split keyboard synchronization adds a user-input callback to PuTTY's terminal structure and forwards validated, bounded messages between the workspace and its owned terminal windows. It does not modify SSH cryptography or mirror terminal protocol replies.
 The native key manager uses PuTTY's Ed25519/key-format routines and Windows CNG for RSA generation.
 PuTTY's guard against linking unsafe RSA-generation primitives into an SSH client remains intact.
 Its source is reproduced by scripts/bootstrap.py and scripts/patch-putty.py.

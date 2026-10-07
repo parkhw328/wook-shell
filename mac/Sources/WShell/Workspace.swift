@@ -338,6 +338,7 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
     }
     func processTerminated(source: TerminalView, exitCode: Int32?) {
         if let session = sessions.first(where: { $0.terminal === source }) {
+            routingPanes = []
             session.ended = true; session.terminal.feed(text: "\r\n\u{1b}[38;2;218;112;44mSession ended (\(exitCode ?? 0)). Use Reconnect to start again.\u{1b}[0m\r\n")
             rebuildTabs()
         }

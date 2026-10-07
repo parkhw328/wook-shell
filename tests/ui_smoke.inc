@@ -326,6 +326,10 @@ void runUiSmoke(App &app) {
             require(true,"Live keyboard input, cursor keys and Backspace reach all split terminals without loops");
             for (int i=0;i<4;++i) { std::ifstream file(std::filesystem::path(app.directory)/(L"live-"+std::to_wstring(i)+L".ready")); std::string value;std::getline(file,value);require(value=="live","Broadcast keyboard edits must produce exact text"); }
             for (int i=0;i<4;++i) { std::ifstream file(std::filesystem::path(app.directory)/(L"unicode-"+std::to_wstring(i)+L".ready")); std::string value;std::getline(file,value);require(value==wook::utf8(L"한글\U0001f642"),"Committed Unicode must broadcast once without broken surrogate pairs"); }
+            SetWindowTextW(app.control(CommandText),(L"echo once>>\""+app.directory+L"\\once-%WSHELL_PANE%.ready\"").c_str()); app.sendCommand();
+            phase=43;waits=0;
+        } else if (phase == 43 && received(L"once-0.ready") && received(L"once-1.ready") && received(L"once-2.ready") && received(L"once-3.ready") && waits>2) {
+            for (int i=0;i<4;++i) { std::ifstream file(std::filesystem::path(app.directory)/(L"once-"+std::to_wstring(i)+L".ready"));std::string text((std::istreambuf_iterator<char>(file)),{});require(text=="once\n","Common command must not be rebroadcast when live sync is also enabled"); }
             captureTestWindow(app.hwnd,L"ui-broadcast.bmp");
             app.setSplit(2);
             require(SendMessageW(app.control(SendAll),BM_GETCHECK,0,0)==BST_UNCHECKED && SendMessageW(app.control(SyncInput),BM_GETCHECK,0,0)==BST_UNCHECKED,"Changing target panes resets both broadcast modes");
