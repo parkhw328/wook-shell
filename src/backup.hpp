@@ -3,4 +3,5 @@
 namespace wook {
 std::wstring exportSettings(const std::wstring &path);
 std::wstring importSettings(const std::wstring &path);
+bool migrateLegacySettings(const std::wstring &source);
 }

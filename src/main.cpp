@@ -214,7 +214,7 @@ void App::paint(HDC dc) {
     }
     ui::fill(dc, ui::rect(0, height - 32, width, 32), ui::panel);
     ui::fill(dc, ui::rect(0, height - 33, width, 1), ui::line);
-    ui::label(dc, L"●  PORTABLE", ui::rect(20, height - 30, 125, 26), ui::TextSize::caption, ui::accent, true);
+    ui::label(dc, L"●  LOCAL DATA", ui::rect(20, height - 30, 125, 26), ui::TextSize::caption, ui::accent, true);
     ui::label(dc, std::to_wstring(tabs.size()) + L" tabs", ui::rect(158, height - 30, 75, 26), ui::TextSize::caption, ui::muted);
     ui::label(dc, L"Flexoki Dark   /   JetBrains Mono", ui::rect(sidebar + 20, height - 30, 300, 26), ui::TextSize::caption, ui::muted);
     if (active < 0 || !tabs[active]->transient || tabs[active]->preview)
@@ -342,7 +342,7 @@ void App::action(int id) {
     case Preview: case HomePreview: { Profile p; p.name = L"Color preview"; connect(p, false, true); break; }
     case Advanced: {
         if (auto p = selectedHost()) connect(*p, true, false, true);
-        else { Profile empty; empty.name = L"Advanced connection"; connect(empty, false, false, true); }
+        else { Profile empty; empty.name = L"Connection settings"; connect(empty, false, false, true); }
         break;
     }
     case Duplicate: command(2); break;
@@ -363,7 +363,7 @@ void App::toolsMenu() {
     AppendMenuW(menu, MF_STRING, 6, L"Export settings…");
     AppendMenuW(menu, MF_STRING, 7, L"Import settings…");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(menu, MF_STRING, 3, L"Open portable data folder");
+    AppendMenuW(menu, MF_STRING, 3, L"Open AppData folder");
     AppendMenuW(menu, MF_STRING, 4, L"Open-source licenses…");
     AppendMenuW(menu, MF_STRING, 5, L"Switch tab…");
     RECT r; GetWindowRect(control(Tools), &r);
@@ -381,8 +381,9 @@ void App::toolsMenu() {
             refresh(); MessageBoxW(hwnd, result.c_str(), L"wShell · Settings backup", MB_OK | MB_ICONINFORMATION);
         }
     } else if (selected == 3) {
-        std::wstring path = directory + L"\\data";
-        wchar_t *root = wsRoot(); if (root) { path = root; free(root); }
+        wchar_t *root = wsRoot();
+        if (!root) throw std::runtime_error("Cannot locate the wShell data folder.");
+        std::wstring path = root; free(root);
         ShellExecuteW(hwnd, L"open", path.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
     } else if (selected == 5) {
         menu = CreatePopupMenu(); AppendMenuW(menu, MF_STRING, 1, L"Workspace");
@@ -397,7 +398,7 @@ void App::hostMenu(POINT point) {
     AppendMenuW(menu, MF_STRING, 1, L"Connect in new tab");
     AppendMenuW(menu, MF_STRING, 2, L"Edit host…");
     AppendMenuW(menu, MF_STRING, 3, L"Duplicate host…");
-    AppendMenuW(menu, MF_STRING, 4, L"Advanced settings…");
+    AppendMenuW(menu, MF_STRING, 4, L"Connection settings…");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING, 5, L"Delete host");
     int choice = TrackPopupMenu(menu, TPM_RETURNCMD, point.x, point.y, 0, hwnd, nullptr); DestroyMenu(menu);
@@ -458,7 +459,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             SetWindowSubclass(app->control(HostList), editProc, 1, (DWORD_PTR)app);
             addButton(NewHost, L"+  New host"); addButton(ConnectHost, L"Connect  →"); addButton(EditHost, L"Edit");
             addButton(QuickConnect, L"Connect  →"); addButton(HomeNew, L"+  Add a host"); addButton(HomePreview, L"Color preview  →");
-            addButton(Advanced, L"Advanced connection…"); addButton(Duplicate, L"Duplicate"); addButton(Reconnect, L"Reconnect");
+            addButton(Advanced, L"Connection settings…"); addButton(Duplicate, L"Duplicate"); addButton(Reconnect, L"Reconnect");
             addButton(SessionSettings, L"Settings"); addButton(Tools, L"Tools  ···"); addButton(About, L"About");
             addButton(SaveCurrent, L"Save host…");
             app->refresh(); app->layout(); SetTimer(hwnd, 1, 350, nullptr); return 0;
@@ -633,6 +634,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
         auto isolated = app.directory + L"\\ui-data-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64());
         SetEnvironmentVariableW(L"WOOK_DATA_DIR", isolated.c_str());
 #endif
+        std::wstring migrationError;
+        if (!GetEnvironmentVariableW(L"WOOK_DATA_DIR", nullptr, 0)) {
+            try { wook::migrateLegacySettings(app.directory + L"\\data"); }
+            catch (const std::exception &error) {
+                migrationError = L"Your previous data could not be fully imported. The original data folder is unchanged.\n\n" + wook::wide(error.what());
+            }
+        }
         wook::initializeDefaults();
         app.job=CreateJobObjectW(nullptr,nullptr);
         JOBOBJECT_EXTENDED_LIMIT_INFORMATION limit{};
@@ -648,6 +656,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
                                   CW_USEDEFAULT,CW_USEDEFAULT,ui::px(1230),ui::px(820),nullptr,nullptr,instance,&app);
         if (!hwnd) throw std::runtime_error("Cannot create the application window.");
         ShowWindow(hwnd,show); UpdateWindow(hwnd);
+        if (!migrationError.empty()) MessageBoxW(hwnd, migrationError.c_str(), L"wShell · Data migration", MB_OK | MB_ICONEXCLAMATION);
         if (std::wstring(commandLine)==L"--preview") app.action(Preview);
         else SetFocus(app.control(Quick));
         MSG msg;

@@ -73,7 +73,7 @@ function run(executable, args, input = '', environment = {}) {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let stdout = '', stderr = '';
-    const timer = setTimeout(() => { child.kill(); reject(new Error('Timed out: ' + path.basename(executable) + '\n' + stdout + '\n' + stderr)); }, 45000);
+    const timer = setTimeout(() => { child.kill(); reject(new Error('Timed out: ' + path.basename(executable) + '\n' + stdout + '\n' + stderr)); }, 90000);
     child.stdout.on('data', chunk => stdout += chunk);
     child.stderr.on('data', chunk => stderr += chunk);
     child.on('error', reject);
@@ -105,7 +105,7 @@ function registryDigest() {
   assert.equal(result.code, 0, result.stderr);
   result = await run(plink, ['-batch', ...base, 'cached']);
   assert.equal(result.code, 0, result.stderr); assert.match(result.stdout, /WOOK_SSH_OK cached/);
-  assert.ok(fs.existsSync(path.join(data, 'trust')), 'Host trust must persist inside portable data');
+  assert.ok(fs.existsSync(path.join(data, 'trust')), 'Host trust must persist in the isolated settings folder');
   assert.equal(registryDigest(), before, 'Existing PuTTY registry must not change');
 
   const ui = path.join(standalone, 'wShell.exe');
@@ -116,6 +116,10 @@ function registryDigest() {
   assert.equal(fs.readdirSync(standalone).filter(n => n.toLowerCase().endsWith('.exe')).length, 1, 'Do not extract helper executables');
   assert.ok(!fs.existsSync(path.join(standalone, 'fonts')) && !fs.existsSync(path.join(standalone, 'assets')), 'Fonts and branding stay embedded');
   assert.equal(report.passed, true, JSON.stringify(report));
+  const settings = ['settings-connect.json', 'settings-authorities.json', 'settings-live-1.json', 'settings-live-2.json', 'settings-live-3.json'].map(file => {
+    const result = JSON.parse(fs.readFileSync(path.join(standalone, file), 'utf8'));
+    assert.equal(result.passed, true, file + ': ' + JSON.stringify(result)); return result;
+  });
   assert.ok(events.shells >= 1, 'GUI terminal must authenticate and open a real SSH shell');
   assert.ok(events.publicKeySignatures >= 1, 'The independently verified SSH signature must use a key generated inside wShell');
   assert.ok(events.terminalTypes.includes('xterm-256color'), 'PTY terminal type must support color');
@@ -123,7 +127,7 @@ function registryDigest() {
   assert.match(events.received, /x/, 'Keyboard data must cross the real SSH connection');
   assert.ok(events.resizes >= 1, 'PTY resize must reach the server');
   assert.equal(registryDigest(), before, 'GUI must leave existing PuTTY registry unchanged');
-  const summary = { passed: true, sshChecks: 13, ui: report, events };
+  const summary = { passed: true, sshChecks: 13, ui: report, settings, events };
   fs.writeFileSync(path.join(artifact, 'result.json'), JSON.stringify(summary, null, 2));
   console.log(JSON.stringify(summary, null, 2));
   console.log('Evidence: ' + artifact);

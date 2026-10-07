@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
+#include <shlobj.h>
 
 #define WS_LIMIT (16 * 1024 * 1024)
 
@@ -26,12 +27,10 @@ wchar_t *wsRoot(void) {
     DWORD n = GetEnvironmentVariableW(L"WOOK_DATA_DIR", base, 32768);
     if (n >= 32768) { free(base); return NULL; }
     if (!n) {
-        n = GetModuleFileNameW(NULL, base, 32768);
-        if (!n || n >= 32768) { free(base); return NULL; }
-        wchar_t *slash = wcsrchr(base, L'\\');
-        if (!slash) { free(base); return NULL; }
-        *slash = 0;
-        wchar_t *next = appendPath(base, L"data");
+        if (FAILED(SHGetFolderPathW(NULL, CSIDL_LOCAL_APPDATA | CSIDL_FLAG_CREATE, NULL, SHGFP_TYPE_CURRENT, base))) {
+            free(base); return NULL;
+        }
+        wchar_t *next = appendPath(base, L"wShell");
         free(base);
         base = next;
     }

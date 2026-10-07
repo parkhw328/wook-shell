@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(WookShell VERSION 0.2.0 LANGUAGES C CXX RC)
+project(WookShell VERSION 0.3.0 LANGUAGES C CXX RC)
 if(NOT TARGET wshell-terminal)
     message(FATAL_ERROR "Use scripts/build.ps1 to build wShell with its statically linked terminal.")
 endif()
@@ -9,7 +9,7 @@ add_compile_definitions(UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN _WIN32_WIN
 add_library(wook-core STATIC src/core.cpp src/store.c src/backup.cpp)
 target_include_directories(wook-core PUBLIC src)
 target_compile_options(wook-core PRIVATE -Wall -Wextra)
-set(workspace_sources src/main.cpp src/dialog.cpp src/resources.cpp src/key_dialog.cpp assets/app.rc
+set(workspace_sources src/main.cpp src/dialog.cpp src/resources.cpp src/key_dialog.cpp src/settings_ui.cpp assets/app.rc
     $<TARGET_OBJECTS:wshell-terminal> $<TARGET_OBJECTS:wshell-terminal-be-list>)
 # windres does not emit dependencies for binary RCDATA and nested resource scripts.
 set_property(SOURCE assets/app.rc APPEND PROPERTY OBJECT_DEPENDS

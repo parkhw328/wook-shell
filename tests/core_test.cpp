@@ -1,5 +1,6 @@
 #include "core.hpp"
 #include "backup.hpp"
+#include <algorithm>
 #include <shellapi.h>
 #include <filesystem>
 #include <fstream>
@@ -87,10 +88,42 @@ int wmain() {
         SetEnvironmentVariableW(L"WOOK_DATA_DIR", (data + L"-invalid-import").c_str());
         rejects([&] { wook::importSettings(broken); }, "truncated backup is rejected");
         check(wook::loadProfiles().empty(), "invalid backup makes no partial changes");
+        SetEnvironmentVariableW(L"WOOK_DATA_DIR", importedData.c_str());
+        auto extra = profile; extra.name = L"Legacy-only host"; extra.port = 4444;
+        wook::saveProfile(extra);
+        trustPath = wsPath(L"trust", "hostkeys"); writer = wsOpen(trustPath, 1); free(trustPath);
+        check(writer && wsSet(writer, "ed25519@22:legacy", "legacy-host-key") && wsSave(writer), "seed legacy trust"); wsClose(writer);
+        SetEnvironmentVariableW(L"WOOK_DATA_DIR", data.c_str());
+        check(wook::migrateLegacySettings(importedData), "legacy folder migrates on first launch");
+        saved = wook::loadProfiles();
+        check(saved.size() == 2, "migration includes missing sessions");
+        check(std::any_of(saved.begin(), saved.end(), [&](const auto &p) { return p.name == profile.name && p.port == 2222; }),
+              "migration preserves destination sessions");
+        reader = wsOpen(path, 0);
+        check(std::string(wsGet(reader, "PortForwardings")) == "L8080=localhost:80", "migration preserves advanced settings"); wsClose(reader);
+        trustPath = wsPath(L"trust", "hostkeys"); reader = wsOpen(trustPath, 0); free(trustPath);
+        check(std::string(wsGet(reader, "rsa@22:test")) == "source-host-key", "migration preserves destination trust");
+        check(wsGet(reader, "ed25519@22:legacy") && std::string(wsGet(reader, "ed25519@22:legacy")) == "legacy-host-key", "migration adds missing trust"); wsClose(reader);
+        check(!wook::migrateLegacySettings(importedData), "legacy migration runs only once");
+        check(!wook::migrateLegacySettings(data + L"-absent"), "missing legacy folder is harmless");
+        wchar_t restored[32768]{}; GetEnvironmentVariableW(L"WOOK_DATA_DIR", restored, 32768);
+        check(restored == data, "migration restores the destination storage context");
+        SetEnvironmentVariableW(L"WOOK_DATA_DIR", importedData.c_str());
+        check(wook::loadProfiles().size() == 2, "migration preserves the source folder");
+        SetEnvironmentVariableW(L"WOOK_DATA_DIR", (data + L"-same-root").c_str());
+        wook::initializeDefaults();
+        check(!wook::migrateLegacySettings(data + L"-same-root"), "source and destination cannot be the same folder");
         SetEnvironmentVariableW(L"WOOK_DATA_DIR", data.c_str());
         { std::ofstream f(std::filesystem::path(path), std::ios::binary); f << "WS1\nnot-hex=broken\n"; }
         check(wsOpen(path, 0) == nullptr, "malformed file fails closed");
         rejects([&] { wook::saveProfile(profile, profile.name); }, "corrupt record is not silently overwritten");
+        auto failedMigration = data + L"-migration-failed";
+        SetEnvironmentVariableW(L"WOOK_DATA_DIR", failedMigration.c_str());
+        rejects([&] { wook::migrateLegacySettings(data); }, "migration reports corrupt source data");
+        GetEnvironmentVariableW(L"WOOK_DATA_DIR", restored, 32768);
+        check(restored == failedMigration, "failed migration restores the destination context");
+        check(!std::filesystem::exists(std::filesystem::path(failedMigration) / L"legacy-data-imported.txt"), "failed migration remains retryable");
+        check(wook::loadProfiles().empty(), "corrupt source cannot partially migrate");
         free(path);
         check(wsPath(L"../outside", "x") == nullptr, "reject path traversal category");
         check(wsPath(L"sessions", std::string(101, 'x').c_str()) == nullptr, "bounded session filenames");

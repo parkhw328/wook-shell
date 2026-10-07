@@ -105,15 +105,25 @@ void runUiSmoke(App &app) {
             require(store != nullptr, "Cannot configure SSH fixture");
             wsSet(store, "SSHManualHostKeys", wook::utf8(fingerprint).c_str());
             require(wsSave(store), "Cannot store host key pin"); wsClose(store);
-            app.refresh(); app.connect(p, true);
+            app.refresh(); app.connect(p, true, false, true);
             phase = 6; waits = 0;
         } else if (phase == 6 && ready() && waits > 7) {
+            wchar_t *path = wsPath(L"sessions", wook::utf8(app.tabs[0]->storageName).c_str());
+            auto store = wsOpen(path, 0); free(path);
+            require(store && wsGet(store, "PingIntervalSecs") && std::string(wsGet(store, "PingIntervalSecs")) == "45", "Connection settings must persist keepalives");
+            require(wsGet(store, "ScrollbackLines") && std::string(wsGet(store, "ScrollbackLines")) == "12000", "Connection settings must persist scrollback");
+            wsClose(store);
             captureTestWindow(app.hwnd, L"ui-ssh.bmp");
             SendMessageW(app.tabs[0]->terminal, WM_CHAR, L'x', 1);
             RECT r; GetWindowRect(app.hwnd, &r);
             SetWindowPos(app.hwnd, nullptr, 0,0, r.right-r.left-40, r.bottom-r.top-20, SWP_NOMOVE | SWP_NOZORDER);
+            app.action(SessionSettings);
             phase = 7; waits = 0;
-        } else if (phase == 7 && waits > 3) {
+        } else if (phase == 7 && std::filesystem::exists(std::filesystem::path(app.directory) / L"settings-live-1.json")) {
+            app.action(SessionSettings); phase = 9; waits = 0;
+        } else if (phase == 9 && std::filesystem::exists(std::filesystem::path(app.directory) / L"settings-live-2.json")) {
+            app.action(SessionSettings); phase = 10; waits = 0;
+        } else if (phase == 10 && std::filesystem::exists(std::filesystem::path(app.directory) / L"settings-live-3.json")) {
             PostMessageW(app.tabs[0]->terminal, WM_CLOSE, 0, 0);
             phase = 8; waits = 0;
         } else if (phase == 8 && app.tabs[0]->ended) {

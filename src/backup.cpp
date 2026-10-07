@@ -119,4 +119,35 @@ std::wstring importSettings(const std::wstring &path) {
     return L"Imported " + std::to_wstring(added) + L" records. Kept " + std::to_wstring(kept) +
         L" existing records or trust entries.\n\nExisting names and host keys were preserved. Review imported connection settings before connecting.";
 }
+bool migrateLegacySettings(const std::wstring &source) {
+    wchar_t *root = wsRoot();
+    if (!root) throw std::runtime_error("Cannot locate the wShell data folder.");
+    std::filesystem::path destination(root); free(root);
+    const auto marker = destination / L"legacy-data-imported.txt";
+    if (std::filesystem::exists(marker) || !std::filesystem::is_directory(std::filesystem::path(source) / L"sessions")) return false;
+    std::error_code error;
+    if (std::filesystem::equivalent(source, destination, error)) return false;
+    auto archive = destination / (L"migration-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64()) + L".wshell");
+    struct TemporaryBackup {
+        std::filesystem::path path;
+        ~TemporaryBackup() { DeleteFileW(path.c_str()); }
+    } cleanup{archive};
+    // Used only before the application starts any worker threads or terminal processes.
+    struct DataOverride {
+        std::wstring previous;
+        explicit DataOverride(const std::wstring &path) {
+            DWORD length = GetEnvironmentVariableW(L"WOOK_DATA_DIR", nullptr, 0);
+            if (length) { previous.resize(length); GetEnvironmentVariableW(L"WOOK_DATA_DIR", previous.data(), length); previous.resize(length - 1); }
+            if (!SetEnvironmentVariableW(L"WOOK_DATA_DIR", path.c_str())) throw std::runtime_error("Cannot read legacy settings.");
+        }
+        ~DataOverride() { SetEnvironmentVariableW(L"WOOK_DATA_DIR", previous.empty() ? nullptr : previous.c_str()); }
+    };
+    { DataOverride legacy(source); exportSettings(archive.wstring()); }
+    importSettings(archive.wstring());
+    std::ofstream out(marker, std::ios::binary);
+    out << "Imported legacy settings without replacing existing records. The original data folder was preserved.\n";
+    out.close();
+    if (!out) throw std::runtime_error("Settings were imported, but the migration marker could not be saved.");
+    return true;
+}
 }

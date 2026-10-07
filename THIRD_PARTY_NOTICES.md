@@ -6,7 +6,7 @@ wShell is not affiliated with or endorsed by PuTTY, Termius, JetBrains, or Steph
 
 | Component | Version/source | License | Changes |
 | --- | --- | --- | --- |
-| PuTTY | [0.85 official source](https://www.chiark.greenend.org.uk/~sgtatham/putty/releases/0.85.html) | MIT, licenses/PuTTY-MIT.txt | Single-executable entry point, file storage, embedded fonts, tab hosting, keyboard routing, local preview, direct key-management API; cryptographic algorithms unchanged |
+| PuTTY | [0.85 official source](https://www.chiark.greenend.org.uk/~sgtatham/putty/releases/0.85.html) | MIT, licenses/PuTTY-MIT.txt | Single-executable entry point, AppData file storage, embedded fonts, tab hosting, keyboard routing, local preview, direct key-management API, custom settings presentation using the upstream option model; cryptographic algorithms unchanged |
 | Flexoki | [kepano/flexoki](https://github.com/kepano/flexoki), commit 8d723bac4a9ac46adfdf99d42155286977aac72a | MIT, licenses/Flexoki-MIT.txt | Palette used in native UI and terminal defaults |
 | JetBrains Mono | [v2.304](https://github.com/JetBrains/JetBrainsMono/tree/v2.304) | SIL OFL 1.1, licenses/JetBrainsMono-OFL.txt | Unmodified Regular and Bold TTF files |
 | LLVM libc++ / libc++abi / compiler-rt / libunwind | [LLVM MinGW 20260922](https://github.com/mstorsjo/llvm-mingw/releases/tag/20260922), LLVM 23.1.2 | Apache 2.0 with LLVM exceptions and accompanying legacy notices, licenses/LLVM-*.txt | Statically linked runtime code |

@@ -138,7 +138,7 @@ void initializeDefaults() {
     auto s = profileStore(L"Default Settings", true);
     if (!s->exists) {
         applyTheme(s.get());
-        if (!wsSave(s.get())) throw std::runtime_error("The application folder must be writable for portable settings.");
+        if (!wsSave(s.get())) throw std::runtime_error("Cannot save settings in your local AppData folder. Check folder permissions.");
     }
 }
 std::vector<Profile> loadProfiles() {

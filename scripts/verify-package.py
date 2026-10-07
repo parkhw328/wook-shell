@@ -8,7 +8,7 @@ import subprocess
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-NAME = "wshell-0.2.0-win-x64"
+NAME = "wshell-0.3.0-win-x64"
 folder = ROOT / "dist" / NAME
 archive = ROOT / "dist" / f"{NAME}.zip"
 expected = archive.with_suffix(".zip.sha256").read_text().split()[0]

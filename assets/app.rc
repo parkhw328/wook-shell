@@ -5,10 +5,16 @@
 103 RCDATA "fonts/JetBrainsMono-Regular.ttf"
 104 RCDATA "fonts/JetBrainsMono-Bold.ttf"
 105 RCDATA "../build/legal-notices.txt"
+106 DIALOGEX 0, 0, 320, 200
+STYLE DS_SETFONT | DS_CONTROL | WS_CHILD | WS_CLIPCHILDREN
+EXSTYLE WS_EX_CONTROLPARENT
+FONT 11, "JetBrains Mono"
+BEGIN
+END
 1 RT_MANIFEST "app.manifest"
 1 VERSIONINFO
-FILEVERSION 0,2,0,0
-PRODUCTVERSION 0,2,0,0
+FILEVERSION 0,3,0,0
+PRODUCTVERSION 0,3,0,0
 FILEOS VOS_NT_WINDOWS32
 FILETYPE VFT_APP
 BEGIN
@@ -18,12 +24,12 @@ BEGIN
     BEGIN
       VALUE "CompanyName", "wShell contributors"
       VALUE "FileDescription", "wShell portable SSH client"
-      VALUE "FileVersion", "0.2.0"
+      VALUE "FileVersion", "0.3.0"
       VALUE "InternalName", "wShell"
       VALUE "LegalCopyright", "Copyright 2026 Wook Shell contributors. MIT License."
       VALUE "OriginalFilename", "wShell.exe"
       VALUE "ProductName", "wShell"
-      VALUE "ProductVersion", "0.2.0"
+      VALUE "ProductVersion", "0.3.0"
     END
   END
   BLOCK "VarFileInfo"

@@ -145,6 +145,40 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
 ''', '')
     (SOURCE / "config.c").write_text(config, encoding="utf-8")
 
+    dialog = original("windows/dialog.c")
+    start = dialog.index("static INT_PTR GenericMainDlgProc(")
+    end = dialog.index("\nvoid modal_about_box(", start)
+    dialog = replace(dialog, dialog[start:end], '#include "wshell-config.h"\n')
+    start = dialog.index("static INT_PTR CAConfigProc(")
+    end = dialog.index("\nvoid show_ca_config_box(", start)
+    dialog = replace(dialog, dialog[start:end], '''static INT_PTR CAConfigProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, void *ctx)
+{
+    return GenericMainDlgProc(hwnd, msg, wp, lp, ctx);
+}
+''')
+    dialog = replace(dialog, '''void show_ca_config_box(dlgparam *dp)
+{
+    PortableDialogStuff *pds = pds_new(1);''', '''void show_ca_config_box(dlgparam *dp)
+{
+    PortableDialogStuff *pds = pds_new(2);''')
+    (SOURCE / "windows/dialog.c").write_text(dialog, encoding="utf-8")
+    controls = original("windows/controls.c")
+    controls = replace(controls, '#include "dialog.h"', '#include "dialog.h"\n#include "wshell-settings-ui.h"')
+    controls = replace(controls, "    if (cp->hwnd) {\n        ctl = CreateWindowEx", '''    if (cp->hwnd) {
+        if (GetPropW(cp->hwnd, L"wShell.SettingsPage")) {
+            if (!strcmp(wclass, "LISTBOX")) wstyle = (wstyle & ~WS_VSCROLL) | LBS_OWNERDRAWFIXED | LBS_HASSTRINGS;
+            if (!strcmp(wclass, "COMBOBOX")) wstyle |= CBS_OWNERDRAWFIXED | CBS_HASSTRINGS;
+        }
+        ctl = CreateWindowEx''')
+    controls = replace(controls, "        SendMessage(ctl, WM_SETFONT, cp->font, MAKELPARAM(true, 0));",
+                       "        SendMessage(ctl, WM_SETFONT, cp->font, MAKELPARAM(true, 0));\n        wsSettingsStyleControl(ctl);")
+    controls = replace(controls, "    if (name)\n        cp->ypos += STATICHEIGHT;",
+                       "    if (name)\n        cp->ypos += STATICHEIGHT + (GetPropW(cp->hwnd, L\"wShell.SettingsPage\") ? 8 : 0);")
+    controls = replace(controls, '''          cp->boxtext ? cp->boxtext : "", cp->boxid);
+    cp->ypos += GAPYBOX;''', '''          cp->boxtext ? cp->boxtext : "", cp->boxid);
+    cp->ypos += GAPYBOX + (GetPropW(cp->hwnd, L"wShell.SettingsPage") ? 4 : 0);''')
+    (SOURCE / "windows/controls.c").write_text(controls, encoding="utf-8")
+
     cmake = original("windows/CMakeLists.txt")
     cmake = replace(cmake, "  storage.c)", "  storage.c wook-store.c)")
     cmake = replace(cmake, "  storage.c\n", "  storage.c\n  wook-store.c\n")
@@ -168,6 +202,8 @@ endif()
 
 shutil.copyfile(ROOT / "patches/portable-storage.c", SOURCE / "windows/storage.c")
 shutil.copyfile(ROOT / "patches/wook-window.h", SOURCE / "windows/wook-window.h")
+shutil.copyfile(ROOT / "patches/wshell-config.h", SOURCE / "windows/wshell-config.h")
+shutil.copyfile(ROOT / "src/settings_ui.h", SOURCE / "windows/wshell-settings-ui.h")
 shutil.copyfile(ROOT / "src/store.c", SOURCE / "windows/wook-store.c")
 shutil.copyfile(ROOT / "src/store.h", SOURCE / "windows/wook-store.h")
 # Shared implementation includes this short local filename.
