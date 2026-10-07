@@ -90,12 +90,12 @@ inline std::wstring value(HWND hwnd) {
     int len = GetWindowTextLengthW(hwnd);
     std::wstring out((size_t)len + 1, L'\0'); GetWindowTextW(hwnd, out.data(), len + 1); out.resize(len); return out;
 }
-inline void drawButton(const DRAWITEMSTRUCT *d, bool primary = false) {
+inline void drawButton(const DRAWITEMSTRUCT *d, bool primary = false, TextSize size = TextSize::body) {
     bool disabled = (d->itemState & ODS_DISABLED) != 0, pressed = (d->itemState & ODS_SELECTED) != 0;
     COLORREF color = primary ? accent : (pressed ? line : raised);
     fill(d->hDC, d->rcItem, panel);
     round(d->hDC, d->rcItem, color, primary ? accent : line);
-    label(d->hDC, value(d->hwndItem), d->rcItem, TextSize::body, disabled ? muted : primary ? bg : text, primary,
+    label(d->hDC, value(d->hwndItem), d->rcItem, size, disabled ? muted : primary ? bg : text, primary,
           DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     if (d->itemState & ODS_FOCUS) {
         RECT focus = d->rcItem; InflateRect(&focus, -px(4), -px(4)); DrawFocusRect(d->hDC, &focus);

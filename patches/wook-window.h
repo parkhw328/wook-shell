@@ -155,6 +155,13 @@ static void wookWindowAttach(HWND hwnd) {
 }
 static bool wookKey(HWND hwnd, UINT message, WPARAM key, LPARAM flags) {
     if (!wookParent) return false;
+    // Windows can deliver wheel input to the focused terminal while the pointer
+    // is over the workspace's tab strip. Only consume it if the parent owns it.
+    if (message == WM_MOUSEWHEEL || message == WM_MOUSEHWHEEL) {
+        DWORD_PTR handled = 0;
+        if (SendMessageTimeoutW(wookParent, WM_APP + (message == WM_MOUSEWHEEL ? 48 : 49), key, flags,
+                               SMTO_ABORTIFHUNG, 100, &handled) && handled) return true;
+    }
     // PuTTY normally relies on top-level window activation to take focus.
     // Inside the workspace a click must explicitly focus this child, including
     // returning from the command editor to the already-selected terminal.

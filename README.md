@@ -29,13 +29,13 @@ Windows에서 **Sync keyboard** 또는 `Ctrl+Shift+B`를 누르면 활성 터미
 
 ## iPad 개인용 미리보기
 
-iPad용 네이티브 SSH·SFTP 앱은 별도로 준비 중입니다. 무료 Apple 계정으로 설치할 수 있으며, unsigned IPA의 로컬 서명과 7일 주기 갱신이 필요합니다. [기능·빌드·설치 안내](docs/ipad.md)
+iPad용 네이티브 SSH·SFTP 앱은 별도로 준비 중입니다. 무료 Apple 계정으로 설치할 수 있으며, unsigned IPA의 로컬 서명과 7일 주기 갱신이 필요합니다. 이 저장소에도 `.github/workflows/ipad.yml`과 `rules/ipad.md`가 있습니다. [기능·빌드·설치 안내](docs/ipad.md), [iPadOS 26.6·Derpy 검토와 자동 갱신](docs/ipad-signing.md)
 
 ## 실행하기
 
 ### Windows
 
-1. **`wShell.exe` 하나**를 원하는 폴더에 복사합니다. `wshell-0.10.0-windows-x64.zip`에도 이 파일만 들어 있습니다.
+1. **`wShell.exe` 하나**를 원하는 폴더에 복사합니다. `wshell-0.11.0-windows-x64.zip`에도 이 파일만 들어 있습니다.
 2. 실행합니다. 설치, 관리자 권한, WebView2, .NET, Node.js가 필요하지 않습니다.
 3. `New host`에서 접속 정보를 저장하거나, 빠른 연결 칸에 `user@hostname:22`를 입력합니다.
 4. 처음 접속하는 SSH 서버의 키 지문을 확인한 뒤 신뢰 여부를 선택합니다.
@@ -44,7 +44,7 @@ iPad용 네이티브 SSH·SFTP 앱은 별도로 준비 중입니다. 무료 Appl
 
 ### macOS
 
-1. `wshell-0.10.0-macos-universal.zip`을 풀고 **`wShell.app`**을 실행합니다. Applications 폴더로 옮겨도 됩니다.
+1. `wshell-0.11.0-macos-universal.zip`을 풀고 **`wShell.app`**을 실행합니다. Applications 폴더로 옮겨도 됩니다.
 2. macOS 13 이상에서 Apple Silicon·Intel을 모두 지원하는 Universal 앱입니다. 별도 런타임이나 WebView 설치가 필요하지 않습니다.
 3. `New host`로 SSH 서버를 추가하거나 `Open Terminal`로 현재 Mac의 로그인 셸을 엽니다.
 
@@ -60,16 +60,19 @@ macOS의 `.app`은 Finder에서 하나의 앱으로 이동하는 번들이며, �
 ```text
 dist/
   README.md
-  0.10.0/
+  0.11.0/
     manifest.json
     windows-x64/
       wShell.exe
       wShell.exe.sha256
-      wshell-0.10.0-windows-x64.zip
-      wshell-0.10.0-windows-x64.zip.sha256
+      wshell-0.11.0-windows-x64.zip
+      wshell-0.11.0-windows-x64.zip.sha256
     macos-universal/
-      wshell-0.10.0-macos-universal.zip
-      wshell-0.10.0-macos-universal.zip.sha256
+      wshell-0.11.0-macos-universal.zip
+      wshell-0.11.0-macos-universal.zip.sha256
+  ipad/0.1.0/
+    wshell-ipad-0.1.0-unsigned.ipa
+    wshell-ipad-0.1.0-unsigned.ipa.sha256
 ```
 
 | 기능 | Windows | macOS |
@@ -85,6 +88,8 @@ dist/
 | 분할·공통 명령·키보드 동기화 | 지원 | 지원 |
 | 개별 동기화 대상 선택·활성 테두리·Zoom/Back | 0.9.0에서 추가 | 기존 분할 UI 유지 |
 | 탐색창 접기·고정 상단 메뉴·새 터미널 9pt | 0.10.0에서 추가 | 기존 UI·13pt 유지 |
+| 탭 축소·좌우 스크롤·전체 탭 목록 | 0.11.0에서 추가 | 기존 탭 UI 유지 |
+| SSH 실행 인자로 호스트 등록·즉시 접속 | 0.11.0에서 추가 | 미지원 |
 
 macOS는 AppKit·SwiftTerm과 OS의 OpenSSH를 사용합니다. SSH 설정 파일·에이전트·공유 연결은 별도로 사용하지 않으며 호스트 키 저장소도 wShell 전용입니다. Windows와 macOS 엔진의 호스트 신뢰 형식은 서로 다르므로 플랫폼을 바꾸면 지문을 다시 확인하세요. PPK 파일을 OpenSSH 개인키로 자동 변환하지 않습니다.
 macOS의 첫 접속은 비밀번호 공급 전에 서버 키 지문을 별도 화면에서 확인합니다. 확인한 키와 다른 키가 제시되면 연결을 거부합니다.
@@ -100,6 +105,24 @@ macOS의 첫 접속은 비밀번호 공급 전에 서버 키 지문을 별도 �
 ![Fixed actions and collapsible navigation](assets/screenshots/navigation-expanded.png)
 
 ## Windows 연결과 탭
+
+0.11.0부터 탭이 늘면 폭을 줄이고, 최소 폭에 도달하면 **‹ / ›** 버튼과 휠 스크롤을 제공합니다. 탭 줄의 **3–5 / 32 ▾** 같은 표시는 현재 보이는 범위와 전체 개수입니다. 이 버튼을 누르면 숨겨진 탭까지 전체 이름·주소로 선택할 수 있습니다. `Ctrl+Tab` 전환·새 탭·창 크기 변경 시 선택한 탭이 자동으로 보입니다. 탭 줄만 스크롤할 때에는 현재 연결과 분할 입력 대상이 유지됩니다. [0.11.0 변경 내역](docs/releases/0.11.0.md)
+
+![Scrollable tabs at minimum window size](assets/screenshots/tabs-overflow.png)
+
+### 실행 인자로 SSH 접속
+
+```powershell
+.\wShell.exe -ssh deploy@192.0.2.10 -P 2222 -pw "<password>"
+.\wShell.exe --host 192.0.2.10 --user deploy --port 2222 --name "개발 서버"
+.\wShell.exe --help
+```
+
+같은 주소·포트·계정의 호스트가 있으면 그대로 재사용하고, 없으면 저장 후 접속합니다. `--name`은 새 호스트의 저장 이름입니다. 그 이름이 다른 연결에 사용 중이면 덮어쓰지 않고 오류를 표시합니다. 이름·IP·계정은 별개로 지정할 수 있으며 `ssh://user@[IPv6]:port`도 지원합니다. 이 기능은 Windows의 SSH 접속용으로, PuTTY의 모든 실행 옵션을 지원하지는 않습니다.
+
+`-pw` 또는 `--password`는 이번 접속에 한 번만 사용하고 기존 저장 암호를 변경하지 않습니다. 재접속·복제에도 계속 사용하려면 Edit에서 암호 저장을 명시적으로 선택하세요. 최초 실행 인자의 암호는 프로세스 목록·셸 기록에 남을 수 있습니다. 자동화에서는 **`--password-stdin`으로 UTF-8 파이프 입력**을 사용하거나 암호 인자를 생략하고 터미널에서 입력하세요. 앱은 암호를 자식 프로세스 인수·환경변수·평문 파일에 재전달하지 않습니다. 처음 보는 서버의 키 지문 확인과 불일치 차단은 그대로 유지됩니다.
+
+### 파일 전송
 
 **SFTP:** SSH 호스트를 선택하고 `SFTP`를 누르면 로컬·원격 파일 목록을 나란히 볼 수 있습니다. 여러 파일 전송, 진행률·취소, 폴더 생성·이름 변경·삭제를 지원합니다. Windows SSH 탭의 `Files`, macOS의 `Tools → Open SFTP`에서도 열 수 있습니다. 폴더 전체 재귀 전송·동기화는 아직 지원하지 않습니다. [사용법과 지원 범위](docs/sftp.md)를 확인하세요.
 
@@ -168,7 +191,7 @@ RSA 생성은 Windows CNG, Ed25519와 키 형식 처리는 PuTTY 라이브러리
 3. 다음 연결부터 저장한 비밀번호를 사용합니다. 편집 시 비밀번호 칸을 비워 두면 기존 값을 유지하고, 새 값을 입력하면 교체합니다.
 4. 체크를 해제하고 저장하거나 키 인증으로 전환하면 저장된 비밀번호를 삭제합니다. 호스트를 삭제해도 함께 삭제됩니다.
 
-비밀번호는 [Windows DPAPI](https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata)로 현재 Windows 계정에 연결하여 암호화합니다. AppData의 세션 파일에는 암호문만 포함하며, 프로세스 인수·환경변수·임시 파일로 평문을 전달하지 않습니다. 서버·포트·사용자 이름에 연결해 보관하므로 연결 대상이 달라지면 다시 입력해야 합니다.
+비밀번호는 [Windows DPAPI](https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata)로 현재 Windows 계정에 연결하여 암호화합니다. AppData의 세션 파일에는 암호문만 포함하며, 자식 프로세스 인수·환경변수·임시 파일로 평문을 전달하지 않습니다. 직접 지정한 `-pw` 실행 인자의 노출 범위는 위의 실행 인자 안내를 확인하세요. 서버·포트·사용자 이름에 연결해 보관하므로 연결 대상이 달라지면 다시 입력해야 합니다.
 
 일반 SSH `password` 인증에 한 번 자동 입력하며, 거부되거나 복호화할 수 없으면 터미널에서 직접 입력합니다. 키 암호, 비밀번호 변경, keyboard-interactive/OTP 질문에는 자동 입력하지 않습니다.
 **`.wshell` 내보내기·가져오기에는 암호문도 포함하지 않습니다.** 다른 PC나 Windows 계정에서는 비밀번호를 다시 저장하세요. 로그인된 동일 Windows 계정의 프로그램으로부터 비밀번호를 격리하는 기능은 아닙니다.
@@ -241,6 +264,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1
 ```powershell
 npm --prefix tests/ssh ci --ignore-scripts --omit=optional
 node tests/ssh/font-integration.cjs
+node tests/ssh/launch-integration.cjs
 node tests/ssh/integration.cjs
 node tests/ssh/sftp-integration.cjs
 git diff --check

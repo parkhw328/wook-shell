@@ -1,6 +1,7 @@
 // Compiled only into ui-smoke-tests.exe, never into the release application.
 #include "focus_smoke.inc"
 #include "workspace_smoke.inc"
+#include "tabs_smoke.inc"
 template<typename Check> void testNativeKeys(const std::wstring &directory, Check require) {
     using Key = std::unique_ptr<WsKey, decltype(&wsKeyFree)>;
     auto publicText = [](WsKey *key) {
@@ -91,6 +92,7 @@ void runUiSmoke(App &app) {
             app.refresh(); require(app.profiles.size() == 1, "Saved host is missing from the sidebar");
             require(app.profiles[0].fontSize == 9, "New hosts must use the 9pt terminal default");
             testWorkspaceChrome(app, require);
+            testTabOverflow(app, require);
             showKeyManager(app.hwnd);
             require(std::filesystem::exists(std::filesystem::path(app.directory) / L"ui-key-manager.bmp"), "Native key manager must generate and display a key");
             testNativeKeys(app.directory, require);

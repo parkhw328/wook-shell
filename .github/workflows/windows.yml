@@ -27,6 +27,8 @@ jobs:
         run: npm --prefix tests/ssh ci --ignore-scripts --omit=optional
       - name: Test private font cache and concurrent startup
         run: node tests/ssh/font-integration.cjs
+      - name: Test SSH launch arguments and one-use passwords
+        run: node tests/ssh/launch-integration.cjs
       - name: Test SSH and hosted native windows
         run: node tests/ssh/integration.cjs
       - name: Test SFTP transfers and cancellation
@@ -51,6 +53,7 @@ jobs:
             build/ssh-test-*/authentication.json
             build/ssh-test-*/result.json
             build/font-test-*/result.json
+            build/launch-test-*/result.json
           if-no-files-found: ignore
   macos:
     runs-on: macos-15

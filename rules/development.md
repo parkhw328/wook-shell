@@ -4,7 +4,7 @@
 - C++20과 Win32 API를 사용한다. C/C++ 들여쓰기는 공백 4칸, 타입은 PascalCase, 함수와 변수는 camelCase다.
 - 소스는 `src/`, 테스트는 `tests/`, 빌드 자동화는 `scripts/`, 패치는 `patches/`, 재배포 자산은 `assets/`와 `licenses/`에 둔다.
 - PuTTY 코어의 암호화와 터미널 해석은 재구현하지 않는다. 변경은 저장소, 창 통합, 설정 화면과 자격 증명 공급 경계에 한정한다.
-- 저장 비밀번호는 `src/credentials.cpp`에서 DPAPI 사용자 범위로 암호화한다. 평문 인수·환경변수·임시 파일을 사용하지 않으며 복호화 버퍼는 사용 후 지운다.
+- 저장 비밀번호는 `src/credentials.cpp`에서 DPAPI 사용자 범위로 암호화한다. 자식 프로세스에 평문 인수·환경변수·임시 파일로 전달하지 않으며 복호화 버퍼는 사용 후 지운다. 사용자가 직접 지정한 실행 인자 `-pw`/`--password`는 입력 경계에서만 허용하며 노출 범위와 `--password-stdin` 대안을 문서화한다. 상세 동작은 [실행 인자 규칙](launch-arguments.md)을 따른다.
 - 비밀번호 공급은 SSH 엔진이 지정한 인증 대상 메타데이터만 사용한다. 서버가 보낸 프롬프트 문자열로 비밀번호나 OTP를 추측하지 않는다. 백업에서는 암호문과 연결 정보를 제외한다.
 - 연결 설정의 추상 모델과 핸들러는 유지한다. `patches/wshell-config.h`가 모델을 `src/settings_ui.cpp`의 테마 화면에 연결한다.
 - 키 관리는 직접 라이브러리를 호출한다. RSA 생성은 Windows CNG를 사용하고 PuTTY의 암호 연산 링크 보호를 제거하지 않는다.
@@ -23,6 +23,7 @@
 - 이후 빌드: `scripts/build.ps1`; CTest의 `core-tests`와 배포 ZIP 생성까지 수행한다.
 - SSH/UI: `npm --prefix tests/ssh ci --ignore-scripts --omit=optional` 후 `node tests/ssh/integration.cjs`.
 - 폰트 캐시: `node tests/ssh/font-integration.cjs`. 폰트 선택·탐색 UI와 실제 분할 입력은 SSH/UI 테스트에 포함한다.
+- 실행 인자: `node tests/ssh/launch-integration.cjs`. 배포 EXE로 실제 루프백 SSH 인증, 저장 호스트 재사용, UTF-8 파이프, 일회용 암호 정리와 자식 명령줄을 검증한다.
 - 테스트는 임시 루프백 SSH 서버와 `build/` 아래 격리 데이터만 사용한다. 테스트 창은 자동 종료한다.
 - 버전은 루트 `VERSION`에서 관리한다. `dist/<version>/windows-x64/`와 `dist/<version>/macos-universal/`로 배포하며 `scripts/index-dist.py`로 해시 manifest를 생성한다.
 - UI 변경은 생성된 `build/ssh-test-*/standalone/ui-*.bmp` 화면을 확인한다. 암호·실제 서버 정보를 스크린샷에 포함하지 않는다.

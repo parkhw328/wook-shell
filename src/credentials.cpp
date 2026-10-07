@@ -88,6 +88,11 @@ extern "C" int wsLoadSavedPassword(const char *session, const char *host, int po
         if (!count) return -1;
         char *text = (char *)calloc((size_t)count + 1, 1); if (!text) return -1;
         if (!WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wide, length, text, count, nullptr, nullptr)) { wsPasswordFree(text); return -1; }
+        if (std::string_view(session).starts_with("__wook_launch_")) {
+            store.reset();
+            path = wsPath(L"sessions", session); bool removed = wsRemove(path); free(path);
+            if (!removed) { wsPasswordFree(text); return -1; }
+        }
         *password = text; return 1;
     } catch (...) { return -1; }
 }

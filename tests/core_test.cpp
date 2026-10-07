@@ -2,6 +2,8 @@
 #include "backup.hpp"
 #include "credentials.hpp"
 #include "split.hpp"
+#include "launch.hpp"
+#include "tab_strip.hpp"
 #include "broadcast.h"
 #include <algorithm>
 #include <shellapi.h>
@@ -20,8 +22,18 @@ template<typename Fn> static void rejects(Fn fn, const char *name) {
     check(false, name);
 }
 #include "password_test.inc"
+#include "launch_test.inc"
 int wmain() {
     try {
+        for (int available : {400, 600, 1000, 1800}) for (int count = 1; count <= 32; ++count) {
+            auto strip = wook::tabStrip(available, count);
+            check(strip.width >= 112 && strip.width <= 198 && strip.capacity >= 1, "Tabs keep a readable minimum width");
+            check(strip.capacity * strip.width + (strip.overflow ? 72 : 0) <= available, "Tabs and scroll arrows fit the available width");
+            check(strip.overflow == (strip.capacity < count), "Overflow indicators match hidden tabs");
+            auto first = wook::tabStripStart(0, count, strip.capacity, count - 1);
+            check(first <= count - 1 && first + strip.capacity >= count, "Last selected tab can always be revealed");
+            check(wook::tabStripStart(1000, count, strip.capacity) == std::max(0, count - strip.capacity), "Scrolling is bounded at the last full page");
+        }
         auto grid = wook::splitRects(4, 0, 0, 1000, 800);
         check(wook::adjacentPane(grid, 0, 2) == 1 && wook::adjacentPane(grid, 0, 3) == 2, "spatial pane navigation");
         check(wook::adjacentPane(grid, 3, 0) == 2 && wook::adjacentPane(grid, 3, 1) == 1, "reverse pane navigation");
@@ -174,6 +186,7 @@ int wmain() {
         check(wsPath(L"../outside", "x") == nullptr, "reject path traversal category");
         check(wsPath(L"sessions", std::string(101, 'x').c_str()) == nullptr, "bounded session filenames");
         testPasswords(data + L"-passwords");
+        testLaunch(data + L"-launch");
         std::wcout << L"PASS: " << checks << L" checks. Isolated data: " << data << L"\n";
         return 0;
     } catch (const std::exception &e) { std::cerr << "FAIL: " << e.what() << "\n"; return 1; }
