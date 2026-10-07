@@ -1,4 +1,5 @@
 // Compiled only into ui-smoke-tests.exe, never into the release application.
+#include "focus_smoke.inc"
 template<typename Check> void testNativeKeys(const std::wstring &directory, Check require) {
     using Key = std::unique_ptr<WsKey, decltype(&wsKeyFree)>;
     auto publicText = [](WsKey *key) {
@@ -37,7 +38,8 @@ template<typename Check> void testNativeKeys(const std::wstring &directory, Chec
     require(reopened && publicText(reopened.get()) == publicText(imported.get()), "Converted OpenSSH key changed");
 }
 void runUiSmoke(App &app) {
-    static int phase = 0;
+    static const bool focusOnly = GetEnvironmentVariableW(L"WOOK_TEST_FOCUS_ONLY", nullptr, 0) != 0;
+    static int phase = focusOnly ? 33 : 0;
     static int waits = 0;
     static int checks = 0;
     static std::vector<Tab *> zoomGroup;
@@ -278,7 +280,11 @@ void runUiSmoke(App &app) {
         } else if (phase == 33 && app.tabs.empty()) {
             for (int i=0;i<4;++i) app.localShell();
             phase=34;waits=0;
-        } else if (phase == 34 && ready()) {
+        } else if (phase == 34 && ready() && testSplitFocus(app, require)) {
+            if (focusOnly) {
+                for (int i = 3; i >= 0; --i) closeTestSession(i);
+                phase = 37; waits = 0; return;
+            }
             for (int count=2;count<=4;++count) {
                 app.setSplit(count);
                 require((int)app.panes.size()==count,"Split must display requested number of panes");
@@ -300,6 +306,7 @@ void runUiSmoke(App &app) {
             for (int i=0;i<4;++i) { app.tabs[i]->profile.alias=L"Server "+std::to_wstring(i+1); app.tabs[i]->profile.tabColor=colors[i]; }
             captureTestWindow(app.hwnd,L"ui-split.bmp");
             for (int i=0;i<4;++i) {
+                SetFocus(app.tabs[i]->terminal);
                 SendMessageW(app.hwnd,WM_APP+46,(WPARAM)app.tabs[i]->terminal,0);
                 require(app.active==i,"Focused pane must own tab commands");
                 std::wstring text=L"chcp 65001>nul\rset WSHELL_PANE="+std::to_wstring(i)+L"\recho pane > \""+app.directory+L"\\split-"+std::to_wstring(i)+L".ready\"\r";

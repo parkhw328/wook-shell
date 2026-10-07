@@ -35,6 +35,11 @@ static bool wookImeMessage(WinGuiSeat *wgs, UINT message, WPARAM wParam, LPARAM 
     return false;
 }
 static HWND wookParent = NULL;
+static bool wookWindowHasFocus(HWND hwnd) {
+    // Hosted terminals are child windows; the foreground HWND is the workspace.
+    return wookParent ? GetForegroundWindow() == wookParent && GetFocus() == hwnd :
+        GetForegroundWindow() == hwnd;
+}
 #include "wshell-broadcast.h"
 static bool wookInputReceiving = false;
 static bool wookEditingKey(unsigned key) {
@@ -150,7 +155,14 @@ static void wookWindowAttach(HWND hwnd) {
 }
 static bool wookKey(HWND hwnd, UINT message, WPARAM key, LPARAM flags) {
     if (!wookParent) return false;
-    if (message == WM_SETFOCUS) PostMessageW(wookParent, WM_APP + 46, (WPARAM)hwnd, 0);
+    // PuTTY normally relies on top-level window activation to take focus.
+    // Inside the workspace a click must explicitly focus this child, including
+    // returning from the command editor to the already-selected terminal.
+    if (message == WM_LBUTTONDOWN || message == WM_MBUTTONDOWN || message == WM_RBUTTONDOWN ||
+        message == WM_LBUTTONDBLCLK || message == WM_MBUTTONDBLCLK || message == WM_RBUTTONDBLCLK)
+        if (GetFocus() != hwnd) SetFocus(hwnd);
+    if (message == WM_SETFOCUS || message == WM_KILLFOCUS)
+        PostMessageW(wookParent, WM_APP + 46, (WPARAM)hwnd, 0);
     if (message != WM_KEYDOWN && message != WM_SYSKEYDOWN && message != WM_KEYUP && message != WM_SYSKEYUP) return false;
     bool control = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
     bool shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;

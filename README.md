@@ -11,7 +11,7 @@
 
 여러 탭을 연 뒤 **Split**에서 2·3·4분할을 선택합니다. 영역을 클릭하면 입력 대상이 바뀌며, **Single pane**으로 돌아가도 연결은 유지됩니다. Windows `Ctrl+Shift+S`, Mac `⌘⇧S`. [자세한 사용법](docs/split-view.md)
 
-Windows 0.9에서는 주황색 테두리와 **ACTIVE** 표시로 현재 영역을 구별합니다. **Zoom / Back** 또는 `Ctrl+Shift+Enter`로 현재 영역을 확대하고 원래 분할로 복귀합니다. `Ctrl+Alt+방향키`로 인접 영역에 포커스를 옮깁니다.
+Windows 0.9.1에서는 실제 키보드 입력을 받는 영역의 커서와 주황색 테두리가 깜빡이며 **ACTIVE**로 표시됩니다. 하단 명령창을 편집하는 동안에는 전송 대상만 **SELECTED**로 표시하고 테두리 깜빡임을 멈춥니다. 분할을 선택한 직후 바로 입력할 수 있고, 터미널 본문을 클릭하면 포커스가 돌아옵니다. **Zoom / Back** 또는 `Ctrl+Shift+Enter`로 현재 영역을 확대하고 원래 분할로 복귀합니다. `Ctrl+Alt+방향키`로 인접 영역에 포커스를 옮깁니다.
 
 ![wShell split terminals](assets/screenshots/split.png)
 
@@ -23,7 +23,7 @@ Windows·Mac의 호스트 편집 화면에서 **Alias**와 **Tab color**를 지�
 
 Windows에서 **Sync keyboard** 또는 `Ctrl+Shift+B`를 누르면 활성 터미널로 포커스가 돌아갑니다. 그 터미널 안에서 방향키·Home/End·Delete로 여러 창을 함께 편집합니다. 공통 명령창의 방향키는 보내기 전 초안만 편집하며, `Ctrl+Shift+K`로 명령창에 이동합니다. **Targets**에서 제외한 영역은 독립적으로 입력할 수 있습니다. 서로 다른 셸·편집기 내용의 커서 좌표 자체를 일치시키는 기능은 아닙니다.
 
-두 옵션은 기본 해제이며 분할 대상이 바뀌면 해제됩니다. Windows는 확대/복귀와 재연결 시에도 해제합니다. 숨겨진 탭·SFTP·인증 중인 연결은 제외합니다. 자세한 범위와 플랫폼 차이는 [분할 입력 사용법](docs/split-view.md), 변경 내역은 [0.9.0 릴리스 노트](docs/releases/0.9.0.md)를 확인하세요.
+두 옵션은 기본 해제이며 분할 대상이 바뀌면 해제됩니다. Windows는 확대/복귀와 재연결 시에도 해제합니다. 숨겨진 탭·SFTP·인증 중인 연결은 제외합니다. 자세한 범위와 플랫폼 차이는 [분할 입력 사용법](docs/split-view.md), 변경 내역은 [0.9.1 릴리스 노트](docs/releases/0.9.1.md)를 확인하세요.
 
 ![wShell aliases and broadcast controls](assets/screenshots/broadcast.png)
 
@@ -35,7 +35,7 @@ iPad용 네이티브 SSH·SFTP 앱은 별도로 준비 중입니다. 무료 Appl
 
 ### Windows
 
-1. **`wShell.exe` 하나**를 원하는 폴더에 복사합니다. `wshell-0.9.0-windows-x64.zip`에도 이 파일만 들어 있습니다.
+1. **`wShell.exe` 하나**를 원하는 폴더에 복사합니다. `wshell-0.9.1-windows-x64.zip`에도 이 파일만 들어 있습니다.
 2. 실행합니다. 설치, 관리자 권한, WebView2, .NET, Node.js가 필요하지 않습니다.
 3. `New host`에서 접속 정보를 저장하거나, 빠른 연결 칸에 `user@hostname:22`를 입력합니다.
 4. 처음 접속하는 SSH 서버의 키 지문을 확인한 뒤 신뢰 여부를 선택합니다.
@@ -45,7 +45,7 @@ iPad용 네이티브 SSH·SFTP 앱은 별도로 준비 중입니다. 무료 Appl
 
 ### macOS
 
-1. `wshell-0.9.0-macos-universal.zip`을 풀고 **`wShell.app`**을 실행합니다. Applications 폴더로 옮겨도 됩니다.
+1. `wshell-0.9.1-macos-universal.zip`을 풀고 **`wShell.app`**을 실행합니다. Applications 폴더로 옮겨도 됩니다.
 2. macOS 13 이상에서 Apple Silicon·Intel을 모두 지원하는 Universal 앱입니다. 별도 런타임이나 WebView 설치가 필요하지 않습니다.
 3. `New host`로 SSH 서버를 추가하거나 `Open Terminal`로 현재 Mac의 로그인 셸을 엽니다.
 
@@ -61,16 +61,16 @@ macOS의 `.app`은 Finder에서 하나의 앱으로 이동하는 번들이며, �
 ```text
 dist/
   README.md
-  0.9.0/
+  0.9.1/
     manifest.json
     windows-x64/
       wShell.exe
       wShell.exe.sha256
-      wshell-0.9.0-windows-x64.zip
-      wshell-0.9.0-windows-x64.zip.sha256
+      wshell-0.9.1-windows-x64.zip
+      wshell-0.9.1-windows-x64.zip.sha256
     macos-universal/
-      wshell-0.9.0-macos-universal.zip
-      wshell-0.9.0-macos-universal.zip.sha256
+      wshell-0.9.1-macos-universal.zip
+      wshell-0.9.1-macos-universal.zip.sha256
 ```
 
 | 기능 | Windows | macOS |
@@ -231,6 +231,8 @@ node tests/ssh/integration.cjs
 node tests/ssh/sftp-integration.cjs
 git diff --check
 ```
+
+분할 포커스만 빠르게 재검증하려면 빌드 후 `node tests/ssh/focus-integration.cjs`를 실행합니다. 전체 UI 통합 테스트에도 같은 검증이 포함됩니다. 이 테스트는 자체 창을 전경으로 가져와 실제 마우스·키보드 입력, 명령창에서의 포커스 복귀, 커서·테두리 깜빡임을 검사합니다. 실행 중에는 테스트 창의 입력이 끝날 때까지 기다려 주세요.
 
 macOS 빌드는 macOS 13 이상, Xcode Command Line Tools와 Swift 6 이상, Python 3에서 실행합니다. Swift 의존성은 정확한 커밋과 `mac/Package.resolved`로 고정합니다.
 

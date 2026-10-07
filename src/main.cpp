@@ -50,6 +50,9 @@ struct App {
     std::vector<Tab *> routingPanes;
     std::vector<Tab *> excludedPanes;
     bool paneZoom = false;
+    HWND keyboardPane = nullptr;
+    bool panePulseBright = true;
+    ULONGLONG paneFocusTime = 0;
     int toolbarLeft = 0;
     std::wstring commandStatus = L"Send → active pane";
     int active = -1, tabScroll = 0, dragTab = -1, width = 1200, height = 760;
@@ -64,6 +67,8 @@ struct App {
     void refresh();
     void filter();
     void select(int index);
+    void focusActive();
+    void refreshPaneFocus();
     void connect(const Profile &profile, bool saved, bool preview = false, bool advanced = false, bool files = false);
     void localShell(bool powershell = false);
     void closeTab(int index);
@@ -94,6 +99,47 @@ constexpr int paneHeader = 44, paneInset = 3;
 COLORREF hostColor(const Profile &p) {
     if (p.tabColor.size() != 6 || p.tabColor.find_first_not_of(L"0123456789abcdefABCDEF") != std::wstring::npos) return ui::accent;
     auto n = wcstoul(p.tabColor.c_str(), nullptr, 16); return RGB((n >> 16) & 255, (n >> 8) & 255, n & 255);
+}
+void App::focusActive() {
+    if (active >= 0 && IsWindow(tabs[active]->terminal) && IsWindowVisible(tabs[active]->terminal))
+        SetFocus(tabs[active]->terminal);
+    refreshPaneFocus();
+}
+void App::refreshPaneFocus() {
+    HWND focused = nullptr;
+    GUITHREADINFO info{sizeof(info)};
+    if (active >= 0 && GetForegroundWindow() == hwnd && GetGUIThreadInfo(0, &info) &&
+        !(info.flags & (GUI_INMENUMODE | GUI_POPUPMENUMODE | GUI_SYSTEMMENUMODE))) {
+        for (size_t i = 0; i < tabs.size(); ++i) {
+            auto *tab = tabs[i].get();
+            if (!IsWindow(tab->terminal) || !IsWindowVisible(tab->terminal) ||
+                std::find(panes.begin(), panes.end(), tab) == panes.end()) continue;
+            if (info.hwndFocus != tab->terminal && !(tab->files && IsChild(tab->terminal, info.hwndFocus))) continue;
+            focused = tab->terminal;
+            if (active != (int)i) {
+                active = (int)i; inputStatus(); layout();
+            }
+            break;
+        }
+    }
+    auto now = GetTickCount64();
+    bool changed = focused != keyboardPane;
+    if (changed) { keyboardPane = focused; paneFocusTime = now; }
+    // Keep the orange frame visible in both phases; only the keyboard owner
+    // pulses. A selected command destination is not necessarily focused.
+    UINT blinkTime = GetCaretBlinkTime();
+    bool bright = !focused || !blinkTime || blinkTime == INFINITE || ((now - paneFocusTime) / 650) % 2 == 0;
+    if (changed || bright != panePulseBright) {
+        panePulseBright = bright;
+        if (active >= 0 && panes.size() > 1) for (const auto &r : paneRects) {
+            if (r.width <= 0) continue;
+            RECT frames[] = {ui::rect(r.x, r.y, r.width, paneHeader),
+                ui::rect(r.x, r.y + paneHeader, paneInset, r.height - paneHeader),
+                ui::rect(r.x + r.width - paneInset, r.y + paneHeader, paneInset, r.height - paneHeader),
+                ui::rect(r.x, r.y + r.height - paneInset, r.width, paneInset)};
+            for (const auto &frame : frames) InvalidateRect(hwnd, &frame, FALSE);
+        }
+    }
 }
 bool App::inputReady(Tab *tab) {
     if (!tab || tab->ended || tab->closing || tab->files || tab->preview || !IsWindow(tab->terminal)) return false;
@@ -137,7 +183,7 @@ void App::targetsMenu() {
 void App::zoomPane() {
     if (active < 0 || panes.size() < 2) return;
     paneZoom = !paneZoom; routingPanes.clear(); layout();
-    if (IsWindow(tabs[active]->terminal)) SetFocus(tabs[active]->terminal);
+    focusActive();
 }
 void App::movePane(int direction) {
     if (active < 0 || panes.size() < 2 || paneZoom) return;
@@ -316,8 +362,8 @@ void App::select(int index) {
     tabScroll = std::clamp(tabScroll, 0, std::max(0, (int)tabs.size() - 1));
     layout();
     if (active >= 0 && panes.size() > 1 && !paneZoom) inputStatus();
-    if (active >= 0 && IsWindow(tabs[active]->terminal)) SetFocus(tabs[active]->terminal);
-    else if (active < 0) SetFocus(control(Quick));
+    if (active < 0) SetFocus(control(Quick));
+    focusActive();
 }
 void App::setSplit(int count) {
     if (active < 0 || count < 1 || count > 4 || count > (int)tabs.size()) return;
@@ -325,6 +371,7 @@ void App::setSplit(int count) {
     paneZoom = false;
     for (auto &t : tabs) if ((int)panes.size() < count && t.get() != tabs[active].get()) panes.push_back(t.get());
     layout();
+    focusActive();
 }
 void App::splitMenu() {
     HMENU menu = CreatePopupMenu();
@@ -411,14 +458,16 @@ void App::paint(HDC dc) {
             for (size_t i = 0; i < panes.size(); ++i) {
                 auto r = paneRects[i]; bool focused = panes[i] == &tab;
                 if (r.width == 0) continue;
-                ui::fill(dc, ui::rect(r.x, r.y, r.width, r.height), focused ? ui::accent : ui::line);
+                bool typing = focused && keyboardPane && keyboardPane == panes[i]->terminal;
+                COLORREF frame = !focused ? ui::line : typing && panePulseBright ? RGB(255, 164, 82) : ui::accent;
+                ui::fill(dc, ui::rect(r.x, r.y, r.width, r.height), frame);
                 ui::fill(dc, ui::rect(r.x+paneInset, r.y+paneInset, r.width-paneInset*2, r.height-paneInset*2), ui::bg);
                 ui::fill(dc, ui::rect(r.x+paneInset, r.y+paneInset, r.width-paneInset*2, paneHeader-paneInset), focused ? ui::raised : ui::panel);
                 ui::fill(dc, ui::rect(r.x+9,r.y+9,3,26), hostColor(panes[i]->profile));
                 ui::label(dc, std::to_wstring(i+1) + L"  " + panes[i]->profile.displayName(),
                     ui::rect(r.x+18,r.y+4,r.width-86,20), ui::TextSize::caption, focused ? ui::bright : ui::text, focused);
                 bool sync = SendMessageW(control(SyncInput), BM_GETCHECK, 0, 0) == BST_CHECKED;
-                std::wstring state = focused ? L"ACTIVE" : L"INACTIVE";
+                std::wstring state = focused ? (typing ? L"ACTIVE" : L"SELECTED") : L"INACTIVE";
                 state += panes[i]->files ? L" · SFTP" : panes[i]->preview ? L" · PREVIEW" : panes[i]->ended ? L" · ENDED" :
                     !isTarget(panes[i]) ? L" · EXCLUDED" : sync ? L" · SYNC ON" : L" · SYNC OFF";
                 ui::label(dc, state, ui::rect(r.x+18,r.y+23,r.width-86,17), ui::TextSize::caption, focused || (sync && isTarget(panes[i])) ? ui::accent : ui::muted, focused);
@@ -542,6 +591,7 @@ void App::poll() {
             refresh(); layout();
         }
     }
+    refreshPaneFocus();
 }
 void App::command(int code) {
     if (code >= 30 && code <= 33) { movePane(code - 30); return; }
@@ -593,7 +643,7 @@ void App::action(int id) {
     if (id == SendCommand) { sendCommand(); return; }
     if (id == SendAll || id == SyncInput) {
         inputStatus(); layout();
-        if (id == SyncInput && active >= 0 && IsWindow(tabs[active]->terminal)) SetFocus(tabs[active]->terminal);
+        if (id == SyncInput) focusActive();
         else if (id == SendAll) SetFocus(control(CommandText));
         return;
     }
@@ -719,6 +769,7 @@ void App::tabMenu(int index, POINT point) {
 
 LRESULT CALLBACK editProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR data) {
     auto *app = (App *)data;
+    if (msg == WM_SETFOCUS || msg == WM_KILLFOCUS) PostMessageW(app->hwnd, WM_APP + 47, 0, 0);
     if (msg == WM_KEYDOWN && wp == VK_RETURN) {
         PostMessageW(app->hwnd, WM_COMMAND, GetDlgCtrlID(hwnd) == CommandText ? SendCommand : GetDlgCtrlID(hwnd) == Quick ? QuickConnect : ConnectHost, 0); return 0;
     }
@@ -828,9 +879,9 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             POINT p{GET_X_LPARAM(lp),GET_Y_LPARAM(lp)};
             if (app->active >= 0 && app->panes.size() > 1) {
                 for (size_t i=0;i<app->panes.size();++i) {
-                    auto r=app->paneRects[i]; RECT header=ui::rect(r.x,r.y,r.width,paneHeader);
+                    auto r=app->paneRects[i]; RECT frame=ui::rect(r.x,r.y,r.width,r.height);
                     RECT zoom=ui::rect(r.x+r.width-62,r.y+8,53,28);
-                    if (r.width > 0 && PtInRect(&header,p)) for (size_t j=0;j<app->tabs.size();++j) if (app->tabs[j].get()==app->panes[i]) {
+                    if (r.width > 0 && PtInRect(&frame,p)) for (size_t j=0;j<app->tabs.size();++j) if (app->tabs[j].get()==app->panes[i]) {
                         app->select((int)j); if (PtInRect(&zoom,p)) app->zoomPane(); return 0;
                     }
                 }
@@ -874,7 +925,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             HWND terminal=(HWND)wp; DWORD pid=0; GetWindowThreadProcessId(terminal,&pid);
             for (size_t i=0;i<app->tabs.size();++i) if (app->tabs[i]->pid==pid && pid==(DWORD)lp && GetParent(terminal)==hwnd) {
                 app->tabs[i]->terminal=terminal; app->layout();
-                if ((int)i==app->active) SetFocus(terminal);
+                if ((int)i==app->active) app->focusActive();
                 app->refresh(); break;
             }
             return 0;
@@ -888,14 +939,15 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             app->command((int)wp); return 0;
         }
         case WM_APP + 46: {
-            if (app->active < 0) return 0;
-            for (size_t i=0;i<app->tabs.size();++i) if (app->tabs[i]->terminal==(HWND)wp && (int)i!=app->active &&
-                std::find(app->panes.begin(),app->panes.end(),app->tabs[i].get())!=app->panes.end()) {
-                if (app->paneZoom) break;
-                app->active=(int)i; app->inputStatus(); app->layout(); break;
+            // Notifications can be queued across rapid clicks or arrive after
+            // focus has moved to the command field. Read the actual owner.
+            for (const auto &tab : app->tabs) if (tab->terminal == (HWND)wp) {
+                app->refreshPaneFocus(); break;
             }
             return 0;
         }
+        case WM_APP + 47: app->refreshPaneFocus(); return 0;
+        case WM_ACTIVATE: PostMessageW(hwnd, WM_APP + 47, 0, 0); break;
         case WM_COPYDATA: {
             bool owned = false;
             for (auto &t : app->tabs) if (t->terminal == (HWND)wp) owned = true;
@@ -912,7 +964,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             return FALSE;
         }
         case WM_SETFOCUS:
-            if (app->active>=0 && IsWindow(app->tabs[app->active]->terminal)) SetFocus(app->tabs[app->active]->terminal);
+            app->focusActive();
             break;
         case WM_CLOSE: {
             bool live=false; for (auto &tab:app->tabs) if (!tab->ended && !tab->preview) live=true;
