@@ -46,7 +46,8 @@ const server = new Server({ hostKeys: [serverKey.private] }, client => {
   try {
     await new Promise((resolve, reject) => {
       const child = spawn(path.join(root, 'build/mac/wShell.app/Contents/MacOS/wShell'), ['--smoke-test', output], {
-        env: { ...process.env, WOOK_DATA_DIR: data, WSHELL_TEST_PORT: String(port), WSHELL_TEST_KEY: keyFile, WSHELL_TEST_PASSWORD: password }, stdio: 'inherit'
+        env: { ...process.env, WOOK_DATA_DIR: data, WSHELL_TEST_PORT: String(port), WSHELL_TEST_KEY: keyFile, WSHELL_TEST_PASSWORD: password,
+          WSHELL_TEST_HOST_SHA256: 'SHA256:' + crypto.createHash('sha256').update(host.getPublicSSH()).digest('base64').replace(/=+$/, '') }, stdio: 'inherit'
       });
       const timer = setTimeout(() => { child.kill('SIGKILL'); reject(new Error('macOS smoke test timed out')); }, 180000);
       child.once('error', error => { clearTimeout(timer); reject(error); });

@@ -18,6 +18,7 @@ final class CoreTests: XCTestCase {
         let args = try SSHCommand.arguments(for: record, knownHosts: URL(fileURLWithPath: "/tmp/Application Support/wShell/known_hosts"))
         XCTAssertTrue(args.contains("/dev/null")); XCTAssertTrue(args.contains("IdentityAgent=none"))
         XCTAssertTrue(args.contains("ControlPath=none")); XCTAssertTrue(args.contains("/tmp/private key"))
+        XCTAssertTrue(args.contains("StrictHostKeyChecking=yes")); XCTAssertTrue(args.contains("UpdateHostKeys=no"))
         XCTAssertFalse(args.contains("untrusted")); XCTAssertEqual(args.suffix(2), ["--","localhost"])
         let password = try SSHCommand.arguments(for: host(), knownHosts: URL(fileURLWithPath: "/tmp/hosts"), savedPassword: true)
         XCTAssertTrue(password.contains("KbdInteractiveAuthentication=no")); XCTAssertTrue(password.contains("PubkeyAuthentication=no"))

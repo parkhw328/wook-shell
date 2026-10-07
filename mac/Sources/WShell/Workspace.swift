@@ -155,6 +155,11 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
         }
     }
     func openSSH(_ host: Record) throws {
+        guard try HostTrust.ensure(host, file: store.knownHosts, confirm: { fingerprints in
+            let alert = Theme.alert("Verify SSH host key", "\(host["HostName"]):\(host.port)\n\nCompare these fingerprints with your server administrator before trusting this host.\n\n" + fingerprints.joined(separator: "\n\n"))
+            alert.addButton(withTitle: "Trust host"); alert.addButton(withTitle: "Cancel")
+            return alert.runModal() == .alertFirstButtonReturn
+        }) else { return }
         let saved = CredentialStore().contains(host.credentialID)
         let args = try SSHCommand.arguments(for: host, knownHosts: store.knownHosts, savedPassword: saved)
         let session = Session(kind: .ssh, host: host, title: host.name); try attach(session)

@@ -187,7 +187,7 @@ public enum SSHCommand {
         // Imported engine fields and the user's ~/.ssh/config are intentionally not executed.
         var result = ["-tt", "-F", "/dev/null", "-p", String(host.port),
             "-o", "UserKnownHostsFile=\"\(knownHosts.path.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))\"",
-            "-o", "GlobalKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=ask",
+            "-o", "GlobalKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=yes", "-o", "UpdateHostKeys=no",
             "-o", "IdentityAgent=none", "-o", "ForwardAgent=no", "-o", "ControlMaster=no", "-o", "ControlPath=none",
             "-o", "IdentitiesOnly=yes", "-o", "ConnectTimeout=15", "-o", "ServerAliveCountMax=3",
             "-o", "ServerAliveInterval=\(min(3600, max(0, Int(host["PingIntervalSecs"]) ?? 30)))",

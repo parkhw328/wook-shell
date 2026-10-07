@@ -56,6 +56,16 @@ final class SmokeTest {
                 workspace.openPreview(); try capture("mac-colors"); workspace.close(workspace.active!, confirm: false)
                 let env = ProcessInfo.processInfo.environment
                 var host = Record(name: "Loopback key fixture", fields: ["HostName":"127.0.0.1", "UserName":"key", "PortNumber":env["WSHELL_TEST_PORT"] ?? "0", "Protocol":"ssh", "PublicKeyFile":env["WSHELL_TEST_KEY"] ?? ""])
+                let testTrust = output.appendingPathComponent("trust-fixture")
+                let rejected = try HostTrust.ensure(host, file: testTrust) { _ in false }
+                try require(!rejected && !FileManager.default.fileExists(atPath: testTrust.path), "Rejected host keys must not be saved.")
+                var matchingFingerprint = false
+                let accepted = try HostTrust.ensure(host, file: testTrust) { fingerprints in
+                    matchingFingerprint = fingerprints.contains { $0.contains(env["WSHELL_TEST_HOST_SHA256"] ?? "missing") }
+                    return matchingFingerprint
+                }
+                try require(accepted && matchingFingerprint, "Host-key scan must match the fixture's independently pinned fingerprint.")
+                try require(try HostTrust.isKnown(host, file: testTrust), "Confirmed host trust must persist.")
                 try workspace.store.save(host); try workspace.refresh(); try workspace.openSSH(host); observe(); advance(4)
                 host.name = "Loopback password fixture"; host["UserName"] = "password"; host["PublicKeyFile"] = ""
                 try workspace.store.save(host)

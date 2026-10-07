@@ -74,6 +74,8 @@ func runAskpass() -> Never {
     let confirmation = environment["SSH_ASKPASS_PROMPT"] == "confirm"
     do {
         let store = try SettingsStore()
+        // The parent uses StrictHostKeyChecking=yes and pre-verifies unknown hosts
+        // separately, so this password-only process can never receive a trust prompt.
         if !confirmation, environment["SSH_ASKPASS_PROMPT"] != "none",
            let name = environment["WSHELL_PASSWORD_HOST"], let nonce = environment["WSHELL_PASSWORD_ATTEMPT"], UUID(uuidString: nonce) != nil,
            let record = try store.read().first(where: { $0.category == "sessions" && $0.name == name }),
