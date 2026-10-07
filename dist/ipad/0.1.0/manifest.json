@@ -1,0 +1,14 @@
+{
+  "version": "0.1.0",
+  "bundleId": "com.wshell.ipad",
+  "minimumOS": "17.0",
+  "platform": "iPad arm64",
+  "signing": "unsigned; local Apple-account signing required",
+  "embeddedMobileprovision": false,
+  "appStoreEncrypted": false,
+  "sha256": "8a7e14f6963baf1a1a9ae0f3d0554474a6ded7c2aed0de6f346fae0cf82555e7",
+  "bytes": 4092642,
+  "sourceCommit": "98e6f5dd638b8c51bfed4387b2035979342e7a51",
+  "workflow": "https://github.com/parkhw328/wook-shell/actions/runs/37631427201",
+  "realDeviceTested": false
+}

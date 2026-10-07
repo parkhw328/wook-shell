@@ -1,0 +1,24 @@
+{
+  "version": "0.11.0",
+  "createdBy": "Hyunwook Park",
+  "artifacts": [
+    {
+      "platform": "windows-x64",
+      "file": "windows-x64/wshell-0.11.0-windows-x64.zip",
+      "bytes": 1558893,
+      "sha256": "f3397f2fac424b441608f0c2eb9cc3653ca32938cc8ccbb3532cd6fdeaa157a8"
+    },
+    {
+      "platform": "windows-x64",
+      "file": "windows-x64/wShell.exe",
+      "bytes": 3445760,
+      "sha256": "48cc8cf798d9ce9398e88219d1cb6d8ecd24973c6ed5dc69618f239f0a106cf5"
+    },
+    {
+      "platform": "macos-universal",
+      "file": "macos-universal/wshell-0.11.0-macos-universal.zip",
+      "bytes": 4017101,
+      "sha256": "e5bd13556977492412ba8c8ede0523695ad3e3e67d2049d5d7eb193ee447c519"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+# wShell downloads
+
+Current Windows release: **0.13.0**. [Standalone EXE](0.13.0/windows-x64/wShell.exe) · [ZIP](0.13.0/windows-x64/wshell-0.13.0-windows-x64.zip)
+
+Versioned binaries, checksums and manifests are tracked in Git. Open a file and select **Download raw file** to download it. Each Windows ZIP contains only wShell.exe. Windows releases are unsigned.
+
+| Version | Platform | Download | Verification |
+| --- | --- | --- | --- |
+| 0.13.0 | windows-x64 | [ZIP](0.13.0/windows-x64/wshell-0.13.0-windows-x64.zip) | [SHA-256](0.13.0/windows-x64/wshell-0.13.0-windows-x64.zip.sha256) · [manifest](0.13.0/manifest.json) |
+| 0.12.0 | windows-x64 | [ZIP](0.12.0/windows-x64/wshell-0.12.0-windows-x64.zip) | [SHA-256](0.12.0/windows-x64/wshell-0.12.0-windows-x64.zip.sha256) · [manifest](0.12.0/manifest.json) |
+| 0.11.0 | windows-x64 | [ZIP](0.11.0/windows-x64/wshell-0.11.0-windows-x64.zip) | [SHA-256](0.11.0/windows-x64/wshell-0.11.0-windows-x64.zip.sha256) · [manifest](0.11.0/manifest.json) |
+| 0.11.0 | macos-universal | [ZIP](0.11.0/macos-universal/wshell-0.11.0-macos-universal.zip) | [SHA-256](0.11.0/macos-universal/wshell-0.11.0-macos-universal.zip.sha256) · [manifest](0.11.0/manifest.json) |
+| 0.10.0 | windows-x64 | [ZIP](0.10.0/windows-x64/wshell-0.10.0-windows-x64.zip) | [SHA-256](0.10.0/windows-x64/wshell-0.10.0-windows-x64.zip.sha256) · [manifest](0.10.0/manifest.json) |
+| 0.9.1 | windows-x64 | [ZIP](0.9.1/windows-x64/wshell-0.9.1-windows-x64.zip) | [SHA-256](0.9.1/windows-x64/wshell-0.9.1-windows-x64.zip.sha256) · [manifest](0.9.1/manifest.json) |
+| 0.9.0 | windows-x64 | [ZIP](0.9.0/windows-x64/wshell-0.9.0-windows-x64.zip) | [SHA-256](0.9.0/windows-x64/wshell-0.9.0-windows-x64.zip.sha256) · [manifest](0.9.0/manifest.json) |
+| 0.8.0 | windows-x64 | [ZIP](0.8.0/windows-x64/wshell-0.8.0-windows-x64.zip) | [SHA-256](0.8.0/windows-x64/wshell-0.8.0-windows-x64.zip.sha256) · [manifest](0.8.0/manifest.json) |
+
+## Archived iPad build
+
+- iPad 0.1.0: [unsigned IPA](ipad/0.1.0/wshell-ipad-0.1.0-unsigned.ipa) · [SHA-256](ipad/0.1.0/wshell-ipad-0.1.0-unsigned.ipa.sha256) · [manifest](ipad/0.1.0/manifest.json)
+
+macOS and iPad builds are paused. These older artifacts do not include newer Windows changes. The macOS app is ad-hoc signed, without Developer ID notarization. The unsigned IPA requires separate Apple-account signing before installation; it is not a directly installable release.
+
+Manifests record file sizes and SHA-256 values; new builds also record the source commit and CI run. Historical manifests retain known metadata only. Build tools, caches, passwords and private keys are excluded.
