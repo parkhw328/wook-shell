@@ -30,6 +30,7 @@ final class SftpBrowser: NSView, NSTableViewDataSource, NSTableViewDelegate {
         actions.forEach { addSubview($0) }
         hiddenToggle.target = self; hiddenToggle.action = #selector(toggleHidden)
         hiddenToggle.state = .off; hiddenToggle.font = Theme.font(); hiddenToggle.contentTintColor = Theme.orange
+        hiddenToggle.attributedTitle = NSAttributedString(string: "Show hidden files", attributes: [.font:Theme.font(), .foregroundColor:Theme.text])
         addSubview(hiddenToggle)
         for side in 0...1 {
             let table = tables[side]; table.backgroundColor = Theme.background; table.dataSource = self; table.delegate = self

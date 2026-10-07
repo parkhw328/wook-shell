@@ -18,3 +18,5 @@ Click a terminal or its pane heading to focus it. The orange heading/border iden
 Windows: toolbar **Split**, or `Ctrl+Shift+S`. macOS: toolbar **Split**, **Tabs → Split layout**, or `⌘⇧S`. The iPad preview has a **Split** menu beside its tabs; Windows and Mac are the initial release priority.
 
 Layouts have fixed proportions in this version; draggable dividers, persisted layouts and input broadcasting are not implemented. SFTP tabs can be displayed alongside terminals, but wide file controls are most comfortable in larger panes or single-pane mode.
+
+![macOS split terminals](../assets/screenshots/mac-split.png)
