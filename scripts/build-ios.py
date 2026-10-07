@@ -144,6 +144,17 @@ def main():
     for sdk in ('iphonesimulator', 'iphoneos'):
         dependencies(sdk)
     directory = project()
+    run('xcodebuild', '-resolvePackageDependencies', '-project', directory, '-scheme', 'wShell',
+        '-derivedDataPath', BUILD / 'DerivedData', '-disableAutomaticPackageResolution')
+    checkout = BUILD / 'DerivedData/SourcePackages/checkouts/SwiftTerm'
+    revision = subprocess.check_output(['git', '-C', str(checkout), 'rev-parse', 'HEAD'], text=True).strip()
+    assert revision == '464df5207fc2432e16c9a23abe538187196daf5f'
+    # Xcode's cross-platform graph omits this host tool in a generated project.
+    # Build the unmodified pinned generator for macOS at the plugin's declared location.
+    generator = BUILD / 'DerivedData/Build/Products/Release/SwiftTermBuildInfoGenerator'
+    generator.parent.mkdir(parents=True, exist_ok=True)
+    run('xcrun', '--sdk', 'macosx', 'swiftc', '-parse-as-library',
+        checkout / 'Sources/SwiftTermBuildInfoGenerator/BuildInfoGenerator.swift', '-o', generator)
     for sdk in ('iphonesimulator', 'iphoneos'):
         # The pinned SwiftTerm build-info plugin was reviewed; it only emits revision metadata.
         run('xcodebuild', '-skipPackagePluginValidation', '-disableAutomaticPackageResolution', '-project', directory, '-scheme', 'wShell', '-configuration', 'Release',

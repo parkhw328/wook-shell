@@ -17,7 +17,9 @@ final class Connection: ObservableObject, Identifiable {
     init(host: Host, sftp: Bool) { self.host = host; isSFTP = sftp }
     func start(password: String, key: Data?, passphrase: String,
                trust: @escaping (String, @escaping (Bool) -> Void) -> Void) {
+        let credentials = AuthenticationInput(password: password, key: key, passphrase: passphrase)
         queue.async { [self] in
+            defer { credentials.clear() }
             guard let s = wssh_new() else { finish("Cannot create SSH session"); return }
             lock.lock(); engine = s; let stop = cancelled; lock.unlock()
             if stop { cleanup(); return }
@@ -30,11 +32,8 @@ final class Connection: ObservableObject, Identifiable {
                 let deadline = Date().addingTimeInterval(120)
                 while decision.wait() == nil && !stopped && Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
                 guard decision.wait() == true, !stopped else { throw AppError("Host verification cancelled") }
-                if let key {
-                    try key.withUnsafeBytes { bytes in
-                        try check(wssh_auth(s, host.user, "", bytes.baseAddress?.assumingMemoryBound(to: CChar.self), key.count, passphrase), s)
-                    }
-                } else { try check(wssh_auth(s, host.user, password, nil, 0, ""), s) }
+                try check(credentials.authenticate(s, user: host.user), s)
+                credentials.clear()
                 if isSFTP {
                     guard let client = wssh_sftp(s) else { throw AppError(String(cString: wssh_error(s))) }
                     ftp = client
@@ -98,4 +97,20 @@ private final class TrustDecision {
     private var value: Bool?
     func resolve(_ v: Bool) { lock.lock(); value = v; lock.unlock() }
     func wait() -> Bool? { lock.lock(); defer { lock.unlock() }; return value }
+}
+private final class AuthenticationInput {
+    private var password: String, key: Data?, passphrase: String
+    init(password: String, key: Data?, passphrase: String) {
+        self.password = password; self.key = key; self.passphrase = passphrase
+    }
+    func authenticate(_ session: OpaquePointer, user: String) -> Int32 {
+        if let key {
+            return key.withUnsafeBytes { bytes in
+                wssh_auth(session, user, "", bytes.baseAddress?.assumingMemoryBound(to: CChar.self), key.count, passphrase)
+            }
+        }
+        return wssh_auth(session, user, password, nil, 0, "")
+    }
+    // Release prompt credentials as soon as authentication finishes, not after the terminal closes.
+    func clear() { password = ""; key = nil; passphrase = "" }
 }

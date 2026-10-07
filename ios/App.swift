@@ -20,6 +20,7 @@ struct Workspace: View {
     @State private var sessions: [Connection] = [], selected: UUID?
     @State private var splitCount = 1, panes: [UUID] = []
     @State private var editor: Host?, openRequest: OpenRequest?, trustRequest: TrustRequest?
+    @State private var pendingConnection: (() -> Void)?
     @State private var error = "", showError = false, about = false, importing = false, exporting = false, backupInfo = false
     @State private var backup = BackupDocument(Data())
     @State private var search = ""
@@ -85,9 +86,11 @@ struct Workspace: View {
             }.background(Palette.background).navigationBarHidden(true)
         }.navigationSplitViewStyle(.balanced)
         .sheet(item: $editor) { host in HostEditor(store: store, host: host) }
-        .sheet(item: $openRequest) { request in
+        .sheet(item: $openRequest, onDismiss: {
+            let action = pendingConnection; pendingConnection = nil; action?()
+        }) { request in
             AuthenticationSheet(host: request.host) { password, key, passphrase in
-                openRequest = nil; connect(request, password, key, passphrase)
+                pendingConnection = { connect(request, password, key, passphrase) }; openRequest = nil
             }
         }
         .sheet(item: $trustRequest, onDismiss: { trustRequest?.respond(false) }) { request in
@@ -154,6 +157,7 @@ struct Workspace: View {
         if selected == session.id { selected = panes.first ?? sessions.last?.id }
     }
     private func connect(_ request: OpenRequest, _ password: String, _ key: Data?, _ passphrase: String) {
+        guard sessions.count < 16 else { report("Close a tab before opening more than 16 sessions."); return }
         let session = Connection(host: request.host, sftp: request.sftp)
         if !request.sftp { session.terminal = TerminalPane(session) }
         sessions.append(session); select(session.id)
