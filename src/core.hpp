@@ -22,6 +22,8 @@ struct Profile {
     int port = 22;
     int fontSize = 11;
     bool passwordSaved = false;
+    std::wstring alias, tabColor;
+    std::wstring displayName() const { return alias.empty() ? name : alias; }
 };
 enum class PasswordAction { keep, replace, forget };
 void applyTheme(WsStore *store, int fontSize = 11);

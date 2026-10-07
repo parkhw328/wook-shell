@@ -91,6 +91,10 @@ Endpoint parseEndpoint(std::wstring input) {
     return out;
 }
 void validateProfile(const Profile &p) {
+    if (utf8(p.alias).size() > 100 || p.alias.find_first_of(L"\r\n\t") != std::wstring::npos)
+        throw std::runtime_error("Alias must be at most 100 UTF-8 bytes on one line.");
+    if (!p.tabColor.empty() && (p.tabColor.size() != 6 || p.tabColor.find_first_not_of(L"0123456789abcdefABCDEF") != std::wstring::npos))
+        throw std::runtime_error("Tab color must be a six-digit RGB value.");
     if (trim(p.name).empty() || utf8(p.name).size() > 100 || p.name == L"Default Settings" || p.name.starts_with(L"__wook_"))
         throw std::runtime_error("Choose a host name of 1-100 UTF-8 bytes, excluding reserved names.");
     if (p.host.empty() || p.host.size() > 253 || p.host.front() == L'-' || p.host.find_first_of(L" \t\r\n/\\\"@[]") != std::wstring::npos)
@@ -154,6 +158,7 @@ std::vector<Profile> loadProfiles() {
             auto read = [&](const char *key, const char *fallback = "") { auto value = wsGet(s.get(), key); return wide(value ? value : fallback); };
             Profile p; p.name = name; p.host = read("HostName"); p.user = read("UserName");
             p.protocol = read("Protocol", "ssh"); p.keyFile = read("PublicKeyFile"); p.group = read("WookGroup");
+            p.alias = read("WookAlias"); p.tabColor = read("WookTabColor");
             if (p.protocol == L"serial") p.host = read("SerialLine");
             try { p.port = std::stoi(read(p.protocol == L"serial" ? "SerialSpeed" : "PortNumber", "22")); } catch (...) { p.port = defaultPort(p.protocol); }
             try { p.fontSize = std::stoi(read("FontHeight", "11")); } catch (...) { p.fontSize = 11; }
@@ -179,6 +184,7 @@ void saveProfile(const Profile &p, const std::wstring &originalName, PasswordAct
     auto set = [&](const char *key, const std::wstring &value) { auto text = utf8(value); wsSet(s.get(), key, text.c_str()); };
     set("HostName", p.protocol == L"serial" ? L"" : p.host); set("UserName", p.user); set("Protocol", p.protocol);
     set("PublicKeyFile", p.keyFile); set("WookGroup", p.group);
+    set("WookAlias", p.alias); set("WookTabColor", p.tabColor);
     set("PortNumber", std::to_wstring(p.protocol == L"serial" ? 22 : p.port));
     set("FontHeight", std::to_wstring(p.fontSize));
     if (p.protocol == L"serial") { set("SerialLine", p.host); set("SerialSpeed", std::to_wstring(p.port)); }

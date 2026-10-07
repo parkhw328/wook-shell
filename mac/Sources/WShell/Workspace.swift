@@ -14,6 +14,12 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
     var splitCount = 1, panes: [UUID] = []
     var paneHeaders: [UUID:ActionButton] = [:]
     var focusMonitor: Any?
+    let commandBar = Canvas(), commandText = Theme.input("Command · Enter to send")
+    let sendAll = NSButton(checkboxWithTitle:"Send to all panes", target:nil, action:nil)
+    let syncInput = NSButton(checkboxWithTitle:"Sync keyboard", target:nil, action:nil)
+    let commandStatus = Theme.label("Current pane only", size:11, color:Theme.orange)
+    var routingPanes: [UUID] = []
+    lazy var sendButton = ActionButton("Send", accent:true) { [weak self] in self?.sendCommand() }
     lazy var splitButton = ActionButton("Split") { [weak self] in self?.splitMenu() }
     init(store: SettingsStore) { self.store = store; super.init() }
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -25,6 +31,14 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
         sidebar.wantsLayer = true; sidebar.layer?.backgroundColor = Theme.panel.cgColor
         [sidebar, content, tabsScroll, status, splitButton].forEach { root.addSubview($0) }
         content.addSubview(home); tabsScroll.documentView = tabBar; tabsScroll.hasHorizontalScroller = true
+        content.addSubview(commandBar)
+        [commandText, sendButton, sendAll, syncInput, commandStatus].forEach { commandBar.addSubview($0) }
+        commandText.target = self; commandText.action = #selector(sendCommand)
+        for checkbox in [sendAll, syncInput] {
+            checkbox.font = Theme.font(); checkbox.contentTintColor = Theme.orange
+            checkbox.attributedTitle = NSAttributedString(string:checkbox.title, attributes:[.font:Theme.font(), .foregroundColor:Theme.text])
+            checkbox.target = self; checkbox.action = #selector(inputOptionsChanged)
+        }
         tabsScroll.drawsBackground = false; tabsScroll.autohidesScrollers = true
         tabsScroll.scrollerStyle = .overlay; tabsScroll.horizontalScrollElasticity = .none
         root.place = { [weak self] in self?.layout() }
@@ -115,7 +129,19 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
             if panes.isEmpty { panes = [selected] }
             for session in sessions where panes.count < splitCount && !panes.contains(session.id) { panes.append(session.id) }
         }
-        let frames = SplitLayout.frames(count: panes.count, in: content.bounds)
+        let showCommand = selected != nil && panes.count > 1
+        if panes != routingPanes || !showCommand {
+            sendAll.state = .off; syncInput.state = .off; routingPanes = panes; commandStatus.stringValue = "Current pane only"
+        }
+        commandBar.isHidden = !showCommand
+        commandBar.frame = NSRect(x:0,y:content.bounds.height-94,width:content.bounds.width,height:94)
+        commandText.frame = NSRect(x:12,y:12,width:commandBar.bounds.width-112,height:32)
+        sendButton.frame = NSRect(x:commandBar.bounds.width-88,y:10,width:76,height:36)
+        sendAll.frame = NSRect(x:12,y:54,width:190,height:26)
+        syncInput.frame = NSRect(x:210,y:54,width:200,height:26)
+        commandStatus.frame = NSRect(x:418,y:56,width:commandBar.bounds.width-430,height:23)
+        let bounds = NSRect(x:0,y:0,width:content.bounds.width,height:content.bounds.height-(showCommand ? 94 : 0))
+        let frames = SplitLayout.frames(count: panes.count, in: bounds)
         for session in sessions {
             let index = panes.firstIndex(of: session.id)
             session.view.isHidden = selected == nil || index == nil
@@ -125,6 +151,7 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
             if panes.count > 1 {
                 paneHeaders[session.id]?.frame = NSRect(x: frame.minX,y: frame.minY,width: frame.width,height: 26)
                 paneHeaders[session.id]?.accent = selected == session.id
+                paneHeaders[session.id]?.identityColor = Theme.color(session.host?.tabColor ?? 0xda702c)
                 paneHeaders[session.id]?.needsDisplay = true
                 session.view.frame = NSRect(x:frame.minX+2,y:frame.minY+28,width:frame.width-4,height:max(10,frame.height-30))
             } else { session.view.frame = session.files == nil ? frame.insetBy(dx: 10, dy: 8) : frame }
@@ -135,26 +162,61 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
     func refresh() throws {
         allHosts = try store.read().filter { $0.category == "sessions" && $0.name != "Default Settings" }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
         let filter = search.stringValue.lowercased()
-        hosts = allHosts.filter { filter.isEmpty || [$0.name,$0["HostName"],$0["UserName"],$0["WookGroup"]].joined(separator: " ").lowercased().contains(filter) }
+        hosts = allHosts.filter { filter.isEmpty || [$0.name,$0.displayName,$0["HostName"],$0["UserName"],$0["WookGroup"]].joined(separator: " ").lowercased().contains(filter) }
         table.reloadData()
     }
     var selectedHost: Record? { hosts.indices.contains(table.selectedRow) ? hosts[table.selectedRow] : nil }
+    @objc func inputOptionsChanged() {
+        commandStatus.stringValue = syncInput.state == .on ? "LIVE INPUT → visible terminals" : sendAll.state == .on ? "Commands → visible terminals" : "Current pane only"
+    }
+    @objc func sendCommand() {
+        guard selected != nil, panes.count > 1, !commandText.stringValue.isEmpty else { return }
+        let text = commandText.stringValue
+        guard text.utf8.count <= 32768, !text.contains("\n"), !text.contains("\r") else {
+            commandStatus.stringValue = "Use one command line (up to 32 KiB)"; return
+        }
+        var sent = 0, skipped = 0
+        for session in sessions where panes.contains(session.id) && (sendAll.state == .on || session.id == selected) {
+            if session.inputReady { session.terminal.send(txt:text + "\r"); sent += 1 } else { skipped += 1 }
+        }
+        commandStatus.stringValue = "Sent to \(sent) terminal(s)" + (skipped > 0 ? " · \(skipped) skipped" : "")
+        if sent > 0 { commandText.stringValue = "" }
+    }
+    func relayInput(_ source: Session, _ bytes: ArraySlice<UInt8>) {
+        guard syncInput.state == .on, selected == source.id, panes.count > 1, panes.contains(source.id), source.inputReady else { return }
+        for session in sessions where session.id != source.id && panes.contains(session.id) && session.inputReady {
+            session.terminal.send(data:bytes)
+        }
+    }
     func controlTextDidChange(_ obj: Notification) { safely { try refresh() } }
     func numberOfRows(in tableView: NSTableView) -> Int { hosts.count }
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         let view = Canvas(frame: NSRect(x: 0,y: 0,width: 210,height: 51)), host = hosts[row]
-        let name = Theme.label(host.name, bold: true), address = Theme.label(host["HostName"], size: 11, color: Theme.muted)
+        let name = Theme.label(host.displayName, color:Theme.color(host.tabColor), bold: true), address = Theme.label(host["HostName"], size: 11, color: Theme.muted)
         name.frame = NSRect(x: 8,y: 5,width: 194,height: 22); address.frame = NSRect(x: 8,y: 29,width: 194,height: 18)
         view.addSubview(name); view.addSubview(address); return view
     }
     @objc func connectSelected() { if let host = selectedHost { safely { try openSSH(host) } } }
-    func edit(_ host: Record?) { safely { if try editHost(host, store: store) { try refresh() } } }
+    func edit(_ host: Record?) { safely {
+        if try editHost(host, store:store) {
+            try refresh()
+            if let host, let saved = allHosts.first(where: { $0.name == host.name }) {
+                for session in sessions where session.host?.name == host.name {
+                    session.host?["WookAlias"] = saved["WookAlias"]; session.host?["WookTabColor"] = saved["WookTabColor"]
+                    session.title = (session.kind == .sftp ? "SFTP · " : "") + saved.displayName
+                    paneHeaders[session.id]?.title = session.title
+                }
+            }
+            rebuildTabs()
+        }
+    } }
     func rebuildTabs() {
         tabButtons.forEach { $0.removeFromSuperview() }
         tabButtons = [ActionButton("Workspace", accent: selected == nil) { [weak self] in self?.select(nil) }]
         for session in sessions {
             let button = ActionButton((session.ended ? "○ " : "") + String(session.title.prefix(18)), accent: selected == session.id) { [weak self, weak session] in self?.select(session?.id) }
             button.toolTip = session.title + " · ⌘W close · ⌘⇧D duplicate"
+            button.identityColor = Theme.color(session.host?.tabColor ?? 0xda702c)
             let menu = NSMenu(); menu.addItem(withTitle: "Close tab", action: #selector(closeMenuTab(_:)), keyEquivalent: "").representedObject = session.id.uuidString
             menu.items.forEach { $0.target = self }; button.menu = menu; tabButtons.append(button)
         }
@@ -189,6 +251,7 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
     func attach(_ session: Session) throws {
         guard sessions.count < 32 else { throw WShellError("Close a tab before opening more than 32 sessions.") }
         sessions.append(session); content.addSubview(session.view)
+        session.terminal.userInput = { [weak self, weak session] bytes in guard let session else { return }; self?.relayInput(session, bytes) }
         let header = ActionButton(session.title) { [weak self, weak session] in self?.select(session?.id) }
         paneHeaders[session.id] = header; content.addSubview(header)
         session.terminal.processDelegate = self; select(session.id)
@@ -232,13 +295,18 @@ final class Workspace: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTabl
     }
     func openSSH(_ host: Record) throws {
         guard let config = try prepareSSH(host) else { return }
-        let session = Session(kind: .ssh, host: host, title: host.name); session.attempt = config.attempt; try attach(session)
-        session.terminal.startProcess(executable: "/usr/bin/ssh", args: config.args, environment: config.env.map { "\($0.key)=\($0.value)" }, currentDirectory: FileManager.default.homeDirectoryForCurrentUser.path)
+        let session = Session(kind: .ssh, host: host, title: host.displayName); session.attempt = config.attempt
+        // OpenSSH runs LocalCommand only after authentication. Never infer readiness from server text.
+        let marker = store.root.appendingPathComponent("ready-" + session.id.uuidString); session.readyMarker = marker
+        let quoted = "'" + marker.path.replacingOccurrences(of:"'", with:"'\\''").replacingOccurrences(of:"%", with:"%%") + "'"
+        let args = ["-o", "PermitLocalCommand=yes", "-o", "LocalCommand=/usr/bin/touch " + quoted] + config.args
+        try attach(session)
+        session.terminal.startProcess(executable: "/usr/bin/ssh", args: args, environment: config.env.map { "\($0.key)=\($0.value)" }, currentDirectory: FileManager.default.homeDirectoryForCurrentUser.path)
     }
     func openSFTP(_ host: Record) throws {
         guard let config = try prepareSSH(host, sftp: true) else { return }
         let client = try SftpClient(arguments: config.args, environment: config.env, attempt: config.attempt)
-        let session = Session(kind: .sftp, host: host, title: "SFTP · " + host.name)
+        let session = Session(kind: .sftp, host: host, title: "SFTP · " + host.displayName)
         session.files = SftpBrowser(client: client); try attach(session)
     }
     func openPreview() {

@@ -5,6 +5,14 @@ import WShellCore
 final class SessionTerminal: LocalProcessTerminalView {
     var output: ((String) -> Void)?
     var bridge: TerminalBridge!
+    var userInput: ((ArraySlice<UInt8>) -> Void)?
+    var inputDepth = 0
+    override func keyDown(with event: NSEvent) {
+        inputDepth += 1; defer { inputDepth -= 1 }; super.keyDown(with:event)
+    }
+    override func paste(_ sender: Any) {
+        inputDepth += 1; defer { inputDepth -= 1 }; super.paste(sender)
+    }
     private var compositionSelection = NSRange(location: NSNotFound, length: 0)
 
     override func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
@@ -24,6 +32,7 @@ final class SessionTerminal: LocalProcessTerminalView {
         hasMarkedText() ? compositionSelection : super.selectedRange()
     }
     override func insertText(_ string: Any, replacementRange: NSRange) {
+        inputDepth += 1; defer { inputDepth -= 1 }
         // AppKit can commit an attributed string; SwiftTerm's insertion path accepts NSString.
         let text = (string as? NSAttributedString)?.string ?? (string as? String ?? "")
         super.insertText(text, replacementRange: replacementRange)
@@ -62,7 +71,10 @@ final class TerminalBridge: TerminalViewDelegate {
     func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) { view?.sizeChanged(source: source, newCols: newCols, newRows: newRows) }
     func setTerminalTitle(source: TerminalView, title: String) { view?.setTerminalTitle(source: source, title: title) }
     func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) { view?.hostCurrentDirectoryUpdate(source: source, directory: directory) }
-    func send(source: TerminalView, data: ArraySlice<UInt8>) { view?.send(source: source, data: data) }
+    func send(source: TerminalView, data: ArraySlice<UInt8>) {
+        view?.send(source: source, data: data)
+        if let view, view.inputDepth > 0 { view.userInput?(data) }
+    }
     func scrolled(source: TerminalView, position: Double) {}
     func rangeChanged(source: TerminalView, startY: Int, endY: Int) {}
     func requestOpenLink(source: TerminalView, link: String, params: [String: String]) {
@@ -75,7 +87,10 @@ final class TerminalBridge: TerminalViewDelegate {
 
 final class Session {
     enum Kind { case local, ssh, sftp, preview, keygen }
-    let id = UUID(), kind: Kind, host: Record?, terminal: SessionTerminal
+    let id = UUID(), kind: Kind, terminal: SessionTerminal
+    var host: Record?
+    var readyMarker: URL?
+    var inputReady: Bool { !ended && terminal.process.running && (kind == .local || (kind == .ssh && readyMarker.map { FileManager.default.fileExists(atPath:$0.path) } == true)) }
     var title: String, ended = false, attempt: URL?
     var files: SftpBrowser?
     var view: NSView { files ?? terminal }
@@ -86,5 +101,5 @@ final class Session {
         terminal = SessionTerminal(frame: NSRect(x: 0, y: 0, width: 800, height: 550))
         terminal.configure(size: CGFloat(host?.fontSize ?? 13))
     }
-    deinit { stop(); if let attempt { try? FileManager.default.removeItem(at: attempt) } }
+    deinit { stop(); if let attempt { try? FileManager.default.removeItem(at: attempt) }; if let readyMarker { try? FileManager.default.removeItem(at:readyMarker) } }
 }

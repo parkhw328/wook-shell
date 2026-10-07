@@ -7,6 +7,7 @@
 #include "credentials.h"
 #include "sftp_view.hpp"
 #include "split.hpp"
+#include "broadcast.h"
 #include <windowsx.h>
 #include <shellapi.h>
 #include <commdlg.h>
@@ -24,7 +25,7 @@ using wook::Profile;
 extern "C" int WINAPI wshellTerminalMain(HINSTANCE, HINSTANCE, LPSTR, int);
 namespace {
 enum { Search = 100, HostList, NewHost, ConnectHost, EditHost, Quick, QuickConnect, Preview,
-       Advanced, Duplicate, Reconnect, SessionSettings, Tools, About, SaveCurrent, HomeNew, HomePreview, LocalCmd, LocalPowerShell, FilesHost, FilesSession, Split };
+       Advanced, Duplicate, Reconnect, SessionSettings, Tools, About, SaveCurrent, HomeNew, HomePreview, LocalCmd, LocalPowerShell, FilesHost, FilesSession, Split, CommandText, SendCommand, SendAll, SyncInput };
 struct Tab {
     Profile profile;
     std::wstring storageName;
@@ -36,7 +37,7 @@ struct Tab {
 };
 struct Hit { RECT rect; int index; bool close; };
 struct App {
-    HWND hwnd = nullptr, controls[24]{};
+    HWND hwnd = nullptr, controls[28]{};
     HANDLE job = nullptr;
     std::wstring directory;
     std::vector<Profile> profiles;
@@ -46,6 +47,8 @@ struct App {
     std::vector<Tab *> panes;
     std::vector<wook::PaneRect> paneRects;
     int splitCount = 1;
+    std::vector<Tab *> routingPanes;
+    std::wstring commandStatus = L"Current pane only";
     int active = -1, tabScroll = 0, dragTab = -1, width = 1200, height = 760;
     POINT dragStart{};
     unsigned sequence = 0;
@@ -69,12 +72,54 @@ struct App {
     void tabMenu(int index, POINT point);
     void splitMenu();
     void setSplit(int count);
+    bool inputReady(Tab *tab);
+    void sendCommand();
+    void relayInput(HWND source, const COPYDATASTRUCT *data);
     Profile *selectedHost();
 };
 #ifdef WOOK_UI_TEST
 void runUiSmoke(App &app);
 #endif
 constexpr int sidebar = 252;
+COLORREF hostColor(const Profile &p) {
+    if (p.tabColor.size() != 6 || p.tabColor.find_first_not_of(L"0123456789abcdefABCDEF") != std::wstring::npos) return ui::accent;
+    auto n = wcstoul(p.tabColor.c_str(), nullptr, 16); return RGB((n >> 16) & 255, (n >> 8) & 255, n & 255);
+}
+bool App::inputReady(Tab *tab) {
+    if (!tab || tab->ended || tab->closing || tab->files || tab->preview || !IsWindow(tab->terminal)) return false;
+    DWORD_PTR ready = 0;
+    return SendMessageTimeoutW(tab->terminal, WM_APP + 61, 0, 0, SMTO_ABORTIFHUNG, 100, &ready) && ready;
+}
+void App::sendCommand() {
+    if (active < 0 || panes.size() < 2) return;
+    auto text = ui::value(control(CommandText)); if (text.empty()) return;
+    if (text.find_first_of(L"\r\n") != std::wstring::npos) throw std::runtime_error("Send one command line at a time.");
+    text += L'\r';
+    std::vector<unsigned char> bytes(sizeof(WsInputHeader) + text.size() * sizeof(wchar_t));
+    WsInputHeader header{1, 0, (int)text.size()}; memcpy(bytes.data(), &header, sizeof(header));
+    memcpy(bytes.data() + sizeof(header), text.data(), text.size() * sizeof(wchar_t));
+    COPYDATASTRUCT packet{WSHELL_INPUT_MESSAGE, (DWORD)bytes.size(), bytes.data()};
+    bool all = SendMessageW(control(SendAll), BM_GETCHECK, 0, 0) == BST_CHECKED;
+    int sent = 0, skipped = 0;
+    for (auto *tab : panes) if (all || tab == tabs[active].get()) {
+        DWORD_PTR accepted = 0;
+        if (inputReady(tab) && SendMessageTimeoutW(tab->terminal, WM_COPYDATA, (WPARAM)hwnd, (LPARAM)&packet, SMTO_ABORTIFHUNG, 500, &accepted) && accepted) ++sent;
+        else ++skipped;
+    }
+    SecureZeroMemory(bytes.data(), bytes.size()); SecureZeroMemory(text.data(), text.size() * sizeof(wchar_t));
+    commandStatus = L"Sent to " + std::to_wstring(sent) + L" terminal(s)" + (skipped ? L" · " + std::to_wstring(skipped) + L" unavailable / skipped" : L"");
+    if (sent) SetWindowTextW(control(CommandText), L"");
+    InvalidateRect(hwnd, nullptr, FALSE);
+}
+void App::relayInput(HWND source, const COPYDATASTRUCT *data) {
+    if (active < 0 || panes.size() < 2 || SendMessageW(control(SyncInput), BM_GETCHECK, 0, 0) != BST_CHECKED ||
+        tabs[active]->terminal != source || !data || !data->lpData || data->cbData <= sizeof(WsInputHeader) || data->cbData > sizeof(WsInputHeader) + WSHELL_INPUT_LIMIT) return;
+    if (std::find(panes.begin(), panes.end(), tabs[active].get()) == panes.end()) return;
+    for (auto *tab : panes) if (tab->terminal != source && inputReady(tab)) {
+        DWORD_PTR accepted;
+        SendMessageTimeoutW(tab->terminal, WM_COPYDATA, (WPARAM)hwnd, (LPARAM)data, SMTO_ABORTIFHUNG, 500, &accepted);
+    }
+}
 void visible(HWND hwnd, bool show) { ShowWindow(hwnd, show ? SW_SHOWNA : SW_HIDE); }
 std::wstring lower(std::wstring text) { std::transform(text.begin(), text.end(), text.begin(), towlower); return text; }
 void App::filter() {
@@ -88,7 +133,7 @@ void App::filter() {
     int selected = 0;
     for (size_t i = 0; i < profiles.size(); ++i) {
         auto &p = profiles[i];
-        if (!query.empty() && lower(p.name + L" " + p.host + L" " + p.group + L" " + p.user).find(query) == std::wstring::npos) continue;
+        if (!query.empty() && lower(p.name + L" " + p.alias + L" " + p.host + L" " + p.group + L" " + p.user).find(query) == std::wstring::npos) continue;
         if (p.name == old) selected = (int)filtered.size();
         filtered.push_back(i);
         SendMessageW(control(HostList), LB_ADDSTRING, 0, (LPARAM)p.name.c_str());
@@ -148,10 +193,24 @@ void App::layout() {
             for (auto &t : tabs) if ((int)panes.size() < splitCount && std::find(panes.begin(), panes.end(), t.get()) == panes.end()) panes.push_back(t.get());
         }
     }
-    paneRects = wook::splitRects(std::max(1, (int)panes.size()), sidebar + 1, 113, width - sidebar - 1, std::max(40, height - 148));
+    bool commandBar = active >= 0 && panes.size() > 1;
+    if (routingPanes != panes || !commandBar) {
+        SendMessageW(control(SendAll), BM_SETCHECK, BST_UNCHECKED, 0);
+        SendMessageW(control(SyncInput), BM_SETCHECK, BST_UNCHECKED, 0);
+        commandStatus = L"Current pane only"; routingPanes = panes;
+    }
+    for (int id : {CommandText, SendCommand, SendAll, SyncInput}) visible(control(id), commandBar);
+    ui::place(control(CommandText), sidebar+18, height-103, width-sidebar-132, 26);
+    ui::place(control(SendCommand), width-104, height-111, 88, 37);
+    ui::place(control(SendAll), sidebar+16, height-72, 196, 26);
+    ui::place(control(SyncInput), sidebar+218, height-72, 172, 26);
+    paneRects = wook::splitRects(std::max(1, (int)panes.size()), sidebar + 1, 113, width - sidebar - 1, std::max(40, height - 148 - (commandBar ? 94 : 0)));
     for (size_t i = 0; i < tabs.size(); ++i) {
         auto &tab = *tabs[i];
         if (IsWindow(tab.terminal)) {
+            if (commandBar && SendMessageW(control(SyncInput), BM_GETCHECK, 0, 0) == BST_CHECKED && !tab.files && !tab.preview)
+                SetPropW(tab.terminal, L"wShell.SyncInput", (HANDLE)1);
+            else RemovePropW(tab.terminal, L"wShell.SyncInput");
             auto pane = std::find(panes.begin(), panes.end(), &tab);
             if (active >= 0 && pane != panes.end()) {
                 auto r = paneRects[pane - panes.begin()];
@@ -221,7 +280,8 @@ void App::paint(HDC dc) {
             ui::fill(dc, ui::rect(x + 14, 43, tabWidth - 33, 2), ui::accent);
         }
         auto &tab = *tabs[i];
-        ui::label(dc, tab.preview ? L"Color preview" : (tab.files ? L"SFTP · " : L"") + tab.profile.name, ui::rect(x + 13, 9, tabWidth - 49, 35), ui::TextSize::caption, i == active ? ui::bright : ui::muted);
+        ui::fill(dc, ui::rect(x+5, 16, 3, 21), hostColor(tab.profile));
+        ui::label(dc, tab.preview ? L"Color preview" : (tab.files ? L"SFTP · " : L"") + tab.profile.displayName(), ui::rect(x + 13, 9, tabWidth - 49, 35), ui::TextSize::caption, i == active ? ui::bright : ui::muted);
         RECT cross = ui::rect(x + tabWidth - 33, 14, 24, 25);
         ui::label(dc, L"×", cross, ui::TextSize::section, ui::muted, false, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         hits.push_back({r, i, false}); hits.push_back({cross, i, true}); x += tabWidth;
@@ -255,17 +315,17 @@ void App::paint(HDC dc) {
     } else {
         auto &tab = *tabs[active];
         int toolbarSpace = 562;
-        ui::label(dc, tab.preview ? L"Terminal preview" : tab.profile.name, ui::rect(sidebar + 22, 61, std::max(100, width - sidebar - toolbarSpace), 24), ui::TextSize::body, ui::bright, true);
+        ui::label(dc, tab.preview ? L"Terminal preview" : tab.profile.displayName(), ui::rect(sidebar + 22, 61, std::max(100, width - sidebar - toolbarSpace), 24), ui::TextSize::body, ui::bright, true);
         std::wstring endpoint = tab.preview ? L"Local preview · no connection" : tab.profile.protocol == L"local" ? L"Local terminal · this computer" : tab.profile.protocol + L"  /  " + (tab.profile.user.empty() ? L"" : tab.profile.user + L"@") + tab.profile.host + L":" + std::to_wstring(tab.profile.port);
         ui::label(dc, endpoint, ui::rect(sidebar + 22, 85, std::max(100, width - sidebar - toolbarSpace), 19), ui::TextSize::caption, ui::muted, false, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         ui::fill(dc, ui::rect(sidebar, 112, width - sidebar, 1), ui::raised);
         if (panes.size() > 1) {
             for (size_t i = 0; i < panes.size(); ++i) {
                 auto r = paneRects[i]; bool focused = panes[i] == &tab;
-                ui::fill(dc, ui::rect(r.x, r.y, r.width, r.height), focused ? ui::accent : ui::line);
+                ui::fill(dc, ui::rect(r.x, r.y, r.width, r.height), hostColor(panes[i]->profile));
                 ui::fill(dc, ui::rect(r.x+2, r.y+2, r.width-4, r.height-4), ui::bg);
-                ui::label(dc, std::to_wstring(i+1) + L"  " + panes[i]->profile.name,
-                    ui::rect(r.x+8,r.y+2,r.width-16,22), ui::TextSize::caption, focused ? ui::accent : ui::muted);
+                ui::label(dc, std::to_wstring(i+1) + L"  " + panes[i]->profile.displayName(),
+                    ui::rect(r.x+8,r.y+2,r.width-16,22), ui::TextSize::caption, hostColor(panes[i]->profile), focused);
                 if (!IsWindow(panes[i]->terminal)) ui::label(dc, panes[i]->ended ? L"Session ended · Reconnect" : L"Connecting…", ui::rect(r.x+12,r.y+40,r.width-24,28), ui::TextSize::body, ui::muted);
             }
         } else if (!IsWindow(tab.terminal)) {
@@ -273,6 +333,10 @@ void App::paint(HDC dc) {
             ui::label(dc, tab.ended ? L"This session has ended." : tab.closing ? L"Closing session…" : L"Preparing your terminal…", ui::rect(cx, 220, width - cx - 40, 50), ui::TextSize::title, ui::bright, true);
             ui::label(dc, tab.ended ? L"Reconnect to start again, or open another host." : L"Complete any connection or configuration dialog to continue.", ui::rect(cx, 279, width - cx - 40, 30), ui::TextSize::body, ui::muted);
         }
+    }
+    if (active >= 0 && panes.size() > 1) {
+        ui::round(dc, ui::rect(sidebar+12,height-113,width-sidebar-125,42), ui::raised);
+        ui::label(dc, commandStatus, ui::rect(sidebar+420,height-71,width-sidebar-432,25), ui::TextSize::caption, ui::accent);
     }
     ui::fill(dc, ui::rect(0, height - 32, width, 32), ui::panel);
     ui::fill(dc, ui::rect(0, height - 33, width, 1), ui::line);
@@ -417,12 +481,23 @@ void App::command(int code) {
     }
 }
 void App::action(int id) {
+    if (id == SendCommand) { sendCommand(); return; }
+    if (id == SendAll || id == SyncInput) {
+        commandStatus = SendMessageW(control(SyncInput), BM_GETCHECK, 0, 0) == BST_CHECKED ? L"LIVE INPUT → visible terminals" :
+            SendMessageW(control(SendAll), BM_GETCHECK, 0, 0) == BST_CHECKED ? L"Commands → visible terminals" : L"Current pane only";
+        layout(); return;
+    }
     switch (id) {
     case Split: splitMenu(); break;
     case NewHost: case HomeNew: { Profile p; if (editHost(hwnd, p, false)) refresh(); break; }
     case EditHost: {
         auto selected = selectedHost(); if (!selected) break;
-        Profile p = *selected; if (editHost(hwnd, p, true)) refresh(); break;
+        Profile p = *selected; auto oldName = p.name;
+        if (editHost(hwnd, p, true)) {
+            for (auto &tab : tabs) if (tab->profile.name == oldName && !tab->transient) { tab->profile.alias = p.alias; tab->profile.tabColor = p.tabColor; }
+            refresh(); layout();
+        }
+        break;
     }
     case ConnectHost: if (auto p = selectedHost()) connect(*p, true); break;
     case FilesHost: if (auto p = selectedHost()) connect(*p, true, false, false, true); break;
@@ -534,7 +609,7 @@ void App::tabMenu(int index, POINT point) {
 LRESULT CALLBACK editProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR data) {
     auto *app = (App *)data;
     if (msg == WM_KEYDOWN && wp == VK_RETURN) {
-        PostMessageW(app->hwnd, WM_COMMAND, GetDlgCtrlID(hwnd) == Quick ? QuickConnect : ConnectHost, 0); return 0;
+        PostMessageW(app->hwnd, WM_COMMAND, GetDlgCtrlID(hwnd) == CommandText ? SendCommand : GetDlgCtrlID(hwnd) == Quick ? QuickConnect : ConnectHost, 0); return 0;
     }
     if (msg == WM_KEYDOWN && wp == VK_ESCAPE && GetDlgCtrlID(hwnd) != HostList) {
         SetWindowTextW(hwnd, L""); return 0;
@@ -566,6 +641,12 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             addButton(LocalCmd, L"Command Prompt"); addButton(LocalPowerShell, L"PowerShell");
             addButton(SaveCurrent, L"Save host…");
             addButton(Split, L"Split");
+            app->controls[CommandText-Search] = ui::edit(hwnd, L"Command · Enter to send", CommandText);
+            SendMessageW(app->control(CommandText), EM_SETLIMITTEXT, 8192, 0);
+            SetWindowSubclass(app->control(CommandText), editProc, 1, (DWORD_PTR)app);
+            addButton(SendCommand, L"Send");
+            app->controls[SendAll-Search] = ui::checkbox(hwnd, L"Send to all panes", SendAll);
+            app->controls[SyncInput-Search] = ui::checkbox(hwnd, L"Sync keyboard", SyncInput);
             app->refresh(); app->layout(); SetTimer(hwnd, 1, 350, nullptr); return 0;
         }
         if (!app) return DefWindowProcW(hwnd, msg, wp, lp);
@@ -603,8 +684,8 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 if (selected) ui::round(d->hDC, r, ui::raised, ui::line, 10);
                 int y = MulDiv(r.top, 96, ui::dpi);
                 ui::round(d->hDC, ui::rect(13, y + 12, 33, 33), ui::panel, selected ? ui::line : ui::panel, 8);
-                ui::label(d->hDC, L">_", ui::rect(13, y + 12, 33, 33), ui::TextSize::body, ui::accent, true, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-                ui::label(d->hDC, p.name, ui::rect(57, y + 7, sidebar - 93, 25), ui::TextSize::body, selected ? ui::bright : ui::text, true);
+                ui::label(d->hDC, L">_", ui::rect(13, y + 12, 33, 33), ui::TextSize::body, hostColor(p), true, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                ui::label(d->hDC, p.displayName(), ui::rect(57, y + 7, sidebar - 93, 25), ui::TextSize::body, selected ? ui::bright : ui::text, true);
                 std::wstring detail = p.group.empty() ? (p.user.empty() ? L"" : p.user + L"@") + p.host : p.group + L" / " + p.host;
                 ui::label(d->hDC, detail, ui::rect(57, y + 31, sidebar - 93, 22), ui::TextSize::caption, ui::muted);
                 if (d->itemState & ODS_FOCUS) { RECT f = r; InflateRect(&f,-3,-3); DrawFocusRect(d->hDC,&f); }
@@ -703,6 +784,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             bool owned = false;
             for (auto &t : app->tabs) if (t->terminal == (HWND)wp) owned = true;
             auto *data = (const COPYDATASTRUCT *)lp;
+            if (owned && data && data->dwData == WSHELL_INPUT_MESSAGE) { app->relayInput((HWND)wp, data); return TRUE; }
             if (!owned || !data || data->dwData != 44 || !data->lpData || data->cbData < 2 || data->cbData > 101) return FALSE;
             auto *name = (const char *)data->lpData;
             if (name[data->cbData - 1] != '\0') return FALSE;

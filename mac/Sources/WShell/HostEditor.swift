@@ -4,7 +4,7 @@ import WShellCore
 func editHost(_ existing: Record?, store: SettingsStore) throws -> Bool {
     let alert = Theme.alert(existing == nil ? "New host" : "Connection settings", "Public key authentication: register the .pub key on the server, then select the matching private key here.")
     alert.addButton(withTitle: "Save host"); alert.addButton(withTitle: "Cancel")
-    let form = Canvas(frame: NSRect(x: 0, y: 0, width: 560, height: 484))
+    let form = Canvas(frame: NSRect(x: 0, y: 0, width: 560, height: 554))
     var fields: [String: NSTextField] = [:]
     let rows = [("Name", "name", existing?.name ?? ""), ("Host", "HostName", existing?["HostName"] ?? ""),
                 ("Port", "PortNumber", existing?["PortNumber"] ?? "22"), ("User", "UserName", existing?["UserName"] ?? ""),
@@ -37,9 +37,20 @@ func editHost(_ existing: Record?, store: SettingsStore) throws -> Bool {
     compression.frame = NSRect(x: 0, y: 401, width: 560, height: 26); form.addSubview(compression)
     let note = Theme.label("Export / Import never transfers passwords or private-key files.", size: 11, color: Theme.muted)
     note.frame = NSRect(x: 0, y: 448, width: 560, height: 28); form.addSubview(note)
+    let aliasLabel = Theme.label("Alias"), colorLabel = Theme.label("Tab color")
+    aliasLabel.frame = NSRect(x:0,y:490,width:65,height:26); colorLabel.frame = NSRect(x:335,y:490,width:84,height:26)
+    let alias = Theme.input("Optional tab label"); alias.stringValue = existing?["WookAlias"] ?? ""
+    alias.frame = NSRect(x:70,y:486,width:245,height:30)
+    let colors = ["", "da702c", "d14d41", "d0a215", "879a39", "4385be", "8b7ec8", "ce5d97", "878580"]
+    let color = NSPopUpButton(frame:NSRect(x:420,y:486,width:140,height:30), pullsDown:false)
+    color.font = Theme.font(); color.addItems(withTitles:["Default", "Orange", "Red", "Yellow", "Green", "Blue", "Purple", "Pink", "Gray"])
+    color.selectItem(at:colors.firstIndex(of:existing?["WookTabColor"] ?? "") ?? 0)
+    [aliasLabel, colorLabel, alias, color].forEach { form.addSubview($0) }
     alert.accessoryView = form
     guard alert.runModal() == .alertFirstButtonReturn else { return false }
     var record = existing ?? Record(name: "")
+    record["WookAlias"] = alias.stringValue.trimmingCharacters(in:.whitespacesAndNewlines)
+    record["WookTabColor"] = colors[color.indexOfSelectedItem]
     record.name = fields["name"]!.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
     for (key, field) in fields where key != "name" { record[key] = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) }
     record["Protocol"] = "ssh"; record["Compression"] = compression.state == .on ? "1" : "0"

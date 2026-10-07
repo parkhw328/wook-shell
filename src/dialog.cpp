@@ -9,14 +9,15 @@
 #endif
 
 namespace {
-enum { Name = 300, Host, Protocol, Port, User, Key, Group, FontSize, Browse, Save, Cancel, Auth, Password, Remember, KeyManager };
+enum { Name = 300, Host, Protocol, Port, User, Key, Group, FontSize, Browse, Save, Cancel, Auth, Password, Remember, KeyManager, Alias, TabColor };
 struct Form {
     wook::Profile profile;
     HWND fields[8]{};
-    HWND auth{}, password{}, remember{};
+    HWND auth{}, password{}, remember{}, alias{}, color{};
     bool accepted = false, done = false, existing = false;
 };
 static const wchar_t *protocols[] = {L"ssh", L"telnet", L"rlogin", L"raw", L"serial"};
+static const wchar_t *colors[] = {L"", L"da702c", L"d14d41", L"d0a215", L"879a39", L"4385be", L"8b7ec8", L"ce5d97", L"878580"};
 bool passwordMode(Form *form) {
     return SendMessageW(form->fields[Protocol - Name], CB_GETCURSEL, 0, 0) == 0 &&
            SendMessageW(form->auth, CB_GETCURSEL, 0, 0) == 0;
@@ -70,8 +71,16 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         ui::place(ui::button(hwnd, L"Generate or import a key pair", KeyManager), 28, 503, 488, 32);
         ui::place(form->remember, 28, 503, 490, 30);
         SendMessageW(form->remember, BM_SETCHECK, form->profile.passwordSaved ? BST_CHECKED : BST_UNCHECKED, 0);
-        ui::place(ui::button(hwnd, L"Cancel", Cancel), 288, 604, 100, 40);
-        ui::place(ui::button(hwnd, L"Save host", Save), 398, 604, 118, 40);
+        form->alias = ui::edit(hwnd, L"Optional tab label", Alias);
+        ui::place(form->alias, 32, 623, 267, 25); SetWindowTextW(form->alias, form->profile.alias.c_str());
+        form->color = ui::control(hwnd, L"COMBOBOX", L"", TabColor, CBS_DROPDOWNLIST | WS_TABSTOP);
+        ui::place(form->color, 320, 618, 196, 260);
+        const wchar_t *colorNames[] = {L"Default", L"Orange", L"Red", L"Yellow", L"Green", L"Blue", L"Purple", L"Pink", L"Gray"};
+        int selectedColor = 0;
+        for (int i = 0; i < 9; ++i) { SendMessageW(form->color, CB_ADDSTRING, 0, (LPARAM)colorNames[i]); if (form->profile.tabColor == colors[i]) selectedColor = i; }
+        SendMessageW(form->color, CB_SETCURSEL, selectedColor, 0);
+        ui::place(ui::button(hwnd, L"Cancel", Cancel), 288, 680, 100, 40);
+        ui::place(ui::button(hwnd, L"Save host", Save), 398, 680, 118, 40);
         updateAuthentication(hwnd, form);
         SetFocus(form->fields[0]);
 #ifdef WOOK_UI_TEST
@@ -98,12 +107,12 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         const struct { const wchar_t *text; int x, y; } labels[] = {
             {L"NAME",28,61}, {L"ADDRESS / SERIAL PORT",28,135}, {L"PROTOCOL",28,206}, {L"PORT / BAUD",276,206},
             {L"USERNAME",28,278}, {L"GROUP",276,278}, {L"AUTHENTICATION",28,351}, {L"FONT SIZE",398,351},
-            {passwordMode(form) ? L"PASSWORD" : L"PRIVATE KEY (.ppk)",28,425}
+            {passwordMode(form) ? L"PASSWORD" : L"PRIVATE KEY (.ppk)",28,425}, {L"ALIAS (OPTIONAL)",28,595}, {L"TAB COLOR",320,595}
         };
         for (auto l : labels) ui::label(dc, l.text, ui::rect(l.x, l.y, 230, 20), ui::TextSize::caption, ui::muted, true);
         const RECT boxes[] = {ui::rect(27,83,489,41), ui::rect(27,157,489,41), ui::rect(275,228,241,41),
             ui::rect(27,300,239,41), ui::rect(275,300,241,41), ui::rect(397,373,119,41),
-            ui::rect(27,447,passwordMode(form) ? 489 : 390,41)};
+            ui::rect(27,447,passwordMode(form) ? 489 : 390,41), ui::rect(27,615,280,41)};
         for (auto b : boxes) ui::round(dc, b, ui::raised);
         std::wstring hint = L"Register the matching public key (.pub) on the server. The private key signs in; a public key alone cannot authenticate.";
         if (passwordMode(form)) {
@@ -140,6 +149,8 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         } else if (LOWORD(wp) == Save || LOWORD(wp) == IDOK) {
             try {
                 auto p = form->profile;
+                p.alias = wook::trim(ui::value(form->alias));
+                p.tabColor = colors[std::clamp((int)SendMessageW(form->color, CB_GETCURSEL, 0, 0), 0, 8)];
                 p.name = wook::trim(ui::value(form->fields[Name - Name])); p.host = wook::trim(ui::value(form->fields[Host - Name]));
                 if (p.host.starts_with(L"[") && p.host.ends_with(L"]")) p.host = p.host.substr(1, p.host.size() - 2);
                 p.user = wook::trim(ui::value(form->fields[User - Name])); p.group = wook::trim(ui::value(form->fields[Group - Name]));
@@ -182,7 +193,7 @@ bool editHost(HWND owner, wook::Profile &profile, bool existing) {
     wc.lpszClassName = L"WookHostEditor"; wc.hCursor = LoadCursorW(nullptr, IDC_ARROW); RegisterClassW(&wc);
     Form form; form.profile = profile; form.existing = existing;
     if (!existing) form.profile.passwordSaved = false;
-    RECT r{0,0,ui::px(545),ui::px(668)}; AdjustWindowRectExForDpi(&r, WS_CAPTION | WS_SYSMENU, FALSE, 0, ui::dpi);
+    RECT r{0,0,ui::px(545),ui::px(740)}; AdjustWindowRectExForDpi(&r, WS_CAPTION | WS_SYSMENU, FALSE, 0, ui::dpi);
     RECT parent; GetWindowRect(owner, &parent);
     HWND dialog = CreateWindowExW(WS_EX_DLGMODALFRAME, wc.lpszClassName, L"wShell · Host", WS_CAPTION | WS_SYSMENU,
         parent.left + ((parent.right - parent.left) - (r.right - r.left)) / 2,

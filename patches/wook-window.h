@@ -35,6 +35,40 @@ static bool wookImeMessage(WinGuiSeat *wgs, UINT message, WPARAM wParam, LPARAM 
     return false;
 }
 static HWND wookParent = NULL;
+#include "wshell-broadcast.h"
+static bool wookInputReceiving = false;
+static void wookInputNotify(void *context, int kind, int codepage, const void *text, int length) {
+    WinGuiSeat *wgs = context;
+    if (!wookParent || wookInputReceiving || !wgs->backend || !backend_sendok(wgs->backend) ||
+        !GetPropW(wgs->term_hwnd, L"wShell.SyncInput")) return;
+    size_t bytes = kind == 2 ? (length < 0 ? strlen(text) + 1 : (size_t)length) : (size_t)length * sizeof(wchar_t);
+    if (!bytes || bytes > WSHELL_INPUT_LIMIT) return;
+    WsInputHeader *packet = malloc(sizeof(*packet) + bytes);
+    if (!packet) return;
+    packet->kind = kind; packet->codepage = codepage; packet->length = length;
+    memcpy(packet + 1, text, bytes);
+    COPYDATASTRUCT data = {WSHELL_INPUT_MESSAGE, (DWORD)(sizeof(*packet) + bytes), packet};
+    DWORD_PTR ignored;
+    SendMessageTimeoutW(wookParent, WM_COPYDATA, (WPARAM)wgs->term_hwnd, (LPARAM)&data, SMTO_ABORTIFHUNG, 500, &ignored);
+    SecureZeroMemory(packet, sizeof(*packet) + bytes); free(packet);
+}
+static bool wookInputReceive(WinGuiSeat *wgs, WPARAM sender, LPARAM value) {
+    const COPYDATASTRUCT *data = (const COPYDATASTRUCT *)value;
+    if (!wgs || (HWND)sender != wookParent || !data || data->dwData != WSHELL_INPUT_MESSAGE ||
+        !data->lpData || data->cbData <= sizeof(WsInputHeader) || data->cbData > WSHELL_INPUT_LIMIT + sizeof(WsInputHeader) ||
+        !wgs->ldisc || !wgs->backend || !backend_sendok(wgs->backend)) return false;
+    const WsInputHeader *packet = data->lpData;
+    const void *text = packet + 1; size_t bytes = data->cbData - sizeof(*packet);
+    if (packet->kind < 1 || packet->kind > 3) return false;
+    if (packet->kind != 2 && (packet->length <= 0 || (size_t)packet->length * sizeof(wchar_t) != bytes)) return false;
+    if (packet->kind == 2 && (packet->length < -2 || (packet->length >= 0 ? (size_t)packet->length != bytes : ((const char *)text)[bytes-1] != 0))) return false;
+    wookInputReceiving = true;
+    if (packet->kind == 1) term_keyinputw(wgs->term, text, packet->length);
+    else if (packet->kind == 2) term_keyinput(wgs->term, packet->codepage, text, packet->length);
+    else term_do_paste(wgs->term, text, packet->length);
+    wookInputReceiving = false;
+    return true;
+}
 #include "wook-sftp.h"
 static bool wookPasswordTried = false;
 static void wookResetPassword(void) { wookPasswordTried = false; }
@@ -76,6 +110,8 @@ static void wookWindowInit(void) {
 static void wookWindowAttach(HWND hwnd) {
     if (wookSftp) { SetTimer(hwnd, 0x57534654, 10, NULL); return; }
     if (!wookParent) return;
+    WinGuiSeat *wgs = (WinGuiSeat *)GetWindowLongPtrW(hwnd, GWLP_USERDATA);
+    wgs->term->wshell_input = wookInputNotify; wgs->term->wshell_input_context = wgs;
     LONG_PTR style = GetWindowLongPtr(hwnd, GWL_STYLE);
     style &= ~(WS_POPUP | WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU);
     style |= WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;

@@ -51,7 +51,11 @@ int wmain() {
         wook::Profile profile; profile.name = L"서울 production"; profile.host = L"127.0.0.1";
         profile.user = L"deploy"; profile.group = L"운영"; profile.keyFile = L"C:\\한글 키\\test.ppk";
         wook::saveProfile(profile);
+        profile.alias = L"운영 API"; profile.tabColor = L"4385be"; wook::saveProfile(profile, profile.name);
         auto saved = wook::loadProfiles();
+        check(saved[0].alias == profile.alias && saved[0].tabColor == profile.tabColor && saved[0].displayName() == profile.alias, "Alias and tab color persistence");
+        auto invalidColor = profile; invalidColor.tabColor = L"oops";
+        rejects([&] { wook::saveProfile(invalidColor, invalidColor.name); }, "Reject invalid tab color");
         check(saved.size() == 1 && saved[0].name == profile.name && saved[0].keyFile == profile.keyFile, "Unicode profile persistence");
         rejects([&] { wook::saveProfile(profile); }, "duplicate profile must not overwrite");
         wchar_t *path = wsPath(L"sessions", wook::utf8(profile.name).c_str());

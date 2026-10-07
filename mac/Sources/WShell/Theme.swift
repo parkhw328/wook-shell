@@ -41,6 +41,7 @@ enum Theme {
 final class ActionButton: NSButton {
     var invoke: (() -> Void)?
     var accent = false
+    var identityColor: NSColor?
     init(_ title: String, accent: Bool = false, action: @escaping () -> Void) {
         self.accent = accent; self.invoke = action
         super.init(frame: .zero)
@@ -54,6 +55,7 @@ final class ActionButton: NSButton {
         let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 6, yRadius: 6)
         (isHighlighted ? Theme.border : accent ? Theme.orange : Theme.raised).setFill(); path.fill()
         Theme.border.setStroke(); path.stroke()
+        if let identityColor { identityColor.setFill(); NSBezierPath(rect: NSRect(x: 3,y: 5,width: 3,height: bounds.height-10)).fill() }
         let attributes: [NSAttributedString.Key: Any] = [.font: Theme.font(), .foregroundColor: !isEnabled ? Theme.muted : accent ? Theme.background : Theme.text]
         let size = (title as NSString).size(withAttributes: attributes)
         (title as NSString).draw(at: NSPoint(x: (bounds.width - size.width) / 2, y: (bounds.height - size.height) / 2), withAttributes: attributes)

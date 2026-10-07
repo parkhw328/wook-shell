@@ -143,8 +143,10 @@ final class SmokeTest {
                     }
                 }
                 for (index, session) in workspace.sessions.enumerated() {
+                    session.host = Record(name:"Server \(index+1)", fields:["WookAlias":"Server \(index+1)", "WookTabColor":["d14d41","4385be","879a39","8b7ec8"][index]])
+                    session.title = session.host!.displayName; workspace.paneHeaders[session.id]?.title = session.title
                     workspace.select(session.id)
-                    session.terminal.send(txt: "printf pane > split-\(index).ready\r")
+                    session.terminal.send(txt: "export WSHELL_PANE=\(index); printf pane > split-\(index).ready\r")
                 }
                 advance(12)
             case 12 where (0..<4).allSatisfy({ FileManager.default.fileExists(atPath: output.appendingPathComponent("split-\($0).ready").path) }):
@@ -155,6 +157,25 @@ final class SmokeTest {
                 try require(workspace.panes == ids, "Reordering tabs retains pane identities")
                 workspace.setSplit(1)
                 try require(workspace.sessions.filter { !$0.view.isHidden }.count == 1, "Single pane hides other sessions without closing")
+                workspace.setSplit(4)
+                try require(workspace.sendAll.state == .off && workspace.syncInput.state == .off,"Both broadcast modes default off")
+                workspace.commandText.stringValue = "printf single > single-$WSHELL_PANE.ready"; workspace.sendCommand()
+                advance(13)
+            case 13 where FileManager.default.fileExists(atPath:output.appendingPathComponent("single-3.ready").path):
+                try require((0..<3).allSatisfy { !FileManager.default.fileExists(atPath:output.appendingPathComponent("single-\($0).ready").path) },"Unchecked command targets active pane only")
+                workspace.sendAll.state = .on; workspace.inputOptionsChanged()
+                workspace.commandText.stringValue = "printf all > all-$WSHELL_PANE.ready"; workspace.sendCommand(); advance(14)
+            case 14 where (0..<4).allSatisfy({FileManager.default.fileExists(atPath:output.appendingPathComponent("all-\($0).ready").path)}):
+                try require(true,"Common command reaches all four panes")
+                workspace.syncInput.state = .on; workspace.inputOptionsChanged()
+                workspace.active!.terminal.insertText("printf live > live-$WSHELL_PANE.ready\n", replacementRange:NSRange(location:NSNotFound,length:0))
+                advance(15)
+            case 15 where (0..<4).allSatisfy({FileManager.default.fileExists(atPath:output.appendingPathComponent("live-\($0).ready").path)}):
+                try require(true,"Committed keyboard text reaches all four panes")
+                for index in 0..<4 { try require(try String(contentsOf:output.appendingPathComponent("live-\(index).ready"),encoding:.utf8) == "live","Broadcast delivers exact text once") }
+                try capture("mac-broadcast")
+                workspace.setSplit(2)
+                try require(workspace.sendAll.state == .off && workspace.syncInput.state == .off,"Changing panes disables broadcast")
                 workspace.setSplit(4); workspace.close(workspace.active!, confirm: false)
                 try require(workspace.panes.count == 3 && workspace.sessions.allSatisfy { !$0.view.isHidden }, "Closing split pane keeps other sessions visible")
                 finish(nil)

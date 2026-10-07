@@ -17,6 +17,15 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
     def original(name):
         return archive.read(name).decode("utf-8").replace("\r\n", "\n")
 
+    terminal_header = replace(original("terminal/terminal.h"), "struct terminal_tag {", "struct terminal_tag {\n    void (*wshell_input)(void *, int, int, const void *, int);\n    void *wshell_input_context;")
+    (SOURCE / "terminal/terminal.h").write_text(terminal_header, encoding="utf-8")
+    terminal = original("terminal/terminal.c")
+    for signature, notify in [
+        ("void term_keyinputw(Terminal *term, const wchar_t *widebuf, int len)", "1, 0, widebuf, len"),
+        ("void term_keyinput(Terminal *term, int codepage, const void *str, int len)", "2, codepage, str, len"),
+        ("void term_do_paste(Terminal *term, const wchar_t *data, size_t len)", "3, 0, data, (int)len")]:
+        terminal = replace(terminal, signature + "\n{", signature + "\n{\n    if (term->wshell_input) term->wshell_input(term->wshell_input_context, " + notify + ");")
+    (SOURCE / "terminal/terminal.c").write_text(terminal, encoding="utf-8")
     window = original("windows/window.c")
     window = replace(window, "int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)",
                      "int WINAPI wshellTerminalMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)")
@@ -62,7 +71,7 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
     window = replace(window, "            conf_cache_data(wgs);",
                      "            wookIndependentConf(wgs->conf);\n            conf_cache_data(wgs);")
     window = replace(window, "    switch (message) {\n      case WM_CREATE:",
-                     "    if (wookImeMessage(wgs, message, wParam, &lParam)) return 0;\n    if (wookKey(hwnd, message, wParam, lParam)) return 0;\n    switch (message) {\n      case WM_APP + 60:\n        if (wookParent && wgs) {\n            wsImeClear(wgs->wshell_ime);\n            close_session(wgs);\n            term_pwron(wgs->term, false);\n            start_backend(wgs);\n        }\n        return 0;\n      case WM_CREATE:")
+                     "    if (wookImeMessage(wgs, message, wParam, &lParam)) return 0;\n    if (wookKey(hwnd, message, wParam, lParam)) return 0;\n    switch (message) {\n      case WM_COPYDATA: return wookInputReceive(wgs, wParam, lParam);\n      case WM_APP + 61: return wgs && wgs->backend && backend_sendok(wgs->backend);\n      case WM_APP + 60:\n        if (wookParent && wgs) {\n            wsImeClear(wgs->wshell_ime);\n            close_session(wgs);\n            term_pwron(wgs->term, false);\n            start_backend(wgs);\n        }\n        return 0;\n      case WM_CREATE:")
     window = replace(window, "static void clear_full_screen(WinGuiSeat *wgs)\n{",
                      "static void clear_full_screen(WinGuiSeat *wgs)\n{\n    if (wookParent) return;")
     window = replace(window, "static bool is_full_screen(WinGuiSeat *wgs)\n{",
@@ -283,6 +292,7 @@ endif()
 
 shutil.copyfile(ROOT / "patches/portable-storage.c", SOURCE / "windows/storage.c")
 shutil.copyfile(ROOT / "patches/wook-window.h", SOURCE / "windows/wook-window.h")
+shutil.copyfile(ROOT / "src/broadcast.h", SOURCE / "windows/wshell-broadcast.h")
 shutil.copyfile(ROOT / "patches/wook-sftp.h", SOURCE / "windows/wook-sftp.h")
 shutil.copyfile(ROOT / "src/prompt.h", SOURCE / "windows/wshell-prompt.h")
 shutil.copyfile(ROOT / "patches/wshell-config.h", SOURCE / "windows/wshell-config.h")

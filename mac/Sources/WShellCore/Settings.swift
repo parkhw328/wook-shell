@@ -19,9 +19,15 @@ public struct Record: Codable, Equatable {
         set { fields[key] = newValue }
     }
     public var port: Int { Int(self["PortNumber"]) ?? 22 }
+    public var displayName: String { self["WookAlias"].isEmpty ? name : self["WookAlias"] }
+    public var tabColor: UInt32 { UInt32(self["WookTabColor"], radix: 16) ?? 0xda702c }
     public var fontSize: Double { min(28, max(9, Double(self["FontHeight"]) ?? 13)) }
     public var credentialID: String { [name, self["HostName"], String(port), self["UserName"]].joined(separator: "\n") }
     public func validate() throws {
+        guard self["WookAlias"].utf8.count <= 100, self["WookAlias"].rangeOfCharacter(from: .controlCharacters) == nil,
+              self["WookTabColor"].isEmpty || (self["WookTabColor"].count == 6 && UInt32(self["WookTabColor"], radix: 16) != nil) else {
+            throw WShellError("Use an alias of up to 100 UTF-8 bytes and a six-digit RGB tab color.")
+        }
         guard !name.isEmpty, name.utf8.count <= 100, !name.hasPrefix("__wook_"),
               !name.contains("\0"), !name.contains("\n") else { throw WShellError("Enter a host name of 1–100 UTF-8 bytes.") }
         let host = self["HostName"], user = self["UserName"]

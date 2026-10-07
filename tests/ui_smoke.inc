@@ -280,12 +280,13 @@ void runUiSmoke(App &app) {
             }
             phase=35;waits=0;
         } else if (phase == 35 && ready() && waits>2) {
+            const wchar_t *colors[] = {L"d14d41",L"4385be",L"879a39",L"8b7ec8"};
+            for (int i=0;i<4;++i) { app.tabs[i]->profile.alias=L"Server "+std::to_wstring(i+1); app.tabs[i]->profile.tabColor=colors[i]; }
             captureTestWindow(app.hwnd,L"ui-split.bmp");
             for (int i=0;i<4;++i) {
                 SendMessageW(app.hwnd,WM_APP+46,(WPARAM)app.tabs[i]->terminal,0);
                 require(app.active==i,"Focused pane must own tab commands");
-                PostMessageW(app.tabs[i]->terminal,WM_CHAR,L'e',1);
-                std::wstring text=L"cho pane > \""+app.directory+L"\\split-"+std::to_wstring(i)+L".ready\"\r";
+                std::wstring text=L"set WSHELL_PANE="+std::to_wstring(i)+L"\recho pane > \""+app.directory+L"\\split-"+std::to_wstring(i)+L".ready\"\r";
                 for(wchar_t ch:text)PostMessageW(app.tabs[i]->terminal,WM_CHAR,ch,1);
             }
             phase=36;waits=0;
@@ -297,6 +298,40 @@ void runUiSmoke(App &app) {
             require(app.panes.size()==4 && std::find(app.panes.begin(),app.panes.end(),first)!=app.panes.end(),"Tab reorder must retain pane identity");
             app.setSplit(1);int visible=0;for(auto&t:app.tabs)visible+=IsWindowVisible(t->terminal)!=0;
             require(visible==1,"Single view must hide other live terminals");
+            app.setSplit(4); app.select(0);
+            require(SendMessageW(app.control(SendAll),BM_GETCHECK,0,0)==BST_UNCHECKED && SendMessageW(app.control(SyncInput),BM_GETCHECK,0,0)==BST_UNCHECKED,"Broadcast defaults must be off");
+            SetWindowTextW(app.control(CommandText),(L"echo single>\""+app.directory+L"\\single-%WSHELL_PANE%.ready\"").c_str()); app.sendCommand();
+            phase=38;waits=0;
+        } else if (phase == 38 && received(L"single-3.ready") && waits>2) {
+            require(!received(L"single-0.ready") && !received(L"single-1.ready") && !received(L"single-2.ready"),"Unchecked command sends only to active pane");
+            SendMessageW(app.control(SendAll),BM_CLICK,0,0);
+            SetWindowTextW(app.control(CommandText),(L"echo all>\""+app.directory+L"\\all-%WSHELL_PANE%.ready\"").c_str()); app.sendCommand();
+            phase=39;waits=0;
+        } else if (phase == 39 && received(L"all-0.ready") && received(L"all-1.ready") && received(L"all-2.ready") && received(L"all-3.ready")) {
+            require(true,"Common command reaches all four visible terminals");
+            SendMessageW(app.control(SyncInput),BM_CLICK,0,0);
+            auto target=app.tabs[app.active]->terminal;
+            PostMessageW(target,WM_CHAR,3,1);
+            phase=41;waits=0;
+        } else if (phase == 41 && waits>3) {
+            auto target=app.tabs[app.active]->terminal;
+            for(auto c:std::wstring(L"echo livX"))PostMessageW(target,WM_CHAR,c,1);
+            PostMessageW(target,WM_KEYDOWN,VK_BACK,0x000e0001);PostMessageW(target,WM_KEYUP,VK_BACK,0xc00e0001);
+            PostMessageW(target,WM_KEYDOWN,VK_LEFT,0x014b0001);PostMessageW(target,WM_KEYUP,VK_LEFT,0xc14b0001);
+            PostMessageW(target,WM_KEYDOWN,VK_RIGHT,0x014d0001);PostMessageW(target,WM_KEYUP,VK_RIGHT,0xc14d0001);
+            for(auto c:L"e>\""+app.directory+L"\\live-%WSHELL_PANE%.ready\"\r")PostMessageW(target,WM_CHAR,c,1);
+            phase=40;waits=0;
+        } else if (phase == 40 && received(L"live-0.ready") && received(L"live-1.ready") && received(L"live-2.ready") && received(L"live-3.ready")) {
+            require(true,"Live keyboard input, cursor keys and Backspace reach all split terminals without loops");
+            for (int i=0;i<4;++i) { std::ifstream file(std::filesystem::path(app.directory)/(L"live-"+std::to_wstring(i)+L".ready")); std::string value;std::getline(file,value);require(value=="live","Broadcast keyboard edits must produce exact text"); }
+            captureTestWindow(app.hwnd,L"ui-broadcast.bmp");
+            app.setSplit(2);
+            require(SendMessageW(app.control(SendAll),BM_GETCHECK,0,0)==BST_UNCHECKED && SendMessageW(app.control(SyncInput),BM_GETCHECK,0,0)==BST_UNCHECKED,"Changing target panes resets both broadcast modes");
+            SendMessageW(app.control(SendAll),BM_CLICK,0,0);
+            SetWindowTextW(app.control(CommandText),(L"echo scoped>\""+app.directory+L"\\scoped-%WSHELL_PANE%.ready\"").c_str()); app.sendCommand();
+            phase=42;waits=0;
+        } else if (phase == 42 && received(L"scoped-3.ready") && received(L"scoped-1.ready") && waits>2) {
+            require(!received(L"scoped-0.ready") && !received(L"scoped-2.ready"),"Hidden tabs must not receive common commands");
             app.setSplit(4);for(int i=3;i>=0;--i)closeTestSession(i);phase=37;waits=0;
         } else if (phase == 37 && app.tabs.empty()) {
             std::ofstream result(std::filesystem::path(app.directory) / L"ui-smoke-result.json");

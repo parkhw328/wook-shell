@@ -21,7 +21,7 @@ iPad용 네이티브 SSH·SFTP 앱은 별도로 준비 중입니다. 무료 Appl
 
 ### Windows
 
-1. **`wShell.exe` 하나**를 원하는 폴더에 복사합니다. `wshell-0.7.0-windows-x64.zip`에도 이 파일만 들어 있습니다.
+1. **`wShell.exe` 하나**를 원하는 폴더에 복사합니다. `wshell-0.8.0-windows-x64.zip`에도 이 파일만 들어 있습니다.
 2. 실행합니다. 설치, 관리자 권한, WebView2, .NET, Node.js가 필요하지 않습니다.
 3. `New host`에서 접속 정보를 저장하거나, 빠른 연결 칸에 `user@hostname:22`를 입력합니다.
 4. 처음 접속하는 SSH 서버의 키 지문을 확인한 뒤 신뢰 여부를 선택합니다.
@@ -31,7 +31,7 @@ iPad용 네이티브 SSH·SFTP 앱은 별도로 준비 중입니다. 무료 Appl
 
 ### macOS
 
-1. `wshell-0.7.0-macos-universal.zip`을 풀고 **`wShell.app`**을 실행합니다. Applications 폴더로 옮겨도 됩니다.
+1. `wshell-0.8.0-macos-universal.zip`을 풀고 **`wShell.app`**을 실행합니다. Applications 폴더로 옮겨도 됩니다.
 2. macOS 13 이상에서 Apple Silicon·Intel을 모두 지원하는 Universal 앱입니다. 별도 런타임이나 WebView 설치가 필요하지 않습니다.
 3. `New host`로 SSH 서버를 추가하거나 `Open Terminal`로 현재 Mac의 로그인 셸을 엽니다.
 
@@ -47,16 +47,16 @@ macOS의 `.app`은 Finder에서 하나의 앱으로 이동하는 번들이며, �
 ```text
 dist/
   README.md
-  0.7.0/
+  0.8.0/
     manifest.json
     windows-x64/
       wShell.exe
       wShell.exe.sha256
-      wshell-0.7.0-windows-x64.zip
-      wshell-0.7.0-windows-x64.zip.sha256
+      wshell-0.8.0-windows-x64.zip
+      wshell-0.8.0-windows-x64.zip.sha256
     macos-universal/
-      wshell-0.7.0-macos-universal.zip
-      wshell-0.7.0-macos-universal.zip.sha256
+      wshell-0.8.0-macos-universal.zip
+      wshell-0.8.0-macos-universal.zip.sha256
 ```
 
 | 기능 | Windows | macOS |
@@ -232,7 +232,7 @@ python3 scripts/index-dist.py      # 현재 버전의 배포 manifest 생성
 검증 범위: 주소/인수 처리, 한글 설정, 파일 잠금·손상, 설정 백업·복원과 기존 데이터 이전, 기존 호스트 키 보존, 세 종류의 키 생성·암호화 저장·잘못된 암호 거부, 암호화된 OpenSSH 키 변환, 실제 SSH 암호/공개키 인증, 저장된 비밀번호의 암호화·대상 확인·변조 거부·백업 제외·삭제, 비밀번호 세션 복제·재연결·수동 입력 전환, 호스트 키 거부·저장, GUI SSH 입출력·리사이즈, 탭 전환·복제, 컬러/한글 화면, 연결 설정 전체 페이지의 글꼴·폭·검색·스크롤과 변경 저장, 세션 설정의 적용·취소, 호스트 인증기관 저장.
 UI 검증은 **EXE만 복사한 빈 폴더**에서 시작하며 내장 폰트·브랜딩과 같은 EXE로 실행되는 탭을 확인합니다. 패키징 시 단일 파일 ZIP, x64 시스템 DLL 의존성, 7개 해상도 아이콘, 내장 폰트·라이선스도 검사합니다.
 하드웨어 Serial, 실제 프록시/GSSAPI/X11 구성, 원격 Codex 화면 전체는 환경별 실기 검증이 남아 있습니다.
-분할 비율 드래그 조정, 입력 동시 전송, 클라우드 동기화는 제공하지 않습니다. `plink`·`pscp`·`psftp` 등 별도 CLI 실행파일도 배포하지 않습니다.
+분할 비율 드래그 조정, 클라우드 동기화는 제공하지 않습니다. `plink`·`pscp`·`psftp` 등 별도 CLI 실행파일도 배포하지 않습니다.
 
 ## 라이선스와 출처
 
@@ -242,3 +242,7 @@ PuTTY·SwiftTerm·Flexoki는 MIT, JetBrains Mono는 SIL OFL 1.1이며 정적으�
 재배포에 필요한 라이선스 원문은 EXE에 내장되어 있으며 `Tools → Open-source licenses`에서 읽을 수 있습니다.
 
 PuTTY 기반 엔진은 **공식 배포본이 아닌 수정 빌드**입니다. 이 프로젝트는 PuTTY, Termius, JetBrains와 제휴 관계가 없으며 Termius의 독점 폰트나 이미지를 포함하지 않습니다.
+
+## Host aliases and split input
+
+Windows and Mac support optional host aliases and tab colors, a split-view command bar with **Send to all panes**, and opt-in **Sync keyboard**. Both modes default off and target visible connected terminals only. See [usage and input scope](docs/split-view.md).
