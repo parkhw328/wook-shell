@@ -57,6 +57,29 @@ inline HWND control(HWND parent, const wchar_t *kind, const wchar_t *caption, in
 inline HWND button(HWND parent, const wchar_t *caption, int id) {
     return control(parent, L"BUTTON", caption, id, BS_OWNERDRAW | WS_TABSTOP);
 }
+inline LRESULT CALLBACK checkboxProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR id, DWORD_PTR) {
+    if (msg == WM_NCDESTROY) { RemoveWindowSubclass(hwnd, checkboxProc, id); return DefSubclassProc(hwnd, msg, wp, lp); }
+    if (msg == WM_ERASEBKGND) return 1;
+    if (msg == WM_PAINT) {
+        PAINTSTRUCT ps{}; auto dc = BeginPaint(hwnd, &ps); RECT r{}; GetClientRect(hwnd, &r); fill(dc, r, panel);
+        bool checked = SendMessageW(hwnd, BM_GETCHECK, 0, 0) == BST_CHECKED;
+        RECT box{px(1), (r.bottom - px(16)) / 2, px(17), (r.bottom + px(16)) / 2};
+        round(dc, box, checked ? accent : raised, GetFocus() == hwnd ? accent : muted, 5);
+        if (checked) label(dc, L"✓", box, TextSize::caption, bg, true, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        int len = GetWindowTextLengthW(hwnd); std::wstring caption(len + 1, L'\0');
+        GetWindowTextW(hwnd, caption.data(), len + 1); caption.resize(len); r.left += px(25);
+        label(dc, caption, r, TextSize::body, IsWindowEnabled(hwnd) ? text : muted);
+        EndPaint(hwnd, &ps); return 0;
+    }
+    auto result = DefSubclassProc(hwnd, msg, wp, lp);
+    if (msg == BM_SETCHECK || msg == WM_SETFOCUS || msg == WM_KILLFOCUS || msg == WM_ENABLE ||
+        msg == WM_LBUTTONUP || msg == WM_KEYUP) InvalidateRect(hwnd, nullptr, TRUE);
+    return result;
+}
+inline HWND checkbox(HWND parent, const wchar_t *caption, int id) {
+    auto hwnd = control(parent, L"BUTTON", caption, id, BS_AUTOCHECKBOX | WS_TABSTOP);
+    SetWindowSubclass(hwnd, checkboxProc, 1, 0); return hwnd;
+}
 inline HWND edit(HWND parent, const wchar_t *cue, int id) {
     auto hwnd = control(parent, L"EDIT", L"", id, ES_AUTOHSCROLL | WS_TABSTOP);
     SendMessageW(hwnd, EM_SETCUEBANNER, TRUE, (LPARAM)cue);

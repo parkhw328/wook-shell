@@ -1,6 +1,7 @@
 #pragma once
 #include "store.h"
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace wook {
@@ -20,11 +21,14 @@ struct Profile {
     std::wstring name, host, user, protocol = L"ssh", keyFile, group;
     int port = 22;
     int fontSize = 11;
+    bool passwordSaved = false;
 };
+enum class PasswordAction { keep, replace, forget };
 void applyTheme(WsStore *store, int fontSize = 11);
 void initializeDefaults();
 std::vector<Profile> loadProfiles();
-void saveProfile(const Profile &profile, const std::wstring &originalName = L"");
+void saveProfile(const Profile &profile, const std::wstring &originalName = L"",
+                 PasswordAction passwordAction = PasswordAction::keep, std::wstring_view password = {});
 void deleteProfile(const std::wstring &name);
 void validateProfile(const Profile &profile);
 int defaultPort(const std::wstring &protocol);

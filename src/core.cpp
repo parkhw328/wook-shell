@@ -1,4 +1,5 @@
 #include "core.hpp"
+#include "credentials.hpp"
 #include <algorithm>
 #include <cwctype>
 #include <memory>
@@ -156,6 +157,7 @@ std::vector<Profile> loadProfiles() {
             if (p.protocol == L"serial") p.host = read("SerialLine");
             try { p.port = std::stoi(read(p.protocol == L"serial" ? "SerialSpeed" : "PortNumber", "22")); } catch (...) { p.port = defaultPort(p.protocol); }
             try { p.fontSize = std::stoi(read("FontHeight", "11")); } catch (...) { p.fontSize = 11; }
+            p.passwordSaved = hasSavedPassword(s.get(), p);
             if (!p.host.empty()) profiles.push_back(std::move(p));
         }
     } catch (...) { wsFreeList(names, count); throw; }
@@ -163,7 +165,7 @@ std::vector<Profile> loadProfiles() {
     std::sort(profiles.begin(), profiles.end(), [](const auto &a, const auto &b) { return _wcsicmp(a.name.c_str(), b.name.c_str()) < 0; });
     return profiles;
 }
-void saveProfile(const Profile &p, const std::wstring &originalName) {
+void saveProfile(const Profile &p, const std::wstring &originalName, PasswordAction passwordAction, std::wstring_view password) {
     validateProfile(p);
     auto s = profileStore(p.name, true);
     bool rename = !originalName.empty() && originalName != p.name;
@@ -173,6 +175,7 @@ void saveProfile(const Profile &p, const std::wstring &originalName) {
         for (auto pair = old->pairs; pair; pair = pair->next) wsSet(s.get(), pair->key, pair->value);
     }
     if (!s->exists && !rename) applyTheme(s.get(), p.fontSize);
+    updateSavedPassword(s.get(), p, passwordAction, password);
     auto set = [&](const char *key, const std::wstring &value) { auto text = utf8(value); wsSet(s.get(), key, text.c_str()); };
     set("HostName", p.protocol == L"serial" ? L"" : p.host); set("UserName", p.user); set("Protocol", p.protocol);
     set("PublicKeyFile", p.keyFile); set("WookGroup", p.group);

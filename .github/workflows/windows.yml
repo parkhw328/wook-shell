@@ -43,6 +43,8 @@ jobs:
           path: |
             build/ssh-test-*/standalone/ui-*.bmp
             build/ssh-test-*/standalone/ui-smoke-result.json
+            build/ssh-test-*/standalone/ui-smoke-progress.json
             build/ssh-test-*/standalone/settings-*.json
+            build/ssh-test-*/authentication.json
             build/ssh-test-*/result.json
           if-no-files-found: ignore

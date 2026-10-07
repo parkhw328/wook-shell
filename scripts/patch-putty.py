@@ -32,7 +32,9 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
     wookIndependentConf(wgs->conf);
     if (wookParent) conf_set_bool(wgs->conf, CONF_warn_on_close, false);""")
     window = replace(window, "static void start_backend(WinGuiSeat *wgs)\n{",
-                     "static void wookIndependentConf(Conf *conf);\n\nstatic void start_backend(WinGuiSeat *wgs)\n{\n    wookIndependentConf(wgs->conf);")
+                     "static void wookIndependentConf(Conf *conf);\nstatic void wookResetPassword(void);\n\nstatic void start_backend(WinGuiSeat *wgs)\n{\n    wookResetPassword();\n    wookIndependentConf(wgs->conf);")
+    window = replace(window, "    spr = cmdline_get_passwd_input(p, &wgs->cmdline_get_passwd_state, true);",
+                     "    if (wookSavedPassword(wgs->conf, p)) return SPR_OK;\n    spr = cmdline_get_passwd_input(p, &wgs->cmdline_get_passwd_state, true);")
     window = replace(window, "            conf_cache_data(wgs);",
                      "            wookIndependentConf(wgs->conf);\n            conf_cache_data(wgs);")
     window = replace(window, "    switch (message) {\n      case WM_CREATE:",
@@ -59,6 +61,25 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
                 break;
             }''')
     (SOURCE / "windows/window.c").write_text(window, encoding="utf-8")
+
+    # Explicit, locally assigned authentication metadata: never infer password prompts from server text.
+    header = original("putty.h")
+    header = replace(header, "struct prompts_t {", '''struct prompts_t {
+    /* Borrowed until this prompt is freed; only populated for SSH password authentication. */
+    const char *wshell_password_host, *wshell_password_user;
+    int wshell_password_port;''')
+    (SOURCE / "putty.h").write_text(header, encoding="utf-8")
+    prompts = original("utils/prompts.c")
+    prompts = replace(prompts, "    prompts_t *p = snew(prompts_t);", '''    prompts_t *p = snew(prompts_t);
+    p->wshell_password_host = p->wshell_password_user = NULL;
+    p->wshell_password_port = 0;''')
+    (SOURCE / "utils/prompts.c").write_text(prompts, encoding="utf-8")
+    auth = original("ssh/userauth2-client.c")
+    auth = replace(auth, '                s->cur_prompt->name = dupstr("SSH password");', '''                s->cur_prompt->name = dupstr("SSH password");
+                s->cur_prompt->wshell_password_host = s->hostname;
+                s->cur_prompt->wshell_password_port = s->port;
+                s->cur_prompt->wshell_password_user = s->username;''')
+    (SOURCE / "ssh/userauth2-client.c").write_text(auth, encoding="utf-8")
 
     putty = original("windows/putty.c")
     putty = replace(putty, "static strbuf *demo_terminal_data = NULL;", "static strbuf *demo_terminal_data = NULL;\nstatic bool wookPreview = false;")
@@ -204,6 +225,7 @@ shutil.copyfile(ROOT / "patches/portable-storage.c", SOURCE / "windows/storage.c
 shutil.copyfile(ROOT / "patches/wook-window.h", SOURCE / "windows/wook-window.h")
 shutil.copyfile(ROOT / "patches/wshell-config.h", SOURCE / "windows/wshell-config.h")
 shutil.copyfile(ROOT / "src/settings_ui.h", SOURCE / "windows/wshell-settings-ui.h")
+shutil.copyfile(ROOT / "src/credentials.h", SOURCE / "windows/wshell-credentials.h")
 shutil.copyfile(ROOT / "src/store.c", SOURCE / "windows/wook-store.c")
 shutil.copyfile(ROOT / "src/store.h", SOURCE / "windows/wook-store.h")
 # Shared implementation includes this short local filename.

@@ -1,10 +1,12 @@
 #include "core.hpp"
 #include "backup.hpp"
+#include "credentials.hpp"
 #include <algorithm>
 #include <shellapi.h>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 
 static int checks = 0;
@@ -15,6 +17,7 @@ template<typename Fn> static void rejects(Fn fn, const char *name) {
     try { fn(); } catch (const std::exception &) { check(true, name); return; }
     check(false, name);
 }
+#include "password_test.inc"
 int wmain() {
     try {
         auto data = wook::executableDirectory() + L"\\test-data-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64());
@@ -127,6 +130,7 @@ int wmain() {
         free(path);
         check(wsPath(L"../outside", "x") == nullptr, "reject path traversal category");
         check(wsPath(L"sessions", std::string(101, 'x').c_str()) == nullptr, "bounded session filenames");
+        testPasswords(data + L"-passwords");
         std::wcout << L"PASS: " << checks << L" checks. Isolated data: " << data << L"\n";
         return 0;
     } catch (const std::exception &e) { std::cerr << "FAIL: " << e.what() << "\n"; return 1; }

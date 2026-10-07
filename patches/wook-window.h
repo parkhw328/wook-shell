@@ -1,6 +1,27 @@
-/* Host integration only: no terminal, authentication, or crypto changes. */
+/* Host integration and an optional saved-password provider. SSH crypto is unchanged. */
+#include "wshell-credentials.h"
 static HWND wookParent = NULL;
+static bool wookPasswordTried = false;
+static void wookResetPassword(void) { wookPasswordTried = false; }
 extern void wshellLoadFonts(void);
+static bool wookSavedPassword(Conf *conf, prompts_t *p) {
+    if (wookPasswordTried || p->data || !p->wshell_password_host || !p->wshell_password_user ||
+        p->n_prompts != 1 || p->prompts[0]->echo || p->from_server || !p->to_server ||
+        conf_get_int(conf, CONF_protocol) != PROT_SSH || !filename_is_null(conf_get_filename(conf, CONF_keyfile)) ||
+        stricmp(p->wshell_password_host, conf_get_str(conf, CONF_host)) ||
+        p->wshell_password_port != conf_get_int(conf, CONF_port) ||
+        strcmp(p->wshell_password_user, conf_get_str_ambi(conf, CONF_username, NULL))) return false;
+    const char *session = getenv("WOOK_PASSWORD_SESSION");
+    if (!session || !*session) return false;
+    char *password = NULL;
+    int status = wsLoadSavedPassword(session, p->wshell_password_host, p->wshell_password_port, p->wshell_password_user, &password);
+    if (status == 0) return false;
+    wookPasswordTried = true;
+    if (status < 0) return false; /* Corrupt or unavailable credentials fall back to the terminal prompt. */
+    prompt_set_result(p->prompts[0], password);
+    wsPasswordFree(password);
+    return true;
+}
 static void wookIndependentConf(Conf *conf) {
     conf_set_bool(conf, CONF_tryagent, false);
     conf_set_bool(conf, CONF_agentfwd, false);

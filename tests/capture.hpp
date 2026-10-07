@@ -4,6 +4,15 @@
 #include <fstream>
 #include <vector>
 
+inline std::wstring testPassword() {
+    wchar_t path[32768]{};
+    if (!GetEnvironmentVariableW(L"WOOK_TEST_PASSWORD_FILE", path, 32768)) throw std::runtime_error("Missing password fixture");
+    std::ifstream input(std::filesystem::path(path), std::ios::binary);
+    std::string text; std::getline(input, text);
+    if (text.empty()) throw std::runtime_error("Empty password fixture");
+    return wook::wide(text);
+}
+
 inline void captureTestWindow(HWND window, const wchar_t *name) {
     RECT r{}; GetClientRect(window, &r);
     HDC source = GetDC(window), target = CreateCompatibleDC(source);

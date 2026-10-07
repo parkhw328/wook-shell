@@ -48,7 +48,29 @@ void runUiSmoke(App &app) {
         for (auto &t : app.tabs) if (!IsWindow(t->terminal)) return false;
         return true;
     };
+    auto passwordConnection = [&](bool fallback) {
+        wchar_t port[32]{}, fingerprint[200]{};
+        GetEnvironmentVariableW(L"WOOK_TEST_PORT", port, 32);
+        GetEnvironmentVariableW(L"WOOK_TEST_FINGERPRINT", fingerprint, 200);
+        Profile p; p.name = fallback ? L"Password fallback" : L"Password SSH test";
+        p.host = L"127.0.0.1"; p.user = fallback ? L"password-fallback" : L"password"; p.port = _wtoi(port);
+        if (fallback) wook::saveProfile(p, L"", wook::PasswordAction::replace, L"deliberately-wrong-test-value");
+        else { require(editHost(app.hwnd, p, false), "Password host editor must save"); require(p.passwordSaved, "Password save option must persist"); }
+        wchar_t *path = wsPath(L"sessions", wook::utf8(p.name).c_str()); auto store = wsOpen(path, 1); free(path);
+        wsSet(store, "SSHManualHostKeys", wook::utf8(fingerprint).c_str());
+        require(wsSave(store), "Cannot pin password fixture host key"); wsClose(store);
+        if (!fallback) {
+            char *decoded = nullptr;
+            require(wsLoadSavedPassword(wook::utf8(p.name).c_str(), "127.0.0.1", p.port, "password", &decoded) == 1, "Saved UI password must decrypt");
+            require(std::string(decoded) == wook::utf8(testPassword()), "UI password must preserve the exact input"); wsPasswordFree(decoded);
+        }
+        app.refresh(); app.connect(p, true, false, false);
+    };
+    auto closeTestSession = [&](int index) { app.tabs[index]->closing = true; app.closeTab(index); };
+    auto received = [&](const wchar_t *marker) { return std::filesystem::exists(std::filesystem::path(app.directory) / marker); };
     if (phase < 0) return;
+    { std::ofstream progress(std::filesystem::path(app.directory) / L"ui-smoke-progress.json");
+      progress << "{\"phase\":" << phase << ",\"waits\":" << waits << ",\"tabs\":" << app.tabs.size() << "}\n"; }
     try {
         if (++waits > 80) throw std::runtime_error("Timed out waiting for hosted terminal windows.");
         if (phase == 0) {
@@ -127,6 +149,33 @@ void runUiSmoke(App &app) {
             PostMessageW(app.tabs[0]->terminal, WM_CLOSE, 0, 0);
             phase = 8; waits = 0;
         } else if (phase == 8 && app.tabs[0]->ended) {
+            app.closeTab(0); phase = -1; passwordConnection(false); phase = 11; waits = 0;
+        } else if (phase == 11 && ready() && waits > 10 && received(L"password-shell-1.ready")) {
+            captureTestWindow(app.hwnd, L"ui-password-ssh.bmp");
+            SendMessageW(app.tabs[0]->terminal, WM_CHAR, L'y', 1);
+            app.command(2); phase = 12; waits = 0;
+        } else if (phase == 12 && ready() && waits > 8 && received(L"password-shell-2.ready") && received(L"password-input-y.ready")) {
+            require(app.tabs.size() == 2, "Password session must duplicate");
+            PostMessageW(app.tabs[0]->terminal, WM_APP + 60, 0, 0);
+            closeTestSession(1); phase = 13; waits = 0;
+        } else if (phase == 13 && app.tabs.size() == 1 && ready() && waits > 10 && received(L"password-shell-3.ready")) {
+            SendMessageW(app.tabs[0]->terminal, WM_CHAR, L'z', 1);
+            phase = 18; waits = 0;
+        } else if (phase == 18 && received(L"password-input-z.ready")) {
+            closeTestSession(0); phase = 14; waits = 0;
+        } else if (phase == 14 && app.tabs.empty()) {
+            passwordConnection(true); phase = 15; waits = 0;
+        } else if (phase == 15 && ready() && waits > 10 && received(L"password-rejected.ready")) {
+            captureTestWindow(app.hwnd, L"ui-password-fallback.bmp");
+            auto fixture = testPassword();
+            for (wchar_t c : fixture) PostMessageW(app.tabs[0]->terminal, WM_CHAR, c, 1);
+            SecureZeroMemory(fixture.data(), fixture.size() * sizeof(wchar_t));
+            PostMessageW(app.tabs[0]->terminal, WM_CHAR, L'\r', 1);
+            phase = 16; waits = 0;
+        } else if (phase == 16 && ready() && waits > 10 && received(L"password-fallback-shell.ready")) {
+            captureTestWindow(app.hwnd, L"ui-password-retry.bmp");
+            closeTestSession(0); phase = 17; waits = 0;
+        } else if (phase == 17 && app.tabs.empty()) {
             std::ofstream result(std::filesystem::path(app.directory) / L"ui-smoke-result.json");
             result << "{\"passed\":true,\"checks\":" << checks << "}\n";
             result.close(); phase = -1; DestroyWindow(app.hwnd);

@@ -21,15 +21,24 @@ const passwordFile = path.join(artifact, 'test-password.txt');
 fs.writeFileSync(passwordFile, password + '\n');
 const key = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' });
 const fingerprint = 'SHA256:' + crypto.createHash('sha256').update(utils.parseKey(key).getPublicSSH()).digest('base64').replace(/=+$/, '');
-const events = { authenticated: [], publicKeySignatures: 0, shells: 0, terminalTypes: [], environment: [], resizes: 0, received: '' };
+const events = { authenticated: [], publicKeySignatures: 0, passwords: [], methods: [], shells: 0, terminalTypes: [], environment: [], resizes: 0, received: '' };
 const clients = new Set();
+let passwordShells = 0;
+const signal = name => fs.writeFileSync(path.join(standalone, name + '.ready'), 'ready\n');
 const server = new Server({ hostKeys: [key] }, client => {
+  let username = '';
   clients.add(client);
   client.on('error', () => {});
   client.on('close', () => clients.delete(client));
   client.on('authentication', ctx => {
+    username = ctx.username;
+    events.methods.push({ user: ctx.username, method: ctx.method });
     if ((ctx.username === 'none' || ctx.username === 'shell') && ctx.method === 'none') ctx.accept();
-    else if (ctx.username === 'password' && ctx.method === 'password' && ctx.password === password) ctx.accept();
+    else if ((ctx.username === 'password' || ctx.username === 'password-fallback') && ctx.method === 'password') {
+      const accepted = ctx.password === password;
+      events.passwords.push({ user: ctx.username, accepted });
+      if (accepted) ctx.accept(); else { ctx.reject(['password']); signal('password-rejected'); }
+    }
     else if (ctx.username === 'key' && ctx.method === 'publickey') {
       const allowed = utils.parseKey(fs.readFileSync(path.join(standalone, 'client-key.pub')));
       if (ctx.key.data.equals(allowed.getPublicSSH()) &&
@@ -58,7 +67,14 @@ const server = new Server({ hostKeys: [key] }, client => {
         stream.write('  PuTTY engine + wShell workspace\r\n  UTF-8: 한글 서버 / 日本語 / café\r\n\r\n');
         stream.write('  \x1b[31mANSI\x1b[0m   \x1b[38;5;172m256 colors\x1b[0m   \x1b[38;2;139;126;200m24-bit color\x1b[0m\r\n\r\n');
         stream.write('  developer@loopback  $ ');
-        stream.on('data', bytes => { events.received += bytes.toString(); stream.write(bytes); });
+        if (username === 'password') signal('password-shell-' + ++passwordShells);
+        if (username === 'password-fallback') signal('password-fallback-shell');
+        stream.on('data', bytes => {
+          events.received += bytes.toString(); stream.write(bytes);
+          if (username === 'password') for (const marker of ['y', 'z']) {
+            if (bytes.includes(marker)) signal('password-input-' + marker);
+          }
+        });
         stream.on('error', () => {});
       });
     });
@@ -111,7 +127,8 @@ function registryDigest() {
   const ui = path.join(standalone, 'wShell.exe');
   fs.copyFileSync(path.join(binaries, 'ui-smoke-tests.exe'), ui);
   assert.deepEqual(fs.readdirSync(standalone), ['wShell.exe'], 'Start from a folder containing only the executable');
-  result = await run(ui, [], '', { WOOK_TEST_PORT: String(port), WOOK_TEST_FINGERPRINT: fingerprint, WOOK_TEST_IMPORT_KEY: importKey });
+  result = await run(ui, [], '', { WOOK_TEST_PORT: String(port), WOOK_TEST_FINGERPRINT: fingerprint, WOOK_TEST_IMPORT_KEY: importKey, WOOK_TEST_PASSWORD_FILE: passwordFile });
+  assert.ok(fs.existsSync(path.join(standalone, 'ui-smoke-result.json')), 'UI exited without a report; code=' + result.code + '; progress=' + fs.readFileSync(path.join(standalone, 'ui-smoke-progress.json'), 'utf8'));
   const report = JSON.parse(fs.readFileSync(path.join(standalone, 'ui-smoke-result.json'), 'utf8'));
   assert.equal(fs.readdirSync(standalone).filter(n => n.toLowerCase().endsWith('.exe')).length, 1, 'Do not extract helper executables');
   assert.ok(!fs.existsSync(path.join(standalone, 'fonts')) && !fs.existsSync(path.join(standalone, 'assets')), 'Fonts and branding stay embedded');
@@ -127,7 +144,11 @@ function registryDigest() {
   assert.match(events.received, /x/, 'Keyboard data must cross the real SSH connection');
   assert.ok(events.resizes >= 1, 'PTY resize must reach the server');
   assert.equal(registryDigest(), before, 'GUI must leave existing PuTTY registry unchanged');
-  const summary = { passed: true, sshChecks: 13, ui: report, settings, events };
+  fs.writeFileSync(path.join(artifact, 'authentication.json'), JSON.stringify({ passwords: events.passwords, methods: events.methods, shells: events.shells }, null, 2));
+  assert.equal(events.passwords.filter(p => p.user === 'password' && p.accepted).length, 4, 'Encrypted password must authenticate the GUI, duplicate, and reconnect, plus the CLI baseline; attempts=' + JSON.stringify(events.passwords));
+  assert.deepEqual(events.passwords.filter(p => p.user === 'password-fallback').map(p => p.accepted), [false, true], 'Rejected saved password must be tried only once, then allow manual input');
+  assert.match(events.received, /y.*z/s, 'Password sessions must open usable shells before and after reconnect');
+  const summary = { passed: true, sshChecks: 16, ui: report, settings, events };
   fs.writeFileSync(path.join(artifact, 'result.json'), JSON.stringify(summary, null, 2));
   console.log(JSON.stringify(summary, null, 2));
   console.log('Evidence: ' + artifact);

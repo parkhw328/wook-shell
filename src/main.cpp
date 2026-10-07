@@ -4,6 +4,7 @@
 #include "resources.hpp"
 #include "key_dialog.hpp"
 #include "backup.hpp"
+#include "credentials.h"
 #include <windowsx.h>
 #include <shellapi.h>
 #include <commdlg.h>
@@ -245,6 +246,7 @@ void App::connect(const Profile &profile, bool saved, bool preview, bool advance
     SetEnvironmentVariableW(L"WOOK_PARENT_HWND", std::to_wstring((uintptr_t)hwnd).c_str());
     SetEnvironmentVariableW(L"WOOK_PARENT_PID", std::to_wstring(GetCurrentProcessId()).c_str());
     SetEnvironmentVariableW(L"WOOK_EDIT_SESSION", advanced && saved ? tab->storageName.c_str() : nullptr);
+    SetEnvironmentVariableW(L"WOOK_PASSWORD_SESSION", saved ? tab->storageName.c_str() : nullptr);
     STARTUPINFOW startup{sizeof(startup)}; PROCESS_INFORMATION process{};
     BOOL created = CreateProcessW(engine.c_str(), args.data(), nullptr, nullptr, FALSE, CREATE_SUSPENDED,
                                   nullptr, directory.c_str(), &startup, &process);
@@ -252,6 +254,7 @@ void App::connect(const Profile &profile, bool saved, bool preview, bool advance
     SetEnvironmentVariableW(L"WOOK_PARENT_HWND", nullptr);
     SetEnvironmentVariableW(L"WOOK_PARENT_PID", nullptr);
     SetEnvironmentVariableW(L"WOOK_EDIT_SESSION", nullptr);
+    SetEnvironmentVariableW(L"WOOK_PASSWORD_SESSION", nullptr);
     if (!created) throw std::runtime_error("Cannot start the terminal process (Windows error " + std::to_string(error) + ").");
     if (!AssignProcessToJobObject(job, process.hProcess)) {
         TerminateProcess(process.hProcess, 1); CloseHandle(process.hThread); CloseHandle(process.hProcess);
@@ -374,6 +377,7 @@ void App::toolsMenu() {
     else if (selected == 6 || selected == 7) {
         wchar_t path[32768] = L"wShell-settings.wshell";
         OPENFILENAMEW ofn{sizeof(ofn)}; ofn.hwndOwner = hwnd; ofn.lpstrFile = path; ofn.nMaxFile = 32768;
+        ofn.lpstrTitle = selected == 6 ? L"Export settings — passwords are excluded" : L"Import settings — passwords must be entered again";
         ofn.lpstrFilter = L"wShell settings (*.wshell)\0*.wshell\0\0"; ofn.lpstrDefExt = L"wshell";
         ofn.Flags = OFN_NOCHANGEDIR | OFN_PATHMUSTEXIST | (selected == 6 ? OFN_OVERWRITEPROMPT : OFN_FILEMUSTEXIST);
         if (selected == 6 ? GetSaveFileNameW(&ofn) : GetOpenFileNameW(&ofn)) {

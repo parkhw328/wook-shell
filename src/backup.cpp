@@ -1,5 +1,6 @@
 #include "backup.hpp"
 #include "core.hpp"
+#include "credentials.hpp"
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -51,7 +52,7 @@ std::wstring exportSettings(const std::wstring &path) {
                 Record record{utf8(category), names[i], {}}; if (!allowedName(record)) continue;
                 auto store = open(record, false);
                 for (auto pair = store->pairs; pair; pair = pair->next)
-                    if (std::string(pair->key) != "ProxyPassword") record.pairs.emplace(pair->key, pair->value);
+                    if (!isCredentialField(pair->key)) record.pairs.emplace(pair->key, pair->value);
                 records.push_back(std::move(record));
             }
         } catch (...) { wsFreeList(names, count); throw; }
@@ -71,7 +72,8 @@ std::wstring exportSettings(const std::wstring &path) {
     CloseHandle(file);
     if (ok) ok = MoveFileExW(temp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
     if (!ok) { DeleteFileW(temp.c_str()); throw std::runtime_error("Cannot finish writing the backup file."); }
-    return L"Settings exported.\n\nIncludes sessions and trusted host keys. Private-key files and passwords are not included.";
+    return L"Settings exported.\n\nIncludes sessions, trusted host keys and host authorities. Private-key files are not included.\n\n"
+        L"Passwords are not exported or imported, even in encrypted form. Enter them again for imported hosts.";
 }
 std::wstring importSettings(const std::wstring &path) {
     std::ifstream input(std::filesystem::path(path), std::ios::binary | std::ios::ate);
@@ -94,6 +96,7 @@ std::wstring importSettings(const std::wstring &path) {
                 throw std::runtime_error("Invalid, repeated or oversized settings field.");
         }
         r.pairs.erase("ProxyPassword");
+        r.pairs.erase(passwordField); r.pairs.erase(passwordScopeField);
         if (r.category == "sessions") {
             r.pairs["TryAgent"] = "0"; r.pairs["AgentFwd"] = "0"; r.pairs["ConnectionSharing"] = "0";
         }
@@ -117,7 +120,8 @@ std::wstring importSettings(const std::wstring &path) {
         }
     }
     return L"Imported " + std::to_wstring(added) + L" records. Kept " + std::to_wstring(kept) +
-        L" existing records or trust entries.\n\nExisting names and host keys were preserved. Review imported connection settings before connecting.";
+        L" existing records or trust entries.\n\nExisting names and host keys were preserved. Review imported connection settings before connecting.\n\n"
+        L"Passwords are not exported or imported, even in encrypted form. Enter them again for imported hosts.";
 }
 bool migrateLegacySettings(const std::wstring &source) {
     wchar_t *root = wsRoot();
