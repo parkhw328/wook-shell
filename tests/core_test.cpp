@@ -92,6 +92,7 @@ int wmain() {
         wook::initializeDefaults(); wook::importSettings(backup);
         saved = wook::loadProfiles();
         check(saved.size() == 1 && saved[0].name == profile.name && saved[0].port == 2222, "backup round trip");
+        check(saved[0].alias == profile.alias && saved[0].tabColor == profile.tabColor, "Backup preserves host display identity");
         auto edited = saved[0]; edited.port = 3333; wook::saveProfile(edited, edited.name);
         trustPath = wsPath(L"trust", "hostkeys"); writer = wsOpen(trustPath, 1);
         wsSet(writer, "rsa@22:test", "existing-host-key"); check(wsSave(writer), "seed existing trust"); wsClose(writer);

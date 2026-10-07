@@ -13,6 +13,16 @@
 
 ![wShell split terminals](assets/screenshots/split.png)
 
+## 호스트 별칭·색상과 공통 입력
+
+Windows·Mac의 호스트 편집 화면에서 **Alias**와 **Tab color**를 지정합니다. 별칭과 색상은 탭과 분할 영역을 구분하며 설정 백업에도 포함됩니다.
+
+분할 화면 하단에 명령을 입력하고 Enter 또는 **Send**를 누르면 현재 영역으로 보냅니다. **Send to all panes**를 체크하면 보이는 연결 완료 터미널 모두로 보냅니다. **Sync keyboard**는 터미널에서 타이핑·방향키·Backspace·Ctrl+C·붙여넣기를 동시에 전달하는 별도 옵션입니다.
+
+두 옵션은 기본 해제이며 분할 대상이 바뀌면 해제됩니다. 숨겨진 탭·SFTP·인증 중인 연결은 제외합니다. 자세한 범위는 [분할 입력 사용법](docs/split-view.md)을 확인하세요.
+
+![wShell aliases and broadcast controls](assets/screenshots/broadcast.png)
+
 ## iPad 개인용 미리보기
 
 iPad용 네이티브 SSH·SFTP 앱은 별도로 준비 중입니다. 무료 Apple 계정으로 설치할 수 있으며, unsigned IPA의 로컬 서명과 7일 주기 갱신이 필요합니다. [기능·빌드·설치 안내](docs/ipad.md)
@@ -242,7 +252,3 @@ PuTTY·SwiftTerm·Flexoki는 MIT, JetBrains Mono는 SIL OFL 1.1이며 정적으�
 재배포에 필요한 라이선스 원문은 EXE에 내장되어 있으며 `Tools → Open-source licenses`에서 읽을 수 있습니다.
 
 PuTTY 기반 엔진은 **공식 배포본이 아닌 수정 빌드**입니다. 이 프로젝트는 PuTTY, Termius, JetBrains와 제휴 관계가 없으며 Termius의 독점 폰트나 이미지를 포함하지 않습니다.
-
-## Host aliases and split input
-
-Windows and Mac support optional host aliases and tab colors, a split-view command bar with **Send to all panes**, and opt-in **Sync keyboard**. Both modes default off and target visible connected terminals only. See [usage and input scope](docs/split-view.md).
