@@ -13,6 +13,11 @@ inline int px(int value) { return MulDiv(value, (int)dpi, 96); }
 inline constexpr COLORREF bg = RGB(16, 15, 15), panel = RGB(28, 27, 26), raised = RGB(40, 39, 38);
 inline constexpr COLORREF line = RGB(52, 51, 49), text = RGB(206, 205, 195), muted = RGB(135, 133, 128);
 inline constexpr COLORREF accent = RGB(218, 112, 44), bright = RGB(255, 252, 240), red = RGB(209, 77, 65);
+inline COLORREF tint(COLORREF color, COLORREF background, int percent) {
+    return RGB((GetRValue(color)*percent+GetRValue(background)*(100-percent))/100,
+               (GetGValue(color)*percent+GetGValue(background)*(100-percent))/100,
+               (GetBValue(color)*percent+GetBValue(background)*(100-percent))/100);
+}
 enum class TextSize { caption = 9, body = 11, section = 13, title = 20 };
 inline std::map<std::tuple<TextSize, bool, UINT>, HFONT> fonts;
 // One typeface, two bundled weights, and a shared semantic scale in points.

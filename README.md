@@ -21,6 +21,8 @@ Windows 0.9.1에서는 실제 키보드 입력을 받는 영역의 커서와 주
 
 Windows·Mac의 호스트 편집 화면에서 **Alias**와 **Tab color**를 지정합니다. 별칭과 색상은 탭과 분할 영역을 구분하며 설정 백업에도 포함됩니다.
 
+Windows 0.13.0부터 지정한 색상을 **탭 상단 전체 색상 띠와 배경**에 표시합니다. 활성 탭은 주황색 외곽선·하단 표시와 굵은 이름으로 구분합니다.
+
 분할 화면 하단에 명령을 입력하고 Enter 또는 **Send**를 누르면 현재 영역으로 보냅니다. Windows는 **Targets**에서 대상을 선택하고 **Send to targets**를 체크하면 선택한 영역에 보냅니다. Mac은 기존 **Send to all panes**를 사용합니다. **Sync keyboard**는 터미널에서 타이핑·방향키·Backspace·Ctrl+C·붙여넣기를 동시에 전달하는 별도 옵션입니다.
 
 Windows에서 **Sync keyboard** 또는 `Ctrl+Shift+B`를 누르면 활성 터미널로 포커스가 돌아갑니다. 그 터미널 안에서 방향키·Home/End·Delete로 여러 창을 함께 편집합니다. 공통 명령창의 방향키는 보내기 전 초안만 편집하며, `Ctrl+Shift+K`로 명령창에 이동합니다. **Targets**에서 제외한 영역은 독립적으로 입력할 수 있습니다. 서로 다른 셸·편집기 내용의 커서 좌표 자체를 일치시키는 기능은 아닙니다.
@@ -37,7 +39,7 @@ iPad용 네이티브 SSH·SFTP 앱은 별도로 준비 중입니다. 무료 Appl
 
 ### Windows
 
-1. **`wShell.exe` 하나**를 원하는 폴더에 복사합니다. `wshell-0.12.0-windows-x64.zip`에도 이 파일만 들어 있습니다.
+1. **[`wShell.exe`](dist/0.13.0/windows-x64/wShell.exe) 하나**를 원하는 폴더에 복사합니다. [`wshell-0.13.0-windows-x64.zip`](dist/0.13.0/windows-x64/wshell-0.13.0-windows-x64.zip)에도 이 파일만 들어 있습니다. GitHub 파일 화면의 **Download raw file**로 받습니다.
 2. 실행합니다. 설치, 관리자 권한, WebView2, .NET, Node.js가 필요하지 않습니다.
 3. `New host`에서 접속 정보를 저장하거나, 빠른 연결 칸에 `user@hostname:22`를 입력합니다.
 4. 처음 접속하는 SSH 서버의 키 지문을 확인한 뒤 신뢰 여부를 선택합니다.
@@ -57,18 +59,18 @@ macOS의 `.app`은 Finder에서 하나의 앱으로 이동하는 번들이며, �
 
 ### 버전별 배포
 
-루트 `VERSION`에서 앱·패키지 버전을 관리합니다. 0.12.0은 Windows 배포이며 성공한 GitHub Actions의 `Desktop builds`에서 받을 수 있습니다. macOS는 기존 0.11.0, iPad는 기존 0.1.0 산출물을 유지합니다.
+루트 `VERSION`에서 앱·패키지 버전을 관리합니다. **0.13.0은 Windows 배포**입니다. 실행파일·ZIP·SHA-256·manifest를 Git의 `dist`에 버전별로 보관하며 [전체 다운로드 목록](dist/README.md)에서 이전 버전도 받을 수 있습니다. 새 배포 manifest에는 빌드 소스 커밋과 CI 실행 링크를 기록합니다. 성공한 GitHub Actions의 `Desktop builds`에서도 현재 버전을 받을 수 있습니다. macOS는 기존 0.11.0, iPad는 기존 unsigned 0.1.0 산출물을 보관하며 새로 빌드하지 않습니다. [0.13.0 변경 내역](docs/releases/0.13.0.md)
 
 ```text
 dist/
   README.md
-  0.12.0/
+  0.13.0/
     manifest.json
     windows-x64/
       wShell.exe
       wShell.exe.sha256
-      wshell-0.12.0-windows-x64.zip
-      wshell-0.12.0-windows-x64.zip.sha256
+      wshell-0.13.0-windows-x64.zip
+      wshell-0.13.0-windows-x64.zip.sha256
   0.11.0/
     macos-universal/
       wshell-0.11.0-macos-universal.zip
@@ -114,6 +116,10 @@ macOS의 첫 접속은 비밀번호 공급 전에 서버 키 지문을 별도 �
 ![Scrollable tabs at minimum window size](assets/screenshots/tabs-overflow.png)
 
 탭 우클릭에서 **Close other tabs**(이 탭만 남기기), **Close tabs to the right**(오른쪽 탭 닫기), **Close all tabs**(모두 닫기)를 사용할 수 있습니다. 전체 탭 메뉴에도 나머지·모두 닫기가 있습니다. 실행 중인 연결을 닫을 때에는 한 번만 확인하며, 취소하면 탭과 분할·명령 초안을 유지합니다. [0.12.0 변경 내역](docs/releases/0.12.0.md)
+
+닫기 확인의 기본 선택은 **Close**입니다. **Don't ask again when closing tabs**를 체크하고 닫으면 다음부터 개별·일괄 탭 닫기를 확인 없이 실행합니다. 취소하면 이 설정도 바뀌지 않습니다. **Tools → Application settings → Confirm before closing tabs**를 체크하고 **Save**하면 확인창을 복원합니다. 앱 전체를 종료할 때의 확인은 별도입니다.
+
+![Tab close confirmation](assets/screenshots/close-confirm.png)
 
 ### 실행 인자로 SSH 접속
 
@@ -276,6 +282,8 @@ node tests/ssh/launch-integration.cjs
 node tests/ssh/key-import-integration.cjs
 node tests/ssh/integration.cjs
 node tests/ssh/sftp-integration.cjs
+python -m unittest discover -s tests -p test_release.py
+python scripts/index-dist.py --catalog-only # 배포 해시·manifest 확인과 다운로드 목록 갱신
 git diff --check
 ```
 

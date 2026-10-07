@@ -23,3 +23,7 @@ VERSION text eol=lf
 *.png binary
 *.ico binary
 *.ttf binary
+*.exe binary
+*.zip binary
+*.ipa binary
+*.sha256 text eol=lf

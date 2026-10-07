@@ -159,6 +159,19 @@ void saveNavigationVisible(bool visible) {
     if (!store || !wsSet(store.get(), "NavigationVisible", visible ? "1" : "0") || !wsSave(store.get()))
         throw std::runtime_error("Cannot save workspace preferences. Check folder permissions and disk space.");
 }
+bool loadConfirmCloseTabs() {
+    auto path = wsPath(L"workspace", "layout");
+    StorePtr store(wsOpen(path, false), wsClose); free(path);
+    if (!store) throw std::runtime_error("Cannot read workspace preferences.");
+    auto value = wsGet(store.get(), "ConfirmCloseTabs");
+    return !value || std::string_view(value) != "0";
+}
+void saveConfirmCloseTabs(bool confirm) {
+    auto path = wsPath(L"workspace", "layout");
+    StorePtr store(wsOpen(path, true), wsClose); free(path);
+    if (!store || !wsSet(store.get(), "ConfirmCloseTabs", confirm ? "1" : "0") || !wsSave(store.get()))
+        throw std::runtime_error("Cannot save workspace preferences. Check folder permissions and disk space.");
+}
 std::vector<Profile> loadProfiles() {
     size_t count = 0;
     char **names = wsList(L"sessions", &count);

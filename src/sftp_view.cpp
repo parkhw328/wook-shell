@@ -25,6 +25,9 @@ LRESULT CALLBACK headerProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,UINT_PTR id,D
 struct Result { std::wstring path, message; std::vector<sftp::Entry> entries; bool ok{}; };
 struct Browser {
     HWND hwnd{}, owner{}, controls[17]{}; HANDLE job{};
+    HWND tooltips{};
+    int paneWidth{}, gutter = 88;
+    bool transferLabels = true;
     std::wstring session, local, remote, status = L"Connecting to SFTP…", current;
     bool saved{}, busy{}, connected{}, showHidden = false, remoteFocused = true;
     std::unique_ptr<sftp::Client> client;
@@ -46,6 +49,7 @@ struct Browser {
     void fill(bool remoteSide);
     void readLocal();
     void state();
+    void transferState();
     void start(const std::function<void(Result &)> &operation);
     void connect();
     void navigate(bool remoteSide, std::wstring path);
@@ -56,17 +60,25 @@ struct Browser {
 void Browser::layout() {
     RECT r; GetClientRect(hwnd,&r); int w = MulDiv(r.right,96,ui::dpi), h = MulDiv(r.bottom,96,ui::dpi);
     int x=16,y=14;
-    for (auto [id,width] : {std::pair{Upload,112}, {Download,130},{NewFolder,120},{Rename,92},{Delete,86},{Refresh,96},{Cancel,90},{ShowHidden,208}}) {
+    for (auto [id,width] : {std::pair{NewFolder,120},{Rename,92},{Delete,86},{Refresh,96},{Cancel,90},{ShowHidden,208}}) {
         if (x+width > w-16) {x=16;y+=44;}
         ui::place(controls[id],x,y,width,34); x+=width+8;
     }
-    int top = y+50, span = (w-48)/2;
+    gutter = w < 560 ? 68 : 88;
+    int top = y+50, span = paneWidth = std::max(80, (w-32-gutter)/2);
+    int listHeight = std::max(30,h-top-142), buttonWidth = gutter-20;
+    transferLabels = listHeight >= 136;
+    int buttonHeight = transferLabels ? 40 : std::min(32,(listHeight-6)/2);
+    int block = transferLabels ? 136 : buttonHeight*2+6;
+    int centerY = top+72+std::max(0,(listHeight-block)/2);
+    ui::place(controls[Upload],16+span+10,centerY,buttonWidth,buttonHeight);
+    ui::place(controls[Download],16+span+10,centerY+(transferLabels?76:buttonHeight+6),buttonWidth,buttonHeight);
     for (int side=0;side<2;++side) {
-        int left=16+side*(span+16), base=side ? RemoteUp : LocalUp;
+        int left=16+side*(span+gutter), base=side ? RemoteUp : LocalUp;
         ui::place(controls[base],left,top+30,40,30);
-        ui::place(controls[base+2],left+50,top+34,span-100,24);
+        ui::place(controls[base+2],left+46,top+34,std::max(1,span-92),24);
         ui::place(controls[base+1],left+span-42,top+30,42,30);
-        ui::place(controls[base+3],left,top+72,span,std::max(30,h-top-142));
+        ui::place(controls[base+3],left,top+72,span,listHeight);
         ListView_SetColumnWidth(controls[base+3],0,ui::px(std::max(100,span-202)));
         ListView_SetColumnWidth(controls[base+3],1,ui::px(85)); ListView_SetColumnWidth(controls[base+3],2,ui::px(108));
     }
@@ -115,7 +127,12 @@ void Browser::readLocal() {
 void Browser::state() {
     for(int id=1;id<=RemoteList;++id) EnableWindow(controls[id],id==Cancel?busy:!busy && ((id>=LocalUp&&id<=LocalList) || connected));
     EnableWindow(controls[ShowHidden],!busy);
+    transferState();
     InvalidateRect(hwnd,nullptr,TRUE);
+}
+void Browser::transferState() {
+    EnableWindow(controls[Upload], !busy && connected && ListView_GetSelectedCount(controls[LocalList]) > 0);
+    EnableWindow(controls[Download], !busy && connected && ListView_GetSelectedCount(controls[RemoteList]) > 0);
 }
 void Browser::start(const std::function<void(Result&)> &operation) {
     if(busy)return;
@@ -130,7 +147,7 @@ void Browser::start(const std::function<void(Result&)> &operation) {
 void Browser::connect() {
     stop(); busy=false; connected=false; status=L"Connecting to SFTP…";
     client=std::make_unique<sftp::Client>(owner,job,session,saved);
-    start([this](Result &r){r.path=client->initialize();r.entries=client->list(r.path);r.message=L"Connected · Select files, then Upload or Download. Double-click folders to browse.";});
+    start([this](Result &r){r.path=client->initialize();r.entries=client->list(r.path);r.message=L"Connected · Select local files and > to upload; select remote files and < to download.";});
 }
 void Browser::navigate(bool remoteSide,std::wstring path) {
     if(busy)return;
@@ -153,6 +170,7 @@ std::vector<sftp::Entry> Browser::selected(bool remoteSide) {
     return result;
 }
 void Browser::transfer(bool upload) {
+    if(busy || !connected)return;
     auto entries=selected(!upload); if(entries.empty()) {status=L"Select one or more files in the source pane first.";state();return;}
     std::unordered_set<std::wstring> approved;
     std::wstring conflicts;
@@ -226,6 +244,13 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
         case WM_CREATE: {
             const wchar_t *labels[]={L"",L"Upload →",L"← Download",L"New folder",L"Rename",L"Delete",L"Refresh",L"Cancel"};
             for(int i=1;i<=7;++i)b->controls[i]=ui::button(hwnd,labels[i],i);
+            b->tooltips=CreateWindowExW(WS_EX_TOPMOST,TOOLTIPS_CLASSW,nullptr,WS_POPUP|TTS_ALWAYSTIP|TTS_NOPREFIX,
+                CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,hwnd,nullptr,GetModuleHandleW(nullptr),nullptr);
+            for(int id : {Upload,Download}) {
+                TOOLINFOW tip{sizeof(tip)};tip.uFlags=TTF_IDISHWND|TTF_SUBCLASS;tip.hwnd=hwnd;tip.uId=(UINT_PTR)b->controls[id];
+                tip.lpszText=(wchar_t *)(id==Upload?L"Upload selected local files to the current remote folder (>)":L"Download selected remote files to the current local folder (<)");
+                SendMessageW(b->tooltips,TTM_ADDTOOLW,0,(LPARAM)&tip);
+            }
             b->controls[ShowHidden]=ui::checkbox(hwnd,L"Show hidden files",ShowHidden);
             SendMessageW(b->controls[ShowHidden],BM_SETCHECK,BST_UNCHECKED,0);
             for(int side=0;side<2;++side) {
@@ -255,6 +280,7 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
         case WM_NOTIFY: {
             auto h=(NMHDR *)lp;
             if(h->idFrom==LocalList||h->idFrom==RemoteList) {
+                if(h->code==LVN_ITEMCHANGED)b->transferState();
                 if(h->code==NM_CUSTOMDRAW){
                     auto draw=(NMLVCUSTOMDRAW *)lp;
                     if(draw->nmcd.dwDrawStage==CDDS_PREPAINT)return CDRF_NOTIFYITEMDRAW;
@@ -272,22 +298,32 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
                 if(h->code==LVN_KEYDOWN){auto key=(NMLVKEYDOWN *)lp;if(key->wVKey==VK_F5)b->action(Refresh);}
             } return 0;
         }
-        case WM_DRAWITEM:ui::drawButton((DRAWITEMSTRUCT *)lp,wp==Upload||wp==Download);return TRUE;
+        case WM_DRAWITEM: {
+            auto item=(DRAWITEMSTRUCT *)lp;
+            if(wp==Upload||wp==Download)ui::drawButton(item,!(item->itemState&ODS_DISABLED),ui::TextSize::title,wp==Upload?L">":L"<");
+            else ui::drawButton(item);
+            return TRUE;
+        }
         case WM_CTLCOLOREDIT:SetTextColor((HDC)wp,ui::text);SetBkColor((HDC)wp,ui::raised);SetDCBrushColor((HDC)wp,ui::raised);return (LRESULT)GetStockObject(DC_BRUSH);
         case WM_ERASEBKGND:return 1;
         case WM_PAINT: {
             PAINTSTRUCT ps{};auto dc=BeginPaint(hwnd,&ps);RECT r;GetClientRect(hwnd,&r);ui::fill(dc,r,ui::panel);
-            int w=MulDiv(r.right,96,ui::dpi),h=MulDiv(r.bottom,96,ui::dpi),span=(w-48)/2;
+            int w=MulDiv(r.right,96,ui::dpi),h=MulDiv(r.bottom,96,ui::dpi),span=b->paneWidth;
             RECT path{};GetWindowRect(b->controls[LocalUp],&path);MapWindowPoints(nullptr,hwnd,(POINT *)&path,2);int top=MulDiv(path.top,96,ui::dpi)-30;
             for(int side=0;side<2;++side){auto title=std::wstring(side?L"REMOTE":L"LOCAL")+L"  ·  "+std::to_wstring(ListView_GetItemCount(b->controls[side?RemoteList:LocalList]))+L" items";
-                ui::label(dc,title,ui::rect(16+side*(span+16),top,span,24),ui::TextSize::caption,b->remoteFocused==(side!=0)?ui::accent:ui::muted,true);}
+                ui::label(dc,title,ui::rect(16+side*(span+b->gutter),top,span,24),ui::TextSize::caption,b->remoteFocused==(side!=0)?ui::accent:ui::muted,true);}
+            if(b->transferLabels)for(int id : {Upload,Download}) {
+                RECT button{};GetWindowRect(b->controls[id],&button);MapWindowPoints(nullptr,hwnd,(POINT *)&button,2);
+                RECT label{button.left-ui::px(8),button.bottom+ui::px(3),button.right+ui::px(8),button.bottom+ui::px(23)};
+                ui::label(dc,id==Upload?L"Upload":L"Download",label,ui::TextSize::caption,ui::muted,false,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
+            }
             auto message=b->status;
             if(b->busy){std::lock_guard lock(b->progressLock);if(!b->current.empty())message=b->current+L" · "+std::to_wstring(b->done.load())+L" / "+std::to_wstring(b->total.load())+L" bytes";}
             ui::label(dc,message,ui::rect(16,h-62,w-32,52),ui::TextSize::caption,ui::text,false,DT_LEFT|DT_WORDBREAK);
             if(b->busy&&b->total){int length=(int)((w-32)*std::min(1.0,(double)b->done/b->total));ui::fill(dc,ui::rect(16,h-68,length,3),ui::accent);}
             EndPaint(hwnd,&ps);return 0;
         }
-        case WM_DESTROY:KillTimer(hwnd,1);b->stop();return 0;
+        case WM_DESTROY:KillTimer(hwnd,1);if(b->tooltips)DestroyWindow(b->tooltips);b->stop();return 0;
         case WM_NCDESTROY:SetWindowLongPtrW(hwnd,GWLP_USERDATA,0);delete b;return DefWindowProcW(hwnd,msg,wp,lp);
         }
     }catch(const std::exception&e){b->status=wook::wide(e.what());b->state();ui::error(b->owner,e);}

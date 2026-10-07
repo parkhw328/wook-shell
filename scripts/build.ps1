@@ -28,5 +28,7 @@ try {
         if ($LASTEXITCODE) { throw 'Packaging failed' }
         python scripts/verify-package.py
         if ($LASTEXITCODE) { throw 'Portable package verification failed' }
+        python scripts/index-dist.py
+        if ($LASTEXITCODE) { throw 'Release manifest verification failed' }
     }
 } finally { Pop-Location }

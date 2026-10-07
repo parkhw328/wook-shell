@@ -4,10 +4,10 @@
 
 ## 파일 이동
 
-![macOS SFTP 전용 탭](../assets/screenshots/mac-sftp.png)
+![Windows SFTP 중앙 전송 버튼](../assets/screenshots/sftp.png)
 
 1. 왼쪽 **LOCAL**, 오른쪽 **REMOTE** 목록에서 폴더를 더블 클릭하거나 경로를 입력하고 **Go**를 누릅니다. **↑**는 상위 폴더로 이동합니다.
-2. 로컬 파일을 선택하고 **Upload →**, 원격 파일을 선택하고 **← Download**를 누릅니다. Ctrl/Command 또는 Shift로 여러 파일을 선택할 수 있습니다.
+2. Windows에서는 로컬 파일을 선택하고 **두 목록 사이의 `>` (Upload)**, 원격 파일을 선택하고 **`<` (Download)**를 누릅니다. 선택한 쪽의 전송 버튼이 주황색으로 켜지고 전송 중에는 양쪽 버튼이 비활성화됩니다. macOS는 기존 **Upload → / ← Download** 버튼을 사용합니다. Ctrl/Command 또는 Shift로 여러 파일을 선택할 수 있습니다.
 3. 같은 이름의 파일이 있으면 대상 경로와 파일 목록을 확인하고 교체를 선택합니다. 진행 상태에 현재 파일, 순서, 바이트 수가 표시됩니다.
 4. **Cancel**은 해당 SFTP 연결을 종료합니다. 다른 터미널 탭은 유지되며, **Reconnect**로 파일 탐색을 다시 시작할 수 있습니다.
 

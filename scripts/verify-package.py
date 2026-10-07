@@ -20,6 +20,9 @@ with zipfile.ZipFile(archive) as bundle:
     assert not any(set(name.lower().split("/")) & {"data", "node_modules", "build", ".tools"} for name in entries), "User/development data leaked into ZIP"
     assert not any(name.lower().endswith((".ppk", ".pem", ".key", ".ws", ".lock")) for name in entries), "Credential/session material leaked into ZIP"
     assert bundle.testzip() is None, "ZIP CRC error"
+    binary = folder / "wShell.exe"
+    assert bundle.read("wShell.exe") == binary.read_bytes(), "ZIP and standalone executable differ"
+    assert hashlib.sha256(binary.read_bytes()).hexdigest() == binary.with_suffix(".exe.sha256").read_text().split()[0], "EXE checksum mismatch"
 
 # Ensure every shipped executable is x64 and imports only Windows system DLLs.
 allowed = {"advapi32.dll", "comctl32.dll", "comdlg32.dll", "crypt32.dll", "dwmapi.dll", "gdi32.dll", "gdiplus.dll",

@@ -1,7 +1,23 @@
 .tools/
 .deps/
 build/
-dist/
+# Keep reviewed release artifacts, excluding arbitrary files and runtime data.
+/dist/**
+!/dist/README.md
+!/dist/*/
+!/dist/*/manifest.json
+!/dist/*/windows-x64/
+!/dist/*/windows-x64/wShell.exe
+!/dist/*/windows-x64/wShell.exe.sha256
+!/dist/*/windows-x64/wshell-*-windows-x64.zip
+!/dist/*/windows-x64/wshell-*-windows-x64.zip.sha256
+!/dist/*/macos-universal/
+!/dist/*/macos-universal/wshell-*-macos-universal.zip
+!/dist/*/macos-universal/wshell-*-macos-universal.zip.sha256
+!/dist/ipad/*/
+!/dist/ipad/*/manifest.json
+!/dist/ipad/*/wshell-ipad-*-unsigned.ipa
+!/dist/ipad/*/wshell-ipad-*-unsigned.ipa.sha256
 data/
 # Local SSH keys supplied for connection troubleshooting; never distribute.
 /resources/

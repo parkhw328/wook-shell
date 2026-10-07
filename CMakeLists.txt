@@ -17,7 +17,7 @@ target_compile_options(wook-core PRIVATE -Wall -Wextra)
 add_library(wsftp STATIC mac/Sources/CSFTP/wsftp.c)
 target_include_directories(wsftp PUBLIC mac/Sources/CSFTP/include)
 target_compile_options(wsftp PRIVATE -Wall -Wextra)
-set(workspace_sources src/main.cpp src/dialog.cpp src/resources.cpp src/key_dialog.cpp src/key_import.cpp src/settings_ui.cpp src/ime.c src/prompt.cpp src/sftp.cpp src/sftp_view.cpp assets/app.rc
+set(workspace_sources src/main.cpp src/dialog.cpp src/resources.cpp src/key_dialog.cpp src/key_import.cpp src/workspace_dialog.cpp src/settings_ui.cpp src/ime.c src/prompt.cpp src/sftp.cpp src/sftp_view.cpp assets/app.rc
     $<TARGET_OBJECTS:wshell-terminal> $<TARGET_OBJECTS:wshell-terminal-be-list>)
 # windres does not emit dependencies for binary RCDATA and nested resource scripts.
 set_property(SOURCE assets/app.rc APPEND PROPERTY OBJECT_DEPENDS

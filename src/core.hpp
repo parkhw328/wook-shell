@@ -30,6 +30,8 @@ void applyTheme(WsStore *store, int fontSize = 9);
 void initializeDefaults();
 bool loadNavigationVisible();
 void saveNavigationVisible(bool visible);
+bool loadConfirmCloseTabs();
+void saveConfirmCloseTabs(bool confirm);
 std::vector<Profile> loadProfiles();
 void saveProfile(const Profile &profile, const std::wstring &originalName = L"",
                  PasswordAction passwordAction = PasswordAction::keep, std::wstring_view password = {});

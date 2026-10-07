@@ -81,6 +81,15 @@ int wmain() {
         check(!wook::loadNavigationVisible(), "Collapsed navigation survives reloading preferences");
         wook::saveNavigationVisible(true);
         check(wook::loadNavigationVisible(), "Expanded navigation survives reloading preferences");
+        check(wook::loadConfirmCloseTabs(), "Tab closing asks by default");
+        wook::saveConfirmCloseTabs(false);
+        check(!wook::loadConfirmCloseTabs(), "Do not ask again persists across preference reloads");
+        check(wook::loadNavigationVisible(), "Saving close behavior must preserve navigation preferences");
+        wook::saveNavigationVisible(false);
+        check(!wook::loadConfirmCloseTabs(), "Changing navigation must preserve close behavior");
+        wook::saveConfirmCloseTabs(true);
+        check(wook::loadConfirmCloseTabs() && !wook::loadNavigationVisible(), "Close confirmations can be restored independently");
+        wook::saveNavigationVisible(true);
         auto defaultPath = wsPath(L"sessions", "Default Settings");
         auto defaults = wsOpen(defaultPath, 0); free(defaultPath);
         check(defaults && std::string(wsGet(defaults, "FontHeight")) == "9", "New installation uses 9pt terminals");

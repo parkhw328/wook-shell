@@ -265,6 +265,20 @@ void runUiSmoke(App &app) {
         } else if (phase == 28 && ready() && SendMessageW(app.tabs[0]->terminal,WM_APP+121,0,0)==1) {
             require(app.tabs[0]->files && !app.tabs[0]->process,"SFTP must be an in-process tab with an independently supervised transport");
             auto view=app.tabs[0]->terminal;
+            RECT original{};GetWindowRect(app.hwnd,&original);
+            for(int width : {980,1400}) {
+                SetWindowPos(app.hwnd,nullptr,0,0,ui::px(width),ui::px(740),SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
+                RECT left{},right{},up{},down{},overlap{};
+                GetWindowRect(GetDlgItem(view,11),&left);GetWindowRect(GetDlgItem(view,15),&right);
+                GetWindowRect(GetDlgItem(view,1),&up);GetWindowRect(GetDlgItem(view,2),&down);
+                require(left.right < up.left && left.right < down.left && up.right < right.left && down.right < right.left,
+                        "Upload and download arrows must be between the local and remote file lists at both window sizes");
+                require(up.top >= left.top && down.bottom <= left.bottom && !IntersectRect(&overlap,&up,&down),
+                        "Transfer arrows must fit the list height without overlapping");
+            }
+            SetWindowPos(app.hwnd,nullptr,0,0,original.right-original.left,original.bottom-original.top,SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
+            require(!IsWindowEnabled(GetDlgItem(view,1)) && !IsWindowEnabled(GetDlgItem(view,2)),
+                    "Transfer arrows must be disabled until source files are selected");
             SetWindowTextW(GetDlgItem(view,10),(app.directory+L"\\sftp-local").c_str());SendMessageW(view,WM_COMMAND,9,0);
             require(ListView_GetItemCount(GetDlgItem(view,11))==2,"SFTP must list the local fixture");
             require(SendMessageW(GetDlgItem(view,16),BM_GETCHECK,0,0)==BST_UNCHECKED,"Hidden files must be off by default");
@@ -274,7 +288,11 @@ void runUiSmoke(App &app) {
             require(ListView_GetItemCount(GetDlgItem(view,15))==4,"Show hidden must reveal remote dotfiles and dotfolders");
             SendMessageW(GetDlgItem(view,16),BM_CLICK,0,0);
             require(ListView_GetItemCount(GetDlgItem(view,11))==2 && ListView_GetItemCount(GetDlgItem(view,15))==2,"Unchecking must filter both panes immediately");
-            ListView_SetItemState(GetDlgItem(view,11),-1,LVIS_SELECTED,LVIS_SELECTED);SendMessageW(view,WM_COMMAND,1,0);
+            ListView_SetItemState(GetDlgItem(view,11),-1,LVIS_SELECTED,LVIS_SELECTED);
+            require(IsWindowEnabled(GetDlgItem(view,1)) && !IsWindowEnabled(GetDlgItem(view,2)), "Selecting local files must enable only upload");
+            captureTestWindow(app.hwnd,L"ui-sftp-upload.bmp");
+            SendMessageW(GetDlgItem(view,1),BM_CLICK,0,0);
+            require(!IsWindowEnabled(GetDlgItem(view,1)) && !IsWindowEnabled(GetDlgItem(view,2)), "Both arrows must be disabled during a transfer");
             phase=29;waits=0;
         } else if (phase == 29 && ready() && SendMessageW(app.tabs[0]->terminal,WM_APP+121,0,0)==1) {
             auto view=app.tabs[0]->terminal;
@@ -283,7 +301,10 @@ void runUiSmoke(App &app) {
             SetWindowTextW(GetDlgItem(view,10),(app.directory+L"\\sftp-download").c_str());SendMessageW(view,WM_COMMAND,9,0);
             LVFINDINFOW find{};find.flags=LVFI_STRING;find.psz=L"   upload-한글.txt";
             int index=ListView_FindItem(GetDlgItem(view,15),-1,&find);require(index>=0,"Uploaded UTF-8 filename must be visible");
-            ListView_SetItemState(GetDlgItem(view,15),index,LVIS_SELECTED,LVIS_SELECTED);SendMessageW(view,WM_COMMAND,2,0);
+            ListView_SetItemState(GetDlgItem(view,15),index,LVIS_SELECTED,LVIS_SELECTED);
+            require(IsWindowEnabled(GetDlgItem(view,2)) && !IsWindowEnabled(GetDlgItem(view,1)), "Selecting remote files must enable only download");
+            captureTestWindow(app.hwnd,L"ui-sftp-download.bmp");
+            SendMessageW(GetDlgItem(view,2),BM_CLICK,0,0);
             phase=30;waits=0;
         } else if (phase == 30 && ready() && SendMessageW(app.tabs[0]->terminal,WM_APP+121,0,0)==1) {
             require(std::filesystem::exists(std::filesystem::path(app.directory)/L"sftp-download"/L"upload-한글.txt"),"SFTP download must finish on disk");

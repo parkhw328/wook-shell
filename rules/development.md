@@ -21,7 +21,7 @@
 - Windows 키 가져오기·등록·재사용은 [개인키 등록 규칙](keys.md)을 따른다.
 - 텍스트 크기는 `src/ui.hpp`의 `TextSize`를 사용하고 굵기는 실제 내장 Regular/Bold만 사용한다.
 - 탐색창·상단 메뉴·검색·폰트를 변경할 때는 [작업 공간 UI 규칙](workspace-ui.md)을 적용한다. 폰트 캐시 생성 전부터 `WOOK_DATA_DIR`를 격리하고, 자식 터미널도 같은 캐시를 사용한다.
-- 외부 소스·도구는 버전과 SHA-256을 고정하고 검증한다. 빌드 산출물과 개발 도구는 커밋하지 않는다.
+- 외부 소스·도구는 버전과 SHA-256을 고정하고 검증한다. 개발 도구·중간 빌드·캐시는 커밋하지 않는다. 2026-10-08 사용자 요청에 따라 검증한 버전별 `dist` 배포 산출물은 Git에 함께 보관한다.
 - 사용자 입력은 검증하고, 프로세스 인수는 Windows 규칙에 따라 인용한다. 셸을 경유해 실행하지 않는다.
 - 영속 설정은 파일 잠금과 원자적 교체로 보호한다. 저장 실패를 사용자에게 알린다.
 - 연결 수명주기, 탭 모델, 주소 파싱, 설정 저장·이전·백업과 설정 UI의 적용·취소를 테스트한다.
@@ -38,6 +38,10 @@
 - 개인키 등록: `node tests/ssh/key-import-integration.cjs`. 외부 형식 가져오기, 등록 파일 보호와 배포 EXE의 실제 키 인증·재사용을 검증한다.
 - 테스트는 임시 루프백 SSH 서버와 `build/` 아래 격리 데이터만 사용한다. 테스트 창은 자동 종료한다.
 - 데스크톱 버전은 루트 `VERSION`에서 관리한다. 현재 배포 대상은 `dist/<version>/windows-x64/`이며 `scripts/index-dist.py`로 해시 manifest를 생성한다. `dist/<version>/macos-universal/`은 macOS 빌드를 명시적으로 요청받았을 때만 갱신한다.
+- 새 Windows 배포는 소스 커밋을 푸시하고 CI 검증이 통과한 EXE·ZIP·SHA-256·manifest를 내려받아 별도 배포 커밋으로 푸시한다. manifest의 `sourceCommit`과 `workflow`는 실제 빌드를 가리키며, 내려받은 뒤에는 `python scripts/index-dist.py --catalog-only`로 검증·목록만 갱신한다.
+- 이미 공개한 버전의 파일은 덮어쓰지 않는다. 수정 배포에는 `VERSION`을 올린다. `dist/README.md`에서 버전별 다운로드를 제공하며, 배포 파일만 변경한 푸시는 빌드를 다시 실행하지 않는다. CI는 현재 `VERSION` 폴더만 산출물로 업로드한다.
+- `dist`에는 허용한 배포 파일만 추가한다. `data`, 실제 암호·개인키, 로그·캐시를 포함하지 않는다. Windows ZIP의 유일한 파일은 함께 배포하는 EXE와 바이트가 같아야 한다. 기존 macOS·iPad 산출물 보관은 해당 플랫폼의 새 빌드나 최신 기능 검증을 뜻하지 않는다.
+- 배포 검증 스크립트의 손상 해시·다른 EXE·키 파일 차단과 manifest 보존은 `python -m unittest discover -s tests -p test_release.py`로 검사한다.
 - UI 변경은 생성된 `build/ssh-test-*/standalone/ui-*.bmp` 화면을 확인한다. 암호·실제 서버 정보를 스크린샷에 포함하지 않는다.
 - 통합 테스트는 EXE만 복사한 빈 폴더에서 시작하고, 생성한 키의 실제 SSH 서명을 별도 서버 구현으로 검증한다.
 - 아이콘 원본은 `assets/branding/wshell-icon.png`, ICO 재생성은 `scripts/make-icon.ps1`이다.

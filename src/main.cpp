@@ -4,6 +4,7 @@
 #include "resources.hpp"
 #include "key_dialog.hpp"
 #include "key_import.hpp"
+#include "workspace_dialog.hpp"
 #include "backup.hpp"
 #include "credentials.h"
 #include "sftp_view.hpp"
@@ -470,13 +471,15 @@ void App::paint(HDC dc) {
     int x = sidebar + 112 + (strip.overflow ? 36 : 0), tabWidth = strip.width;
     for (int i = tabScroll; i < (int)tabs.size() && i < tabScroll + strip.capacity; ++i) {
         RECT r = ui::rect(x, appBarHeight + 9, tabWidth - 5, 35);
-        if (i == active) {
-            ui::round(dc, r, ui::raised, ui::line, 8);
-            ui::fill(dc, ui::rect(x + 14, appBarHeight + 43, tabWidth - 33, 2), ui::accent);
-        }
         auto &tab = *tabs[i];
-        ui::fill(dc, ui::rect(x+5, appBarHeight + 16, 3, 21), hostColor(tab.profile));
-        ui::label(dc, tab.preview ? L"Color preview" : (tab.files ? L"SFTP · " : L"") + tab.profile.displayName(), ui::rect(x + 13, appBarHeight + 9, tabWidth - 49, 35), ui::TextSize::caption, i == active ? ui::bright : ui::muted);
+        bool selected = i == active, colored = !tab.profile.tabColor.empty();
+        auto color = hostColor(tab.profile);
+        ui::round(dc, r, colored ? ui::tint(color, ui::bg, selected ? 38 : 24) : selected ? ui::raised : ui::panel,
+                  selected ? ui::accent : colored ? ui::tint(color, ui::line, 45) : ui::line, 8);
+        if (colored) ui::fill(dc, ui::rect(x+5, appBarHeight+11, tabWidth-15, 5), color);
+        else ui::fill(dc, ui::rect(x+5, appBarHeight+19, 3, 17), color);
+        if (selected) ui::fill(dc, ui::rect(x+10, appBarHeight+41, tabWidth-25, 3), ui::accent);
+        ui::label(dc, tab.preview ? L"Color preview" : (tab.files ? L"SFTP · " : L"") + tab.profile.displayName(), ui::rect(x + 13, appBarHeight + 15, tabWidth - 49, 25), ui::TextSize::caption, selected ? ui::bright : ui::text, selected);
         RECT cross = ui::rect(x + tabWidth - 33, appBarHeight + 14, 24, 25);
         ui::label(dc, L"×", cross, ui::TextSize::section, ui::muted, false, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         hits.push_back({r, i, false}); hits.push_back({cross, i, true}); x += tabWidth;
@@ -650,11 +653,7 @@ void App::closeTabs(CloseTabs scope, uint64_t anchor) {
         if (!tab.ended && !tab.preview && !tab.closing) ++live;
     }
     if (targets.empty()) return;
-    if (live) {
-        auto message = L"Close " + std::to_wstring(targets.size()) + L" tabs?\n\n" + std::to_wstring(live) +
-            L" active session(s) will be disconnected. Commands or file transfers may still be running.";
-        if (MessageBoxW(hwnd, message.c_str(), L"Close tabs", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) != IDYES) return;
-    }
+    if (!confirmTabClose(hwnd, targets.size(), live)) return;
     // Timer messages keep running in native menus and confirmation dialogs.
     // Only close the original identities, even if their indexes have changed.
     if (scope != CloseTabs::all && tabIndex(anchor) < 0) return;
@@ -665,7 +664,7 @@ void App::closeTab(int index, bool confirmed) {
     if (index < 0 || index >= (int)tabs.size()) return;
     auto id = tabs[index]->id;
     if (!confirmed && !tabs[index]->ended && !tabs[index]->preview && !tabs[index]->closing &&
-        MessageBoxW(hwnd, L"Close this session? Commands may still be running.", L"Close tab", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) != IDYES) return;
+        !confirmTabClose(hwnd, 1, 1)) return;
     index = tabIndex(id);
     if (index < 0) return;
     auto &tab = *tabs[index];
@@ -808,6 +807,7 @@ void App::toolsMenu() {
     AppendMenuW(menu, MF_STRING, 11, L"PowerShell");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING, 1, L"SSH key manager…");
+    AppendMenuW(menu, MF_STRING, 12, L"Application settings…");
     AppendMenuW(menu, MF_STRING, 6, L"Export settings…");
     AppendMenuW(menu, MF_STRING, 7, L"Import settings…");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
@@ -819,6 +819,7 @@ void App::toolsMenu() {
     DestroyMenu(menu);
     if (selected == 10 || selected == 11) localShell(selected == 11);
     else if (selected == 1) showKeyManager(hwnd);
+    else if (selected == 12) showApplicationSettings(hwnd);
     else if (selected == 4) wook::showLicenses(hwnd);
     else if (selected == 6 || selected == 7) {
         wchar_t path[32768] = L"wShell-settings.wshell";

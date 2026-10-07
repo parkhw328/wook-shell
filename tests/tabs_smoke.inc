@@ -1,7 +1,7 @@
 struct CloseTabsTest {
     App *app{};
     int answer{}, prompts{};
-    bool mutate{};
+    bool mutate{}, remember{}, settings{}, defaultFocused = true, initialChecked{};
     uint64_t newTab{};
 };
 CloseTabsTest *closeTabsTest = nullptr;
@@ -10,7 +10,11 @@ void CALLBACK closeTabsTestTimer(HWND, UINT, UINT_PTR, DWORD) {
         auto &test = *closeTabsTest;
         if (GetWindow(window, GW_OWNER) != test.app->hwnd) return TRUE;
         auto title = ui::value(window);
-        if (title != L"Close tabs" && title != L"Close tab") return TRUE;
+        if (test.settings ? title != L"wShell · Application settings" : title != L"Close tabs" && title != L"Close tab") return TRUE;
+        test.defaultFocused &= GetFocus() == GetDlgItem(window, IDOK);
+        test.initialChecked = SendDlgItemMessageW(window, 1001, BM_GETCHECK, 0, 0) == BST_CHECKED;
+        if (test.remember) SendDlgItemMessageW(window, 1001, BM_SETCHECK, BST_CHECKED, 0);
+        captureTestWindow(window, test.settings ? L"ui-application-settings.bmp" : L"ui-close-confirm.bmp");
         if (++test.prompts == 1 && test.mutate) {
             test.app->closeTab(1, true);
             auto tab = std::make_unique<Tab>(); tab->ended = true; tab->profile.name = L"Opened during confirmation";
@@ -27,23 +31,45 @@ template<typename Check> void testBulkTabConsent(App &app, Check require) {
     }
     app.select(2); auto anchor = app.tabs[2]->id; app.setSplit(4);
     SetWindowTextW(app.control(CommandText), L"draft must survive cancellation");
-    CloseTabsTest test{&app, IDNO}; closeTabsTest = &test;
+    CloseTabsTest test{&app, IDCANCEL}; test.remember = true; closeTabsTest = &test;
     auto timer = SetTimer(nullptr, 0, 80, closeTabsTestTimer);
     app.closeTabs(CloseTabs::others, anchor); KillTimer(nullptr, timer);
     require(test.prompts == 1 && app.tabs.size() == 4 && app.tabs[app.active]->id == anchor && app.panes.size() == 4 &&
             ui::value(app.control(CommandText)) == L"draft must survive cancellation", "Cancel must preserve every tab, active pane and input draft");
-    test.answer = IDYES; test.prompts = 0;
+    require(wook::loadConfirmCloseTabs(), "Checking do not ask again and cancelling must not change the preference");
+    test.answer = IDOK; test.prompts = 0;
     timer = SetTimer(nullptr, 0, 80, closeTabsTestTimer);
     app.closeTabs(CloseTabs::others, anchor); KillTimer(nullptr, timer);
     require(test.prompts == 1 && app.tabs.size() == 1 && app.tabs[app.active]->id == anchor,
             "Closing multiple active tabs must require exactly one confirmation and preserve the chosen tab");
+    require(!wook::loadConfirmCloseTabs(), "Accepting do not ask again must remember the choice");
+    test.settings = true; test.answer = IDCANCEL; test.prompts = 0;
+    timer = SetTimer(nullptr, 0, 80, closeTabsTestTimer);
+    showApplicationSettings(app.hwnd); KillTimer(nullptr, timer);
+    require(test.prompts == 1 && !test.initialChecked && !wook::loadConfirmCloseTabs(), "Cancelling settings must preserve disabled close prompts");
+    test.answer = IDOK; test.prompts = 0;
+    timer = SetTimer(nullptr, 0, 80, closeTabsTestTimer);
+    showApplicationSettings(app.hwnd); KillTimer(nullptr, timer);
+    require(test.prompts == 1 && wook::loadConfirmCloseTabs(), "Application settings must restore close confirmations");
+    test.settings = false; test.remember = false;
     for (int i = 0; i < 3; ++i) { auto tab = std::make_unique<Tab>(); tab->files = true; app.tabs.push_back(std::move(tab)); }
     test.prompts = 0; test.mutate = true;
     timer = SetTimer(nullptr, 0, 80, closeTabsTestTimer);
-    app.closeTabs(CloseTabs::all); KillTimer(nullptr, timer); closeTabsTest = nullptr;
+    app.closeTabs(CloseTabs::all); KillTimer(nullptr, timer);
     require(test.prompts == 1 && app.tabs.size() == 1 && app.tabs[0]->id == test.newTab,
             "A nested message loop must not close a newly opened tab after an original target disappears");
     app.closeTabs(CloseTabs::all); SetWindowTextW(app.control(CommandText), L"");
+    for (int i = 0; i < 2; ++i) { auto tab = std::make_unique<Tab>(); tab->files = true; app.tabs.push_back(std::move(tab)); }
+    app.select(0); test.mutate = false; test.remember = true; test.prompts = 0;
+    timer = SetTimer(nullptr, 0, 80, closeTabsTestTimer);
+    app.closeTab(0); KillTimer(nullptr, timer);
+    require(test.prompts == 1 && app.tabs.size() == 1 && !wook::loadConfirmCloseTabs(), "Single tab closing must also remember do not ask again");
+    test.prompts = 0; test.answer = IDCANCEL;
+    timer = SetTimer(nullptr, 0, 80, closeTabsTestTimer);
+    app.closeTabs(CloseTabs::all); KillTimer(nullptr, timer);
+    require(test.prompts == 0 && app.tabs.empty(), "Remembered choice must skip the next close confirmation");
+    require(test.defaultFocused, "Close and Save must receive the initial keyboard focus");
+    wook::saveConfirmCloseTabs(true); closeTabsTest = nullptr;
 }
 template<typename Check> void testTabOverflow(App &app, Check require) {
     require(app.tabs.empty(), "Tab overflow fixture requires an empty workspace");
@@ -51,6 +77,8 @@ template<typename Check> void testTabOverflow(App &app, Check require) {
     for (int i = 0; i < 32; ++i) {
         auto tab = std::make_unique<Tab>(); tab->ended = true;
         tab->profile.name = L"Server " + std::to_wstring(i + 1) + L" · 서울 workspace";
+        const wchar_t *colors[] = {L"d14d41", L"4385be", L"879a39", L"8b7ec8"};
+        tab->profile.tabColor = colors[i % 4];
         tab->profile.host = L"192.0.2." + std::to_wstring(i + 1); app.tabs.push_back(std::move(tab));
     }
     for (int width : {980, 1400}) {
@@ -60,6 +88,23 @@ template<typename Check> void testTabOverflow(App &app, Check require) {
                 IsWindowVisible(app.control(TabsList)), "Hidden tabs must have visible arrows and an all-tabs menu at small and large sizes");
         require(!IsWindowEnabled(app.control(TabsNext)) && IsWindowEnabled(app.control(TabsPrevious)), "Last page enables only the usable scroll direction");
         require(std::any_of(app.hits.begin(), app.hits.end(), [](const auto &hit) { return hit.index == 31; }), "Newly selected last tab must be visible");
+        // Rendering checks do not depend on another app obscuring the desktop.
+        RECT client{}; GetClientRect(app.hwnd, &client);
+        auto screen = GetDC(app.hwnd), dc = CreateCompatibleDC(screen);
+        auto bitmap = CreateCompatibleBitmap(screen, client.right, client.bottom);
+        auto oldBitmap = SelectObject(dc, bitmap);
+        app.paint(dc);
+        bool hueVisible = true, selectionVisible = true;
+        for (auto &hit : app.hits) if (!hit.close) {
+            bool colored = !app.tabs[hit.index]->profile.tabColor.empty();
+            auto got = GetPixel(dc, hit.rect.left + ui::px(colored ? 20 : 6), hit.rect.top + ui::px(colored ? 4 : 18));
+            hueVisible &= got == hostColor(app.tabs[hit.index]->profile);
+            if (hit.index == app.active)
+                selectionVisible &= GetPixel(dc, hit.rect.left + ui::px(20), hit.rect.bottom - ui::px(2)) == ui::accent;
+        }
+        SelectObject(dc, oldBitmap); DeleteObject(bitmap); DeleteDC(dc); ReleaseDC(app.hwnd, screen);
+        require(hueVisible, "Visible tabs must show their assigned color band or default accent");
+        require(selectionVisible, "Active tab selection must remain orange independently of its host color");
         auto panes = app.panes;
         for (int i = 0; i < 40; ++i) SendMessageW(app.control(TabsPrevious), BM_CLICK, 0, 0);
         require(app.tabScroll == 0 && app.active == 31 && app.panes == panes, "Scrolling the strip must not replace the active connection");
