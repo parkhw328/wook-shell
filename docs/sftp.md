@@ -30,3 +30,6 @@ Windows는 단일 EXE 내부 SSH 엔진, macOS는 OS OpenSSH의 SFTP subsystem�
 ## 검증
 
 `node tests/ssh/sftp-integration.cjs`는 독립 ssh2 루프백 서버에서 UTF-8 이름, 다중 패킷·짧은 읽기·응답 순서 변경, 전송 내용 일치, 폴더 작업, 덮어쓰기 거부와 취소를 확인합니다. `sftp-codec-tests`는 손상된 프레임·잘못된 ID·경로 순회와 확장 협상을 검사합니다. 두 플랫폼의 UI 테스트는 실제 SSH 키/저장 암호 연결과 업로드·다운로드를 실행합니다. 실제 사용자 서버에는 테스트 파일을 쓰지 않습니다.
+## Hidden files
+
+`Show hidden files` is **unchecked by default** in each SFTP tab. Check it to show dotfiles/dotfolders (such as `.env`, `.ssh`, `.config`) in both local and remote panes. Windows local files with the Hidden attribute and macOS local files marked hidden are also filtered. Unchecking immediately hides them again and clears selection; files are not deleted. Showing or hiding files does not change permissions or server settings.

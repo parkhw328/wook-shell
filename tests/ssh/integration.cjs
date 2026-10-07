@@ -15,6 +15,7 @@ const standalone = path.join(artifact, 'standalone');
 fs.mkdirSync(standalone);
 const sftpRoot=path.join(artifact,'remote');fs.mkdirSync(sftpRoot);
 fs.writeFileSync(path.join(sftpRoot,'안녕하세요.txt'),'Remote UTF-8 sample\n');fs.mkdirSync(path.join(sftpRoot,'projects'));
+fs.writeFileSync(path.join(sftpRoot,'.env'),'hidden fixture\n');fs.mkdirSync(path.join(sftpRoot,'.config'));
 const importKey = path.join(artifact, 'import-키.openssh');
 fs.writeFileSync(importKey, utils.generateKeyPairSync('ed25519', {
   passphrase: 'fixture-passphrase', cipher: 'aes256-cbc',

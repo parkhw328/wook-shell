@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 public enum SplitLayout {
     public static func frames(count: Int, in bounds: CGRect, gap: CGFloat = 6) -> [CGRect] {

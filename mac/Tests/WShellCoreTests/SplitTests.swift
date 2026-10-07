@@ -1,4 +1,5 @@
 import XCTest
+import CoreGraphics
 @testable import WShellCore
 
 final class SplitTests: XCTestCase {

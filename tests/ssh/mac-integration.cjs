@@ -12,6 +12,7 @@ const data = path.join(output, 'data');
 fs.mkdirSync(data, { recursive: true });
 const remote=path.join(output,'remote');fs.mkdirSync(remote,{recursive:true});
 fs.writeFileSync(path.join(remote,'안녕하세요.txt'),'Remote UTF-8 sample\n');fs.mkdirSync(path.join(remote,'projects'),{recursive:true});
+fs.writeFileSync(path.join(remote,'.env'),'hidden fixture\n');fs.mkdirSync(path.join(remote,'.config'),{recursive:true});
 for(const dir of ['sftp-local','sftp-download'])fs.mkdirSync(path.join(output,dir),{recursive:true});
 const sftpPayload=crypto.randomBytes(1200003);fs.writeFileSync(path.join(output,'sftp-local','upload-한글.bin'),sftpPayload);
 fs.writeFileSync(path.join(output,'sftp-local','empty.txt'),'');

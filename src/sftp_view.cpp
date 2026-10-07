@@ -10,7 +10,7 @@
 namespace {
 namespace fs = std::filesystem;
 constexpr UINT finished = WM_APP + 120;
-enum { Upload = 1, Download, NewFolder, Rename, Delete, Refresh, Cancel, LocalUp, LocalGo, LocalPath, LocalList, RemoteUp, RemoteGo, RemotePath, RemoteList };
+enum { Upload = 1, Download, NewFolder, Rename, Delete, Refresh, Cancel, LocalUp, LocalGo, LocalPath, LocalList, RemoteUp, RemoteGo, RemotePath, RemoteList, ShowHidden };
 LRESULT CALLBACK headerProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,UINT_PTR id,DWORD_PTR) {
     if(msg==WM_NCDESTROY){RemoveWindowSubclass(hwnd,headerProc,id);return DefSubclassProc(hwnd,msg,wp,lp);}
     if(msg==WM_ERASEBKGND)return 1;
@@ -24,9 +24,9 @@ LRESULT CALLBACK headerProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,UINT_PTR id,D
 }
 struct Result { std::wstring path, message; std::vector<sftp::Entry> entries; bool ok{}; };
 struct Browser {
-    HWND hwnd{}, owner{}, controls[16]{}; HANDLE job{};
+    HWND hwnd{}, owner{}, controls[17]{}; HANDLE job{};
     std::wstring session, local, remote, status = L"Connecting to SFTP…", current;
-    bool saved{}, busy{}, connected{}, remoteFocused = true;
+    bool saved{}, busy{}, connected{}, showHidden = false, remoteFocused = true;
     std::unique_ptr<sftp::Client> client;
     std::thread worker;
     std::vector<sftp::Entry> localEntries, remoteEntries;
@@ -56,7 +56,7 @@ struct Browser {
 void Browser::layout() {
     RECT r; GetClientRect(hwnd,&r); int w = MulDiv(r.right,96,ui::dpi), h = MulDiv(r.bottom,96,ui::dpi);
     int x=16,y=14;
-    for (auto [id,width] : {std::pair{Upload,112}, {Download,130},{NewFolder,120},{Rename,92},{Delete,86},{Refresh,96},{Cancel,90}}) {
+    for (auto [id,width] : {std::pair{Upload,112}, {Download,130},{NewFolder,120},{Rename,92},{Delete,86},{Refresh,96},{Cancel,90},{ShowHidden,208}}) {
         if (x+width > w-16) {x=16;y+=44;}
         ui::place(controls[id],x,y,width,34); x+=width+8;
     }
@@ -77,8 +77,11 @@ void Browser::fill(bool remoteSide) {
     SendMessageW(list,WM_SETREDRAW,FALSE,0); ListView_DeleteAllItems(list);
     int i=0;
     for (auto &entry:entries) {
+        bool hidden = !entry.name.empty() && entry.name[0] == L'.';
+        if (!remoteSide) { auto attributes = GetFileAttributesW((fs::path(local)/entry.name).c_str()); hidden |= attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_HIDDEN); }
+        if (!showHidden && hidden) continue;
         auto name = (entry.directory()?L"▸  ":entry.regular()?L"   ":L"↗  ")+entry.name;
-        LVITEMW item{}; item.mask=LVIF_TEXT; item.iItem=i; item.pszText=name.data(); ListView_InsertItem(list,&item);
+        LVITEMW item{}; item.mask=LVIF_TEXT|LVIF_PARAM; item.iItem=i; item.pszText=name.data(); item.lParam=&entry-entries.data(); ListView_InsertItem(list,&item);
         auto size=entry.directory()?L"Folder":entry.regular()?std::to_wstring(entry.size):L"Link / other";
         ListView_SetItemText(list,i,1,(wchar_t *)size.c_str());
         std::wstring date;
@@ -111,6 +114,7 @@ void Browser::readLocal() {
 }
 void Browser::state() {
     for(int id=1;id<=RemoteList;++id) EnableWindow(controls[id],id==Cancel?busy:!busy && ((id>=LocalUp&&id<=LocalList) || connected));
+    EnableWindow(controls[ShowHidden],!busy);
     InvalidateRect(hwnd,nullptr,TRUE);
 }
 void Browser::start(const std::function<void(Result&)> &operation) {
@@ -142,7 +146,10 @@ void Browser::navigate(bool remoteSide,std::wstring path) {
 }
 std::vector<sftp::Entry> Browser::selected(bool remoteSide) {
     std::vector<sftp::Entry> result; auto list=controls[remoteSide?RemoteList:LocalList]; auto &entries=remoteSide?remoteEntries:localEntries;
-    for(int i=-1;(i=ListView_GetNextItem(list,i,LVNI_SELECTED))>=0;)if((size_t)i<entries.size())result.push_back(entries[i]);
+    for(int i=-1;(i=ListView_GetNextItem(list,i,LVNI_SELECTED))>=0;) {
+        LVITEMW item{};item.mask=LVIF_PARAM;item.iItem=i;
+        if(ListView_GetItem(list,&item)&&item.lParam>=0&&(size_t)item.lParam<entries.size())result.push_back(entries[item.lParam]);
+    }
     return result;
 }
 void Browser::transfer(bool upload) {
@@ -171,6 +178,7 @@ void Browser::transfer(bool upload) {
     });
 }
 void Browser::action(int id) {
+    if(id==ShowHidden && !busy){showHidden=SendMessageW(controls[ShowHidden],BM_GETCHECK,0,0)==BST_CHECKED;fill(false);fill(true);state();return;}
     if(id==Cancel){if(client)client->cancel();status=L"Cancelling transfer…";return;}
     if(busy)return;
     if(id==Upload||id==Download){transfer(id==Upload);return;}
@@ -218,6 +226,8 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
         case WM_CREATE: {
             const wchar_t *labels[]={L"",L"Upload →",L"← Download",L"New folder",L"Rename",L"Delete",L"Refresh",L"Cancel"};
             for(int i=1;i<=7;++i)b->controls[i]=ui::button(hwnd,labels[i],i);
+            b->controls[ShowHidden]=ui::checkbox(hwnd,L"Show hidden files",ShowHidden);
+            SendMessageW(b->controls[ShowHidden],BM_SETCHECK,BST_UNCHECKED,0);
             for(int side=0;side<2;++side) {
                 int base=side?RemoteUp:LocalUp;
                 b->controls[base]=ui::button(hwnd,L"↑",base);b->controls[base+1]=ui::button(hwnd,L"Go",base+1);
@@ -269,7 +279,7 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
             PAINTSTRUCT ps{};auto dc=BeginPaint(hwnd,&ps);RECT r;GetClientRect(hwnd,&r);ui::fill(dc,r,ui::panel);
             int w=MulDiv(r.right,96,ui::dpi),h=MulDiv(r.bottom,96,ui::dpi),span=(w-48)/2;
             RECT path{};GetWindowRect(b->controls[LocalUp],&path);MapWindowPoints(nullptr,hwnd,(POINT *)&path,2);int top=MulDiv(path.top,96,ui::dpi)-30;
-            for(int side=0;side<2;++side){auto title=std::wstring(side?L"REMOTE":L"LOCAL")+L"  ·  "+std::to_wstring((side?b->remoteEntries:b->localEntries).size())+L" items";
+            for(int side=0;side<2;++side){auto title=std::wstring(side?L"REMOTE":L"LOCAL")+L"  ·  "+std::to_wstring(ListView_GetItemCount(b->controls[side?RemoteList:LocalList]))+L" items";
                 ui::label(dc,title,ui::rect(16+side*(span+16),top,span,24),ui::TextSize::caption,b->remoteFocused==(side!=0)?ui::accent:ui::muted,true);}
             auto message=b->status;
             if(b->busy){std::lock_guard lock(b->progressLock);if(!b->current.empty())message=b->current+L" · "+std::to_wstring(b->done.load())+L" / "+std::to_wstring(b->total.load())+L" bytes";}

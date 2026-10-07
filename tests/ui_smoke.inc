@@ -224,6 +224,9 @@ void runUiSmoke(App &app) {
             std::filesystem::create_directory(local);std::filesystem::create_directory(std::filesystem::path(app.directory)/L"sftp-download");
             {std::ofstream file(local/L"upload-한글.txt",std::ios::binary);file<<"Native SFTP · 한글 🙂\n";}
             {std::ofstream file(local/L"empty.txt");}
+            {std::ofstream file(local/L".hidden.txt");}
+            {std::ofstream file(local/L"hidden-attribute.txt");}
+            SetFileAttributesW((local/L"hidden-attribute.txt").c_str(),FILE_ATTRIBUTE_HIDDEN);
             auto profiles=wook::loadProfiles();
             auto found=std::find_if(profiles.begin(),profiles.end(),[](auto&p){return p.name==L"한글 SSH 연결";});
             require(found!=profiles.end(),"Missing SFTP key profile");
@@ -233,7 +236,13 @@ void runUiSmoke(App &app) {
             auto view=app.tabs[0]->terminal;
             SetWindowTextW(GetDlgItem(view,10),(app.directory+L"\\sftp-local").c_str());SendMessageW(view,WM_COMMAND,9,0);
             require(ListView_GetItemCount(GetDlgItem(view,11))==2,"SFTP must list the local fixture");
-            require(ListView_GetItemCount(GetDlgItem(view,15))>=2,"SFTP must list remote UTF-8 filenames");
+            require(SendMessageW(GetDlgItem(view,16),BM_GETCHECK,0,0)==BST_UNCHECKED,"Hidden files must be off by default");
+            require(ListView_GetItemCount(GetDlgItem(view,15))==2,"Remote dotfiles and dotfolders must be hidden by default");
+            SendMessageW(GetDlgItem(view,16),BM_CLICK,0,0);
+            require(ListView_GetItemCount(GetDlgItem(view,11))==4,"Show hidden must reveal local dotfiles and Windows hidden attributes");
+            require(ListView_GetItemCount(GetDlgItem(view,15))==4,"Show hidden must reveal remote dotfiles and dotfolders");
+            SendMessageW(GetDlgItem(view,16),BM_CLICK,0,0);
+            require(ListView_GetItemCount(GetDlgItem(view,11))==2 && ListView_GetItemCount(GetDlgItem(view,15))==2,"Unchecking must filter both panes immediately");
             ListView_SetItemState(GetDlgItem(view,11),-1,LVIS_SELECTED,LVIS_SELECTED);SendMessageW(view,WM_COMMAND,1,0);
             phase=29;waits=0;
         } else if (phase == 29 && ready() && SendMessageW(app.tabs[0]->terminal,WM_APP+121,0,0)==1) {

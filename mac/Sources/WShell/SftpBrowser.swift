@@ -16,6 +16,9 @@ final class SftpBrowser: NSView, NSTableViewDataSource, NSTableViewDelegate {
     let status = Theme.label("Connecting to SFTP…", size: 11), progress = NSProgressIndicator()
     var actions: [ActionButton] = [], navigation: [ActionButton] = []
     var local = FileManager.default.homeDirectoryForCurrentUser, remote = "/", entries: [[SftpEntry]] = [[], []]
+    var visibleEntries: [[SftpEntry]] = [[], []]
+    private var localHidden: Set<String> = []
+    let hiddenToggle = NSButton(checkboxWithTitle: "Show hidden files", target: nil, action: nil)
     private(set) var busy = false, connected = false, closed = false
     var focused = 1
     private let queue = DispatchQueue(label: "wShell.SFTP", qos: .userInitiated)
@@ -25,6 +28,9 @@ final class SftpBrowser: NSView, NSTableViewDataSource, NSTableViewDelegate {
         let titles = ["Upload →", "← Download", "New folder", "Rename", "Delete", "Refresh", "Cancel"]
         actions = titles.enumerated().map { index, title in ActionButton(title, accent: index < 2) { [weak self] in self?.action(index) } }
         actions.forEach { addSubview($0) }
+        hiddenToggle.target = self; hiddenToggle.action = #selector(toggleHidden)
+        hiddenToggle.state = .off; hiddenToggle.font = Theme.font(); hiddenToggle.contentTintColor = Theme.orange
+        addSubview(hiddenToggle)
         for side in 0...1 {
             let table = tables[side]; table.backgroundColor = Theme.background; table.dataSource = self; table.delegate = self
             table.allowsMultipleSelection = true; table.rowHeight = 28; table.intercellSpacing = NSSize(width: 0, height: 3)
@@ -57,6 +63,8 @@ final class SftpBrowser: NSView, NSTableViewDataSource, NSTableViewDelegate {
             if x + width > w - 16 { x = 16; y += 44 }
             button.frame = NSRect(x: x, y: y, width: width, height: 34); x += width + 8
         }
+        if x + 208 > w - 16 { x = 16; y += 44 }
+        hiddenToggle.frame = NSRect(x: x,y: y,width: 208,height: 34)
         let top = y + 50, span = (w - 48) / 2
         for side in 0...1 {
             let left = 16 + CGFloat(side) * (span + 16)
@@ -71,10 +79,10 @@ final class SftpBrowser: NSView, NSTableViewDataSource, NSTableViewDelegate {
         progress.frame = NSRect(x: 16, y: h-70, width: w-32, height: 6)
         status.frame = NSRect(x: 16, y: h-58, width: w-32, height: 52)
     }
-    func numberOfRows(in tableView: NSTableView) -> Int { entries[tableView === tables[0] ? 0 : 1].count }
+    func numberOfRows(in tableView: NSTableView) -> Int { visibleEntries[tableView === tables[0] ? 0 : 1].count }
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? { SftpRow() }
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        let side = tableView === tables[0] ? 0 : 1, entry = entries[side][row]
+        let side = tableView === tables[0] ? 0 : 1, entry = visibleEntries[side][row]
         let column = Int(tableColumn?.identifier.rawValue ?? "0") ?? 0
         var text = (entry.directory ? "▸  " : entry.regular ? "   " : "↗  ") + entry.name
         if column == 1 { text = entry.directory ? "Folder" : entry.regular ? String(entry.size) : "Link / other" }
@@ -85,25 +93,34 @@ final class SftpBrowser: NSView, NSTableViewDataSource, NSTableViewDelegate {
     @objc func selectPane(_ sender: NSTableView) { focused = sender === tables[0] ? 0 : 1; state() }
     @objc func openFolder(_ sender: NSTableView) {
         let side = sender === tables[0] ? 0 : 1, row = sender.clickedRow
-        if entries[side].indices.contains(row), entries[side][row].directory { navigate(side, side == 0 ? local.appendingPathComponent(entries[side][row].name).path : remoteJoin(remote, entries[side][row].name)) }
+        if visibleEntries[side].indices.contains(row), visibleEntries[side][row].directory { navigate(side, side == 0 ? local.appendingPathComponent(visibleEntries[side][row].name).path : remoteJoin(remote, visibleEntries[side][row].name)) }
     }
     @objc func goPath(_ sender: NSTextField) { let side = sender === paths[0] ? 0 : 1; navigate(side, sender.stringValue) }
     func state() {
+        hiddenToggle.isEnabled = !busy
         for (i, button) in actions.enumerated() { button.isEnabled = i == 6 ? busy : !busy && connected }
         for (i, button) in navigation.enumerated() { button.isEnabled = !busy && (i < 2 || connected) }
         paths.enumerated().forEach { $0.element.isEnabled = !busy && ($0.offset == 0 || connected) }
         progress.isHidden = !busy
-        for side in 0...1 { headings[side].stringValue = "\(side == 0 ? "LOCAL" : "REMOTE") · \(entries[side].count) items"; headings[side].textColor = focused == side ? Theme.orange : Theme.muted }
+        for side in 0...1 { headings[side].stringValue = "\(side == 0 ? "LOCAL" : "REMOTE") · \(visibleEntries[side].count) items"; headings[side].textColor = focused == side ? Theme.orange : Theme.muted }
+    }
+    @objc func toggleHidden() { guard !busy else { return }; applyVisibility(); state() }
+    func applyVisibility() {
+        for side in 0...1 {
+            visibleEntries[side] = entries[side].filter { hiddenToggle.state == .on || (!$0.name.hasPrefix(".") && (side == 1 || !localHidden.contains($0.name))) }
+            tables[side].deselectAll(nil); tables[side].reloadData()
+        }
     }
     func readLocal() throws {
-        let urls = try FileManager.default.contentsOfDirectory(at: local, includingPropertiesForKeys: nil)
+        let urls = try FileManager.default.contentsOfDirectory(at: local, includingPropertiesForKeys: [.isHiddenKey])
+        localHidden = Set(try urls.filter { try $0.resourceValues(forKeys: [.isHiddenKey]).isHidden == true }.map(\.lastPathComponent))
         entries[0] = try urls.prefix(100000).map { url in
             let a = try FileManager.default.attributesOfItem(atPath: url.path), type = a[.type] as? FileAttributeType
             return SftpEntry(name: url.lastPathComponent, size: (a[.size] as? NSNumber)?.uint64Value ?? 0,
                 mode: type == .typeDirectory ? 0o040000 : type == .typeRegular ? 0o100000 : 0o120000,
                 modified: UInt32(clamping: Int64((a[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0)))
         }.sorted { $0.directory != $1.directory ? $0.directory : $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-        paths[0].stringValue = local.path; tables[0].reloadData(); state()
+        paths[0].stringValue = local.path; applyVisibility(); state()
     }
     func run(_ work: @escaping () throws -> (String, [SftpEntry], String)) {
         guard !busy && !closed else { return }; busy = true; progress.doubleValue = 0; state()
@@ -113,7 +130,7 @@ final class SftpBrowser: NSView, NSTableViewDataSource, NSTableViewDelegate {
                 guard !closed else { return }; busy = false
                 switch result {
                 case let .success((path, list, message)):
-                    connected = true; remote = path; entries[1] = list; paths[1].stringValue = path; tables[1].reloadData(); status.stringValue = message
+                    connected = true; remote = path; entries[1] = list; paths[1].stringValue = path; applyVisibility(); status.stringValue = message
                     do { try readLocal() } catch { status.stringValue = error.localizedDescription }
                 case let .failure(error):
                     connected = false; client.cancel(); status.stringValue = error.localizedDescription + " Reconnect to continue. An interrupted upload may leave a .wshell-*.part file on the server."
@@ -131,7 +148,7 @@ final class SftpBrowser: NSView, NSTableViewDataSource, NSTableViewDelegate {
             do { try readLocal() } catch { local = old; status.stringValue = error.localizedDescription }
         }
     }
-    func selected(_ side: Int) -> [SftpEntry] { tables[side].selectedRowIndexes.compactMap { entries[side].indices.contains($0) ? entries[side][$0] : nil } }
+    func selected(_ side: Int) -> [SftpEntry] { tables[side].selectedRowIndexes.compactMap { visibleEntries[side].indices.contains($0) ? visibleEntries[side][$0] : nil } }
     func transfer(_ upload: Bool) throws {
         let files = selected(upload ? 0 : 1)
         guard !files.isEmpty else { status.stringValue = "Select one or more files in the source pane first."; return }

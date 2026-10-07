@@ -105,8 +105,13 @@ final class SmokeTest {
                 try workspace.openSFTP(host); advance(8)
             case 8 where workspace.active?.files?.connected == true && workspace.active?.files?.busy == false:
                 let files = workspace.active!.files!
+                try Data("hidden fixture".utf8).write(to: output.appendingPathComponent("sftp-local/.hidden"))
                 files.navigate(0, output.appendingPathComponent("sftp-local").path)
-                try require(files.entries[0].count == 2 && files.entries[1].count >= 2, "SFTP must list both local and remote files.")
+                try require(files.hiddenToggle.state == .off && files.visibleEntries[0].count == 2 && files.visibleEntries[1].count == 2, "SFTP hides local and remote dotfiles by default")
+                files.hiddenToggle.state = .on; files.toggleHidden()
+                try require(files.visibleEntries[0].count == 3 && files.visibleEntries[1].count == 4, "Checkbox reveals hidden files and folders in both panes")
+                files.hiddenToggle.state = .off; files.toggleHidden()
+                try require(files.visibleEntries[0].count == 2 && files.visibleEntries[1].count == 2, "Unchecking hides them immediately")
                 files.tables[0].selectRowIndexes(IndexSet(integersIn: 0..<2), byExtendingSelection: false)
                 try files.transfer(true); advance(9)
             case 9 where workspace.active?.files?.busy == false:
@@ -114,7 +119,7 @@ final class SmokeTest {
                 try require(files.connected && files.entries[1].contains { $0.name == "upload-한글.bin" }, "Native SFTP upload failed: " + files.status.stringValue)
                 try capture("mac-sftp")
                 files.navigate(0, output.appendingPathComponent("sftp-download").path)
-                let index = files.entries[1].firstIndex { $0.name == "upload-한글.bin" }!
+                let index = files.visibleEntries[1].firstIndex { $0.name == "upload-한글.bin" }!
                 files.tables[1].selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
                 try files.transfer(false); advance(10)
             case 10 where workspace.active?.files?.busy == false:
