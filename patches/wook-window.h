@@ -1,7 +1,13 @@
 /* Host integration only: no terminal, authentication, or crypto changes. */
 static HWND wookParent = NULL;
+extern void wshellLoadFonts(void);
+static void wookIndependentConf(Conf *conf) {
+    conf_set_bool(conf, CONF_tryagent, false);
+    conf_set_bool(conf, CONF_agentfwd, false);
+    conf_set_bool(conf, CONF_ssh_connection_sharing, false);
+}
 static void wookWindowInit(void) {
-    wchar_t text[64], filename[32768];
+    wchar_t text[64];
     if (GetEnvironmentVariableW(L"WOOK_PARENT_HWND", text, 64)) {
         wookParent = (HWND)(uintptr_t)wcstoull(text, NULL, 10);
         DWORD pid = 0;
@@ -9,15 +15,7 @@ static void wookWindowInit(void) {
         if (!GetEnvironmentVariableW(L"WOOK_PARENT_PID", text, 64) ||
             pid != wcstoul(text, NULL, 10) || !IsWindow(wookParent)) exit(1);
     }
-    if (GetModuleFileNameW(NULL, filename, 32768)) {
-        wchar_t *slash = wcsrchr(filename, L'\\');
-        if (slash && slash - filename < 32600) {
-            wcscpy(slash, L"\\fonts\\JetBrainsMono-Regular.ttf");
-            AddFontResourceExW(filename, FR_PRIVATE, NULL);
-            wcscpy(slash, L"\\fonts\\JetBrainsMono-Bold.ttf");
-            AddFontResourceExW(filename, FR_PRIVATE, NULL);
-        }
-    }
+    wshellLoadFonts();
 }
 static void wookWindowAttach(HWND hwnd) {
     if (!wookParent) return;

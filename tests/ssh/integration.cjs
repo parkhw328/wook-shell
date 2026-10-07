@@ -9,13 +9,19 @@ const root = path.resolve(__dirname, '../..');
 const artifact = path.join(root, 'build', 'ssh-test-' + Date.now());
 fs.mkdirSync(artifact, { recursive: true });
 const data = path.join(artifact, 'data');
-const binaries = path.join(root, 'dist', 'wshell-0.1.0-win-x64');
+const binaries = path.join(root, 'build', 'native');
+const standalone = path.join(artifact, 'standalone');
+fs.mkdirSync(standalone);
+const importKey = path.join(artifact, 'import-키.openssh');
+fs.writeFileSync(importKey, utils.generateKeyPairSync('ed25519', {
+  passphrase: 'fixture-passphrase', cipher: 'aes256-cbc',
+}).private);
 const password = crypto.randomBytes(24).toString('hex');
 const passwordFile = path.join(artifact, 'test-password.txt');
 fs.writeFileSync(passwordFile, password + '\n');
 const key = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' });
 const fingerprint = 'SHA256:' + crypto.createHash('sha256').update(utils.parseKey(key).getPublicSSH()).digest('base64').replace(/=+$/, '');
-const events = { authenticated: [], shells: 0, terminalTypes: [], environment: [], resizes: 0, received: '' };
+const events = { authenticated: [], publicKeySignatures: 0, shells: 0, terminalTypes: [], environment: [], resizes: 0, received: '' };
 const clients = new Set();
 const server = new Server({ hostKeys: [key] }, client => {
   clients.add(client);
@@ -24,7 +30,14 @@ const server = new Server({ hostKeys: [key] }, client => {
   client.on('authentication', ctx => {
     if ((ctx.username === 'none' || ctx.username === 'shell') && ctx.method === 'none') ctx.accept();
     else if (ctx.username === 'password' && ctx.method === 'password' && ctx.password === password) ctx.accept();
-    else ctx.reject(['password']);
+    else if (ctx.username === 'key' && ctx.method === 'publickey') {
+      const allowed = utils.parseKey(fs.readFileSync(path.join(standalone, 'client-key.pub')));
+      if (ctx.key.data.equals(allowed.getPublicSSH()) &&
+          (!ctx.signature || allowed.verify(ctx.blob, ctx.signature, ctx.hashAlgo) === true)) {
+        if (ctx.signature) ++events.publicKeySignatures;
+        ctx.accept();
+      } else ctx.reject(['publickey']);
+    } else ctx.reject(['publickey', 'password']);
   });
   client.on('ready', () => {
     events.authenticated.push(true);
@@ -55,7 +68,7 @@ function run(executable, args, input = '', environment = {}) {
   console.log('Running ' + path.basename(executable) + ' : ' + args.at(-1));
   return new Promise((resolve, reject) => {
     const child = spawn(executable, args, {
-      cwd: binaries, windowsHide: !executable.endsWith('ui-smoke-tests.exe'),
+      cwd: path.dirname(executable), windowsHide: !environment.WOOK_TEST_PORT,
       env: { ...process.env, WOOK_DATA_DIR: data, ...environment },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -95,20 +108,22 @@ function registryDigest() {
   assert.ok(fs.existsSync(path.join(data, 'trust')), 'Host trust must persist inside portable data');
   assert.equal(registryDigest(), before, 'Existing PuTTY registry must not change');
 
-  const ui = path.join(root, 'build', 'app', 'ui-smoke-tests.exe');
-  fs.copyFileSync(path.join(binaries, 'wook-putty.exe'), path.join(root, 'build', 'app', 'wook-putty.exe'));
-  fs.cpSync(path.join(binaries, 'fonts'), path.join(root, 'build', 'app', 'fonts'), { recursive: true });
-  fs.cpSync(path.join(binaries, 'assets'), path.join(root, 'build', 'app', 'assets'), { recursive: true });
-  result = await run(ui, [], '', { WOOK_TEST_PORT: String(port), WOOK_TEST_FINGERPRINT: fingerprint });
-  const report = JSON.parse(fs.readFileSync(path.join(root, 'build', 'app', 'ui-smoke-result.json'), 'utf8'));
+  const ui = path.join(standalone, 'wShell.exe');
+  fs.copyFileSync(path.join(binaries, 'ui-smoke-tests.exe'), ui);
+  assert.deepEqual(fs.readdirSync(standalone), ['wShell.exe'], 'Start from a folder containing only the executable');
+  result = await run(ui, [], '', { WOOK_TEST_PORT: String(port), WOOK_TEST_FINGERPRINT: fingerprint, WOOK_TEST_IMPORT_KEY: importKey });
+  const report = JSON.parse(fs.readFileSync(path.join(standalone, 'ui-smoke-result.json'), 'utf8'));
+  assert.equal(fs.readdirSync(standalone).filter(n => n.toLowerCase().endsWith('.exe')).length, 1, 'Do not extract helper executables');
+  assert.ok(!fs.existsSync(path.join(standalone, 'fonts')) && !fs.existsSync(path.join(standalone, 'assets')), 'Fonts and branding stay embedded');
   assert.equal(report.passed, true, JSON.stringify(report));
   assert.ok(events.shells >= 1, 'GUI terminal must authenticate and open a real SSH shell');
+  assert.ok(events.publicKeySignatures >= 1, 'The independently verified SSH signature must use a key generated inside wShell');
   assert.ok(events.terminalTypes.includes('xterm-256color'), 'PTY terminal type must support color');
   assert.ok(events.environment.some(e => e.key === 'COLORTERM' && e.val === 'truecolor'), 'True Color environment must be requested');
   assert.match(events.received, /x/, 'Keyboard data must cross the real SSH connection');
   assert.ok(events.resizes >= 1, 'PTY resize must reach the server');
   assert.equal(registryDigest(), before, 'GUI must leave existing PuTTY registry unchanged');
-  const summary = { passed: true, sshChecks: 12, ui: report, events };
+  const summary = { passed: true, sshChecks: 13, ui: report, events };
   fs.writeFileSync(path.join(artifact, 'result.json'), JSON.stringify(summary, null, 2));
   console.log(JSON.stringify(summary, null, 2));
   console.log('Evidence: ' + artifact);
@@ -116,4 +131,5 @@ function registryDigest() {
   for (const client of clients) client.end();
   server.close();
   fs.unlinkSync(passwordFile);
+  fs.unlinkSync(importKey);
 });

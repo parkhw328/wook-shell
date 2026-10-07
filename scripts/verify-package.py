@@ -8,23 +8,18 @@ import subprocess
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-NAME = "wshell-0.1.0-win-x64"
+NAME = "wshell-0.2.0-win-x64"
 folder = ROOT / "dist" / NAME
 archive = ROOT / "dist" / f"{NAME}.zip"
 expected = archive.with_suffix(".zip.sha256").read_text().split()[0]
 assert hashlib.sha256(archive.read_bytes()).hexdigest() == expected, "ZIP checksum mismatch"
 with zipfile.ZipFile(archive) as bundle:
     entries = bundle.namelist()
+    assert entries == [f"{NAME}/wShell.exe"], "Single executable distribution must contain exactly one file"
     assert all(name.startswith(NAME + "/") and ".." not in name.split("/") for name in entries)
     assert not any(set(name.lower().split("/")) & {"data", "node_modules", "build", ".tools"} for name in entries), "User/development data leaked into ZIP"
     assert not any(name.lower().endswith((".ppk", ".pem", ".key", ".ws", ".lock")) for name in entries), "Credential/session material leaked into ZIP"
     assert bundle.testzip() is None, "ZIP CRC error"
-    for name in ("wShell.exe", "wook-putty.exe", "puttygen.exe", "pageant.exe", "plink.exe", "pscp.exe", "psftp.exe",
-                 "LICENSE", "THIRD_PARTY_NOTICES.md", "fonts/JetBrainsMono-Regular.ttf", "fonts/JetBrainsMono-Bold.ttf",
-                 "assets/branding/wshell-wordmark.png", "assets/branding/README.md"):
-        assert f"{NAME}/{name}" in entries, f"Missing required artifact: {name}"
-    for license_file in (ROOT / "licenses").iterdir():
-        assert bundle.read(f"{NAME}/licenses/{license_file.name}") == license_file.read_bytes(), "License changed during packaging"
 
 # Ensure every shipped executable is x64 and imports only Windows system DLLs.
 allowed = {"advapi32.dll", "comctl32.dll", "comdlg32.dll", "crypt32.dll", "dwmapi.dll", "gdi32.dll", "gdiplus.dll",
@@ -64,6 +59,15 @@ try:
     count = struct.unpack_from("<H", payload, 4)[0]
     dimensions = {payload[6 + i * 14] or 256 for i in range(count)}
     assert dimensions == {16, 24, 32, 48, 64, 128, 256}, f"Missing icon resolutions: {dimensions}"
+    for resource_id, source in ((102, ROOT / "assets/branding/wshell-wordmark.png"),
+                                (103, ROOT / "assets/fonts/JetBrainsMono-Regular.ttf"),
+                                (104, ROOT / "assets/fonts/JetBrainsMono-Bold.ttf"),
+                                (105, ROOT / "build/legal-notices.txt")):
+        resource = kernel.FindResourceW(module, resource_id, 10)
+        assert resource, f"Missing embedded asset {resource_id}"
+        size = kernel.SizeofResource(module, resource)
+        pointer = kernel.LockResource(kernel.LoadResource(module, resource))
+        assert ctypes.string_at(pointer, size) == source.read_bytes(), f"Embedded asset changed: {source.name}"
 finally:
     kernel.FreeLibrary(module)
-print(f"PASS: portable ZIP, licenses, x64 system-only imports, seven embedded icon resolutions ({archive.stat().st_size / 1048576:.2f} MiB).")
+print(f"PASS: single EXE, embedded fonts/branding/licenses, x64 system-only imports, seven icon resolutions ({archive.stat().st_size / 1048576:.2f} MiB ZIP).")

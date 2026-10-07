@@ -31,6 +31,8 @@ jobs:
         with:
           name: wshell-win-x64
           path: |
+            dist/wShell.exe
+            dist/wShell.exe.sha256
             dist/wshell-*-win-x64.zip
             dist/wshell-*-win-x64.zip.sha256
           if-no-files-found: error
@@ -39,7 +41,7 @@ jobs:
         with:
           name: test-evidence
           path: |
-            build/app/ui-*.bmp
-            build/app/ui-smoke-result.json
+            build/ssh-test-*/standalone/ui-*.bmp
+            build/ssh-test-*/standalone/ui-smoke-result.json
             build/ssh-test-*/result.json
           if-no-files-found: ignore

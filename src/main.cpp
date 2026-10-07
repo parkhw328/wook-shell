@@ -1,8 +1,12 @@
 #include "core.hpp"
 #include "dialog.hpp"
 #include "ui.hpp"
+#include "resources.hpp"
+#include "key_dialog.hpp"
+#include "backup.hpp"
 #include <windowsx.h>
 #include <shellapi.h>
+#include <commdlg.h>
 #include <objidl.h>
 #include <gdiplus.h>
 #include <memory>
@@ -10,9 +14,11 @@
 #include <vector>
 #ifdef WOOK_UI_TEST
 #include "../tests/capture.hpp"
+#include "keys.h"
 #endif
 
 using wook::Profile;
+extern "C" int WINAPI wshellTerminalMain(HINSTANCE, HINSTANCE, LPSTR, int);
 namespace {
 enum { Search = 100, HostList, NewHost, ConnectHost, EditHost, Quick, QuickConnect, Preview,
        Advanced, Duplicate, Reconnect, SessionSettings, Tools, About, SaveCurrent, HomeNew, HomePreview };
@@ -30,7 +36,7 @@ struct App {
     HWND hwnd = nullptr, controls[24]{};
     HANDLE job = nullptr;
     std::wstring directory;
-    std::unique_ptr<Gdiplus::Image> wordmark;
+    std::unique_ptr<Gdiplus::Bitmap> wordmark;
     std::vector<Profile> profiles;
     std::vector<size_t> filtered;
     std::vector<std::unique_ptr<Tab>> tabs;
@@ -144,20 +150,20 @@ void App::paint(HDC dc) {
         Gdiplus::Graphics graphics(dc);
         graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
         graphics.DrawImage(wordmark.get(), ui::px(10), ui::px(3), ui::px(226), ui::px(75));
-    } else ui::label(dc, L"wShell", ui::rect(24, 15, 212, 43), 23, ui::bright, true);
-    ui::label(dc, L"YOUR PERSONAL WORKSPACE", ui::rect(24, 67, 211, 14), 7, ui::muted, true);
+    } else ui::label(dc, L"wShell", ui::rect(24, 15, 212, 43), ui::TextSize::title, ui::bright, true);
+    ui::label(dc, L"YOUR PERSONAL WORKSPACE", ui::rect(24, 67, 211, 14), ui::TextSize::caption, ui::muted, true);
     ui::round(dc, ui::rect(18, 90, sidebar - 36, 45), ui::raised);
-    ui::label(dc, L"SAVED HOSTS", ui::rect(21, 200, 150, 23), 8, ui::muted, true);
-    ui::label(dc, std::to_wstring(profiles.size()), ui::rect(sidebar - 56, 200, 34, 23), 9, ui::muted, false, DT_RIGHT | DT_VCENTER | DT_SINGLELINE, true);
+    ui::label(dc, L"SAVED HOSTS", ui::rect(21, 200, 150, 23), ui::TextSize::caption, ui::muted, true);
+    ui::label(dc, std::to_wstring(profiles.size()), ui::rect(sidebar - 56, 200, 34, 23), ui::TextSize::caption, ui::muted, false, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
     if (filtered.empty()) {
-        ui::label(dc, profiles.empty() ? L"Your hosts will live here." : L"No matching hosts.", ui::rect(24, 246, 210, 25), 10, ui::muted);
-        ui::label(dc, L"Add one to get started.", ui::rect(24, 274, 210, 22), 9, ui::muted);
+        ui::label(dc, profiles.empty() ? L"No saved hosts yet." : L"No matching hosts.", ui::rect(24, 246, 210, 25), ui::TextSize::body, ui::muted);
+        ui::label(dc, L"Add one to get started.", ui::rect(24, 274, 210, 22), ui::TextSize::caption, ui::muted);
     }
     ui::fill(dc, ui::rect(18, height - 188, sidebar - 36, 1), ui::line);
     ui::fill(dc, ui::rect(sidebar + 1, 51, width - sidebar, 1), ui::line);
     hits.clear(); home = ui::rect(sidebar + 9, 9, 96, 35);
     if (active < 0) ui::round(dc, home, ui::raised, ui::line, 8);
-    ui::label(dc, L"Workspace", home, 10, active < 0 ? ui::bright : ui::muted, active < 0, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    ui::label(dc, L"Workspace", home, ui::TextSize::body, active < 0 ? ui::bright : ui::muted, active < 0, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     int x = sidebar + 112, available = width - x - 51;
     int capacity = std::max(1, available / 160);
     int tabWidth = std::min(198, available / std::max(1, std::min(capacity, (int)tabs.size())));
@@ -168,57 +174,57 @@ void App::paint(HDC dc) {
             ui::fill(dc, ui::rect(x + 14, 43, tabWidth - 33, 2), ui::accent);
         }
         auto &tab = *tabs[i];
-        ui::label(dc, tab.preview ? L"Color preview" : tab.profile.name, ui::rect(x + 13, 9, tabWidth - 49, 35), 9, i == active ? ui::bright : ui::muted);
+        ui::label(dc, tab.preview ? L"Color preview" : tab.profile.name, ui::rect(x + 13, 9, tabWidth - 49, 35), ui::TextSize::caption, i == active ? ui::bright : ui::muted);
         RECT cross = ui::rect(x + tabWidth - 33, 14, 24, 25);
-        ui::label(dc, L"×", cross, 13, ui::muted, false, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        ui::label(dc, L"×", cross, ui::TextSize::section, ui::muted, false, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         hits.push_back({r, i, false}); hits.push_back({cross, i, true}); x += tabWidth;
     }
     plus = ui::rect(width - 40, 11, 30, 31);
-    ui::label(dc, L"+", plus, 18, ui::muted, false, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    ui::label(dc, L"+", plus, ui::TextSize::title, ui::muted, false, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     if (active < 0) {
         int left = sidebar + 48, span = std::max(360, width - left - 48);
-        ui::label(dc, L"LESS FRICTION. MORE FLOW.", ui::rect(left, 102, span, 24), 9, ui::accent, true);
-        ui::label(dc, L"Your servers. One quiet workspace.", ui::rect(left, 138, span, 50), 25, ui::bright, true);
-        ui::label(dc, L"A familiar terminal, with room for every connection.", ui::rect(left, 192, span, 29), 11, ui::muted);
+        ui::label(dc, L"LESS FRICTION. MORE FLOW.", ui::rect(left, 102, span, 24), ui::TextSize::caption, ui::accent, true);
+        ui::label(dc, L"Your servers. One quiet workspace.", ui::rect(left, 138, span, 50), ui::TextSize::title, ui::bright, true);
+        ui::label(dc, L"A familiar terminal, with room for every connection.", ui::rect(left, 192, span, 29), ui::TextSize::body, ui::muted);
         ui::round(dc, ui::rect(left, 235, span - 134, 46), ui::raised, ui::line, 12);
-        ui::label(dc, L"QUICK CONNECT", ui::rect(left, 299, 140, 23), 8, ui::muted, true);
-        ui::label(dc, L"user@hostname:22   or   ssh://user@[::1]:22", ui::rect(left + 139, 299, span - 139, 23), 9, ui::muted, false, DT_LEFT | DT_VCENTER | DT_SINGLELINE, true);
+        ui::label(dc, L"QUICK CONNECT", ui::rect(left, 299, 140, 23), ui::TextSize::caption, ui::muted, true);
+        ui::label(dc, L"user@hostname:22   or   ssh://user@[::1]:22", ui::rect(left + 139, 299, span - 139, 23), ui::TextSize::caption, ui::muted, false, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         int gap = 17, card = (span - gap) / 2;
         ui::round(dc, ui::rect(left, 357, card, 167), ui::panel, ui::raised, 16);
         ui::round(dc, ui::rect(left + card + gap, 357, card, 167), ui::panel, ui::raised, 16);
-        ui::label(dc, L"A home for every host", ui::rect(left + 22, 376, card - 40, 30), 13, ui::bright, true);
-        ui::label(dc, L"Save it once. Open it in a new tab.", ui::rect(left + 22, 415, card - 40, 24), 10, ui::muted);
-        ui::label(dc, L"Made for the command line", ui::rect(left + card + gap + 22, 376, card - 40, 30), 13, ui::bright, true);
-        ui::label(dc, L"Warm colors. Sharp type. Full color.", ui::rect(left + card + gap + 22, 415, card - 40, 24), 10, ui::muted);
+        ui::label(dc, L"A home for every host", ui::rect(left + 22, 376, card - 40, 30), ui::TextSize::section, ui::bright, true);
+        ui::label(dc, L"Save it once. Open it in a new tab.", ui::rect(left + 22, 415, card - 40, 24), ui::TextSize::body, ui::muted);
+        ui::label(dc, L"Made for the command line", ui::rect(left + card + gap + 22, 376, card - 40, 30), ui::TextSize::section, ui::bright, true);
+        ui::label(dc, L"Warm colors. Sharp type. Full color.", ui::rect(left + card + gap + 22, 415, card - 40, 24), ui::TextSize::body, ui::muted);
         int y = std::max(550, height - 142);
-        ui::label(dc, L"BUILT TO STAY OUT OF YOUR WAY", ui::rect(left, y, span, 21), 8, ui::muted, true);
-        ui::label(dc, L"SSH  /  Telnet  /  Serial     ·     Tabs that travel with you", ui::rect(left, y + 32, span, 26), 10, ui::text);
-        ui::label(dc, L"Ctrl + Shift + T   new connection       Ctrl + Tab   switch tabs", ui::rect(left, y + 66, span, 22), 9, ui::muted, false, DT_LEFT | DT_VCENTER | DT_SINGLELINE, true);
+        ui::label(dc, L"BUILT TO STAY OUT OF YOUR WAY", ui::rect(left, y, span, 21), ui::TextSize::caption, ui::muted, true);
+        ui::label(dc, L"SSH  /  Telnet  /  Serial     ·     Tabs that travel with you", ui::rect(left, y + 32, span, 26), ui::TextSize::body, ui::text);
+        ui::label(dc, L"Ctrl + Shift + T   new connection       Ctrl + Tab   switch tabs", ui::rect(left, y + 66, span, 22), ui::TextSize::caption, ui::muted, false, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     } else {
         auto &tab = *tabs[active];
-        ui::label(dc, tab.preview ? L"Terminal preview" : tab.profile.name, ui::rect(sidebar + 22, 61, std::max(100, width - sidebar - 370), 24), 11, ui::bright, true);
+        ui::label(dc, tab.preview ? L"Terminal preview" : tab.profile.name, ui::rect(sidebar + 22, 61, std::max(100, width - sidebar - 370), 24), ui::TextSize::body, ui::bright, true);
         std::wstring endpoint = tab.preview ? L"Local preview · no connection" : tab.profile.protocol + L"  /  " + (tab.profile.user.empty() ? L"" : tab.profile.user + L"@") + tab.profile.host + L":" + std::to_wstring(tab.profile.port);
-        ui::label(dc, endpoint, ui::rect(sidebar + 22, 85, std::max(100, width - sidebar - 370), 19), 8, ui::muted, false, DT_LEFT | DT_VCENTER | DT_SINGLELINE, true);
+        ui::label(dc, endpoint, ui::rect(sidebar + 22, 85, std::max(100, width - sidebar - 370), 19), ui::TextSize::caption, ui::muted, false, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         ui::fill(dc, ui::rect(sidebar, 112, width - sidebar, 1), ui::raised);
         if (!IsWindow(tab.terminal)) {
             int cx = sidebar + 56;
-            ui::label(dc, tab.ended ? L"This session has ended." : tab.closing ? L"Closing session…" : L"Preparing your terminal…", ui::rect(cx, 220, width - cx - 40, 50), 22, ui::bright, true);
-            ui::label(dc, tab.ended ? L"Reconnect to start again, or open another host." : L"Complete any connection or configuration dialog to continue.", ui::rect(cx, 279, width - cx - 40, 30), 11, ui::muted);
+            ui::label(dc, tab.ended ? L"This session has ended." : tab.closing ? L"Closing session…" : L"Preparing your terminal…", ui::rect(cx, 220, width - cx - 40, 50), ui::TextSize::title, ui::bright, true);
+            ui::label(dc, tab.ended ? L"Reconnect to start again, or open another host." : L"Complete any connection or configuration dialog to continue.", ui::rect(cx, 279, width - cx - 40, 30), ui::TextSize::body, ui::muted);
         }
     }
     ui::fill(dc, ui::rect(0, height - 32, width, 32), ui::panel);
     ui::fill(dc, ui::rect(0, height - 33, width, 1), ui::line);
-    ui::label(dc, L"●  PORTABLE", ui::rect(20, height - 30, 125, 26), 8, ui::accent, true);
-    ui::label(dc, std::to_wstring(tabs.size()) + L" tabs", ui::rect(158, height - 30, 75, 26), 8, ui::muted);
-    ui::label(dc, L"Flexoki Dark   /   JetBrains Mono", ui::rect(sidebar + 20, height - 30, 300, 26), 8, ui::muted);
+    ui::label(dc, L"●  PORTABLE", ui::rect(20, height - 30, 125, 26), ui::TextSize::caption, ui::accent, true);
+    ui::label(dc, std::to_wstring(tabs.size()) + L" tabs", ui::rect(158, height - 30, 75, 26), ui::TextSize::caption, ui::muted);
+    ui::label(dc, L"Flexoki Dark   /   JetBrains Mono", ui::rect(sidebar + 20, height - 30, 300, 26), ui::TextSize::caption, ui::muted);
     if (active < 0 || !tabs[active]->transient || tabs[active]->preview)
-        ui::label(dc, L"NATIVE  ·  WINDOWS x64", ui::rect(width - 200, height - 30, 180, 26), 8, ui::muted, false, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+        ui::label(dc, L"NATIVE  ·  WINDOWS x64", ui::rect(width - 200, height - 30, 180, 26), ui::TextSize::caption, ui::muted, false, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
 }
 void App::connect(const Profile &profile, bool saved, bool preview, bool advanced) {
     if (tabs.size() >= 32) throw std::runtime_error("Close a tab before opening more than 32 sessions.");
     if (!preview && !advanced) wook::validateProfile(profile);
-    std::wstring engine = directory + L"\\wook-putty.exe";
-    if (GetFileAttributesW(engine.c_str()) == INVALID_FILE_ATTRIBUTES) throw std::runtime_error("wook-putty.exe is missing. Extract the complete portable ZIP into one folder.");
+    wchar_t self[32768]; GetModuleFileNameW(nullptr, self, 32768);
+    std::wstring engine = self;
     auto tab = std::make_unique<Tab>(); tab->profile = profile; tab->preview = preview; tab->transient = !saved;
     tab->storageName = saved ? profile.name : L"__wook_" + std::to_wstring(GetCurrentProcessId()) + L"_" + std::to_wstring(++sequence);
     if (!saved) {
@@ -233,7 +239,7 @@ void App::connect(const Profile &profile, bool saved, bool preview, bool advance
         bool ok = wsSave(store); wsClose(store);
         if (!ok) throw std::runtime_error("Cannot save temporary session settings.");
     }
-    std::wstring args = wook::quoteArg(engine) + L" -load " + wook::quoteArg(tab->storageName);
+    std::wstring args = wook::quoteArg(engine) + L" --terminal -load " + wook::quoteArg(tab->storageName);
     if (preview) args += L" -wook-preview";
     if (advanced) args += L" -wook-config";
     SetEnvironmentVariableW(L"WOOK_PARENT_HWND", std::to_wstring((uintptr_t)hwnd).c_str());
@@ -353,24 +359,30 @@ void App::action(int id) {
 }
 void App::toolsMenu() {
     HMENU menu = CreatePopupMenu();
-    AppendMenuW(menu, MF_STRING, 1, L"Key generator (PuTTYgen)");
-    AppendMenuW(menu, MF_STRING, 2, L"SSH agent (Pageant)");
+    AppendMenuW(menu, MF_STRING, 1, L"SSH key manager…");
+    AppendMenuW(menu, MF_STRING, 6, L"Export settings…");
+    AppendMenuW(menu, MF_STRING, 7, L"Import settings…");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING, 3, L"Open portable data folder");
-    AppendMenuW(menu, MF_STRING, 4, L"Open license notices");
+    AppendMenuW(menu, MF_STRING, 4, L"Open-source licenses…");
     AppendMenuW(menu, MF_STRING, 5, L"Switch tab…");
     RECT r; GetWindowRect(control(Tools), &r);
     int selected = TrackPopupMenu(menu, TPM_RETURNCMD, r.left, r.top, 0, hwnd, nullptr);
     DestroyMenu(menu);
-    if (selected == 1 || selected == 2) {
-        std::wstring path = directory + (selected == 1 ? L"\\puttygen.exe" : L"\\pageant.exe");
-        std::wstring cmd = wook::quoteArg(path); STARTUPINFOW si{sizeof(si)}; PROCESS_INFORMATION pi{};
-        if (!CreateProcessW(path.c_str(), cmd.data(), nullptr, nullptr, FALSE, 0, nullptr, directory.c_str(), &si, &pi))
-            throw std::runtime_error("The requested tool is missing from the portable folder.");
-        CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
-    } else if (selected == 3 || selected == 4) {
-        std::wstring path = directory + (selected == 3 ? L"\\data" : L"\\licenses");
-        if (selected == 3) { wchar_t *root = wsRoot(); if (root) { path = root; free(root); } }
+    if (selected == 1) showKeyManager(hwnd);
+    else if (selected == 4) wook::showLicenses(hwnd);
+    else if (selected == 6 || selected == 7) {
+        wchar_t path[32768] = L"wShell-settings.wshell";
+        OPENFILENAMEW ofn{sizeof(ofn)}; ofn.hwndOwner = hwnd; ofn.lpstrFile = path; ofn.nMaxFile = 32768;
+        ofn.lpstrFilter = L"wShell settings (*.wshell)\0*.wshell\0\0"; ofn.lpstrDefExt = L"wshell";
+        ofn.Flags = OFN_NOCHANGEDIR | OFN_PATHMUSTEXIST | (selected == 6 ? OFN_OVERWRITEPROMPT : OFN_FILEMUSTEXIST);
+        if (selected == 6 ? GetSaveFileNameW(&ofn) : GetOpenFileNameW(&ofn)) {
+            auto result = selected == 6 ? wook::exportSettings(path) : wook::importSettings(path);
+            refresh(); MessageBoxW(hwnd, result.c_str(), L"wShell · Settings backup", MB_OK | MB_ICONINFORMATION);
+        }
+    } else if (selected == 3) {
+        std::wstring path = directory + L"\\data";
+        wchar_t *root = wsRoot(); if (root) { path = root; free(root); }
         ShellExecuteW(hwnd, L"open", path.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
     } else if (selected == 5) {
         menu = CreatePopupMenu(); AppendMenuW(menu, MF_STRING, 1, L"Workspace");
@@ -486,10 +498,10 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 if (selected) ui::round(d->hDC, r, ui::raised, ui::line, 10);
                 int y = MulDiv(r.top, 96, ui::dpi);
                 ui::round(d->hDC, ui::rect(13, y + 12, 33, 33), ui::panel, selected ? ui::line : ui::panel, 8);
-                ui::label(d->hDC, L">_", ui::rect(13, y + 12, 33, 33), 11, ui::accent, true, DT_CENTER | DT_VCENTER | DT_SINGLELINE, true);
-                ui::label(d->hDC, p.name, ui::rect(57, y + 7, sidebar - 93, 25), 10, selected ? ui::bright : ui::text, true);
+                ui::label(d->hDC, L">_", ui::rect(13, y + 12, 33, 33), ui::TextSize::body, ui::accent, true, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                ui::label(d->hDC, p.name, ui::rect(57, y + 7, sidebar - 93, 25), ui::TextSize::body, selected ? ui::bright : ui::text, true);
                 std::wstring detail = p.group.empty() ? (p.user.empty() ? L"" : p.user + L"@") + p.host : p.group + L" / " + p.host;
-                ui::label(d->hDC, detail, ui::rect(57, y + 31, sidebar - 93, 22), 8, ui::muted);
+                ui::label(d->hDC, detail, ui::rect(57, y + 31, sidebar - 93, 22), ui::TextSize::caption, ui::muted);
                 if (d->itemState & ODS_FOCUS) { RECT f = r; InflateRect(&f,-3,-3); DrawFocusRect(d->hDC,&f); }
             } else ui::drawButton(d, d->CtlID == QuickConnect || d->CtlID == ConnectHost || d->CtlID == NewHost);
             return TRUE;
@@ -601,6 +613,12 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) {
+    wshellLoadFonts();
+    auto command = std::wstring(commandLine);
+    if (command == L"--terminal" || command.starts_with(L"--terminal ")) {
+        auto arguments = wook::utf8(command);
+        return wshellTerminalMain(instance, nullptr, arguments.data(), show);
+    }
     Gdiplus::GdiplusStartupInput imageInput;
     ULONG_PTR imageToken = 0;
     Gdiplus::GdiplusStartup(&imageToken, &imageInput, nullptr);
@@ -610,13 +628,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_STANDARD_CLASSES}; InitCommonControlsEx(&controls);
         App app; app.directory=wook::executableDirectory();
-        app.wordmark.reset(Gdiplus::Image::FromFile((app.directory + L"\\assets\\branding\\wshell-wordmark.png").c_str()));
+        app.wordmark = wook::loadWordmark();
 #ifdef WOOK_UI_TEST
         auto isolated = app.directory + L"\\ui-data-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64());
         SetEnvironmentVariableW(L"WOOK_DATA_DIR", isolated.c_str());
 #endif
-        AddFontResourceExW((app.directory+L"\\fonts\\JetBrainsMono-Regular.ttf").c_str(),FR_PRIVATE,nullptr);
-        AddFontResourceExW((app.directory+L"\\fonts\\JetBrainsMono-Bold.ttf").c_str(),FR_PRIVATE,nullptr);
         wook::initializeDefaults();
         app.job=CreateJobObjectW(nullptr,nullptr);
         JOBOBJECT_EXTENDED_LIMIT_INFORMATION limit{};

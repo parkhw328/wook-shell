@@ -121,7 +121,8 @@ void applyTheme(WsStore *s, int fontSize) {
         {"BlinkCur", "1"}, {"BellType", "0"}, {"CloseOnExit", "1"}, {"WarnOnClose", "0"},
         {"TerminalWidth", "110"}, {"TerminalHeight", "32"}, {"NoRemoteResize", "1"},
         {"NoRemoteWinTitle", "1"}, {"NoRemoteClearScroll", "1"}, {"TCPKeepalives", "1"},
-        {"PingInterval", "0"}, {"PingIntervalSecs", "30"}, {"CtrlShiftCV", "explicit"}, {"Present", "1"}
+        {"PingInterval", "0"}, {"PingIntervalSecs", "30"}, {"CtrlShiftCV", "explicit"}, {"Present", "1"},
+        {"TryAgent", "0"}, {"AgentFwd", "0"}, {"ConnectionSharing", "0"}
     };
     for (auto [key, value] : settings) wsSet(s, key, value);
     wsSet(s, "FontHeight", std::to_string(fontSize).c_str());

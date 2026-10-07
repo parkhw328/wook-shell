@@ -1,40 +1,21 @@
-"""Package only distributable files; never include live portable data."""
+"""Ship exactly one executable; resources and licenses are embedded."""
 from pathlib import Path
 import hashlib
 import shutil
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-NAME = "wshell-0.1.0-win-x64"
+NAME = "wshell-0.2.0-win-x64"
 OUT = ROOT / "dist" / NAME
 OUT.mkdir(parents=True, exist_ok=True)
-files = [(ROOT / "build/app/wShell.exe", "wShell.exe")]
-for binary in ("putty", "puttygen", "pageant", "plink", "pscp", "psftp"):
-    files.append((ROOT / f"build/engine/{binary}.exe", "wook-putty.exe" if binary == "putty" else f"{binary}.exe"))
-for path in (ROOT / "assets/fonts").glob("*.ttf"):
-    files.append((path, f"fonts/{path.name}"))
-for folder in ("branding", "screenshots"):
-    for path in (ROOT / "assets" / folder).glob("*.png"):
-        files.append((path, f"assets/{folder}/{path.name}"))
-files.append((ROOT / "assets/branding/README.md", "assets/branding/README.md"))
-files.append((ROOT / "assets/wshell.ico", "assets/wshell.ico"))
-for path in (ROOT / "rules").glob("*.md"):
-    files.append((path, f"rules/{path.name}"))
-for path in (ROOT / "licenses").iterdir():
-    if path.is_file():
-        files.append((path, f"licenses/{path.name}"))
-for name in ("LICENSE", "README.md", "THIRD_PARTY_NOTICES.md"):
-    files.append((ROOT / name, name))
-for source, name in files:
-    target = OUT / name
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(source, target)
+binary = OUT / "wShell.exe"
+shutil.copyfile(ROOT / "build/native/wShell.exe", binary)
+shutil.copyfile(binary, ROOT / "dist/wShell.exe")
 archive = ROOT / "dist" / f"{NAME}.zip"
 with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as bundle:
-    for _, name in files:
-        bundle.write(OUT / name, f"{NAME}/{name}")
-digest = hashlib.sha256(archive.read_bytes()).hexdigest()
-(archive.parent / f"{archive.name}.sha256").write_text(f"{digest}  {archive.name}\n", encoding="utf-8")
-print(f"Portable app: {OUT}")
-print(f"ZIP: {archive.stat().st_size / 1048576:.2f} MiB")
-print(f"SHA-256: {digest}")
+    bundle.write(binary, f"{NAME}/wShell.exe")
+for artifact in (archive, ROOT / "dist/wShell.exe"):
+    digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    artifact.with_name(artifact.name + ".sha256").write_text(f"{digest}  {artifact.name}\n", encoding="utf-8")
+print(f"Single executable: {binary} ({binary.stat().st_size / 1048576:.2f} MiB)")
+print(f"ZIP: {archive.stat().st_size / 1048576:.2f} MiB; contains only wShell.exe")

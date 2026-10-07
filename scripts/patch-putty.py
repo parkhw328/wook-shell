@@ -18,6 +18,8 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
         return archive.read(name).decode("utf-8").replace("\r\n", "\n")
 
     window = original("windows/window.c")
+    window = replace(window, "int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)",
+                     "int WINAPI wshellTerminalMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)")
     window = replace(window, "HINSTANCE hinst;", '#include "wook-window.h"\n\nHINSTANCE hinst;')
     window = replace(window, "    dll_hijacking_protection();", "    dll_hijacking_protection();\n    wookWindowInit();")
     window = replace(window, "    ShowWindow(wgs->term_hwnd, show);\n    SetForegroundWindow(wgs->term_hwnd);",
@@ -25,7 +27,14 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
     window = replace(window, "    gui_terminal_ready(wgs->term_hwnd, &wgs->seat, wgs->backend);",
                      "    wookWindowAttach(wgs->term_hwnd);\n    if (wookParent) reset_window(wgs, 2);\n    gui_terminal_ready(wgs->term_hwnd, &wgs->seat, wgs->backend);")
     window = replace(window, "    gui_term_process_cmdline(wgs->conf, cmdline);",
-                     "    gui_term_process_cmdline(wgs->conf, cmdline);\n    if (wookParent) conf_set_bool(wgs->conf, CONF_warn_on_close, false);")
+                     """    gui_term_process_cmdline(wgs->conf, cmdline);
+    /* All wShell sessions stay independent of installed agents and sharing services. */
+    wookIndependentConf(wgs->conf);
+    if (wookParent) conf_set_bool(wgs->conf, CONF_warn_on_close, false);""")
+    window = replace(window, "static void start_backend(WinGuiSeat *wgs)\n{",
+                     "static void wookIndependentConf(Conf *conf);\n\nstatic void start_backend(WinGuiSeat *wgs)\n{\n    wookIndependentConf(wgs->conf);")
+    window = replace(window, "            conf_cache_data(wgs);",
+                     "            wookIndependentConf(wgs->conf);\n            conf_cache_data(wgs);")
     window = replace(window, "    switch (message) {\n      case WM_CREATE:",
                      "    if (wookKey(hwnd, message, wParam, lParam)) return 0;\n    switch (message) {\n      case WM_APP + 60:\n        if (wookParent && wgs) {\n            close_session(wgs);\n            term_pwron(wgs->term, false);\n            start_backend(wgs);\n        }\n        return 0;\n      case WM_CREATE:")
     window = replace(window, "static void clear_full_screen(WinGuiSeat *wgs)\n{",
@@ -54,7 +63,9 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
     putty = original("windows/putty.c")
     putty = replace(putty, "static strbuf *demo_terminal_data = NULL;", "static strbuf *demo_terminal_data = NULL;\nstatic bool wookPreview = false;")
     putty = replace(putty, "    bool demo_config_box = false;", "    bool demo_config_box = false;\n    bool wookConfig = false;")
-    putty = replace(putty, '            } else if (!strcmp(p, "-cleanup")) {', '''            } else if (!strcmp(p, "-wook-config")) {
+    putty = replace(putty, '            } else if (!strcmp(p, "-cleanup")) {', '''            } else if (!strcmp(p, "--terminal")) {
+                /* Internal mode of the single wShell executable. */
+            } else if (!strcmp(p, "-wook-config")) {
                 wookConfig = true;
             } else if (!strcmp(p, "-wook-preview")) {
                 wookPreview = true;
@@ -93,11 +104,63 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
     resource = replace(resource, 'IDI_MAINICON ICON "putty.ico"', 'IDI_MAINICON ICON "wshell.ico"')
     resource = replace(resource, 'IDI_CFGICON ICON "puttycfg.ico"', 'IDI_CFGICON ICON "wshell.ico"')
     (SOURCE / "windows/putty.rc").write_text(resource, encoding="utf-8")
+    common = original("windows/putty-common.rc2").replace('#include "version.rc2"', '')
+    common = common.replace('FONT 8, "MS Shell Dlg"', 'FONT 9, "JetBrains Mono"')
+    (SOURCE / "windows/wshell-common.rc2").write_text(common, encoding="utf-8")
+    resource = resource.replace('#include "putty-common.rc2"', '#include "wshell-common.rc2"')
+    resource = replace(resource, '1 RT_MANIFEST "putty.mft"', '')
+    (SOURCE / "windows/wshell-terminal.rc").write_text(resource, encoding="utf-8")
+
+    # Do not present switches for external agent/sharing features that wShell disables.
+    config = original("config.c")
+    config = replace(config, '''        if (!midsession) {
+            s = ctrl_getset(b, "Connection/SSH", "sharing", "Sharing an SSH connection between PuTTY tools");
+
+            ctrl_checkbox(s, "Share SSH connections if possible", 's',
+                          HELPCTX(ssh_share),
+                          conf_checkbox_handler,
+                          I(CONF_ssh_connection_sharing));
+
+            ctrl_text(s, "Permitted roles in a shared connection:",
+                      HELPCTX(ssh_share));
+            ctrl_checkbox(s, "Upstream (connecting to the real server)", 'u',
+                          HELPCTX(ssh_share),
+                          conf_checkbox_handler,
+                          I(CONF_ssh_connection_sharing_upstream));
+            ctrl_checkbox(s, "Downstream (connecting to the upstream PuTTY)", 'd',
+                          HELPCTX(ssh_share),
+                          conf_checkbox_handler,
+                          I(CONF_ssh_connection_sharing_downstream));
+        }
+
+''', '')
+    config = replace(config, '''            ctrl_checkbox(s, "Attempt authentication using Pageant", 'p',
+                          HELPCTX(ssh_auth_pageant),
+                          conf_checkbox_handler,
+                          I(CONF_tryagent));
+''', '')
+    config = replace(config, '''            ctrl_checkbox(s, "Allow agent forwarding", 'f',
+                          HELPCTX(ssh_auth_agentfwd),
+                          conf_checkbox_handler, I(CONF_agentfwd));
+''', '')
+    (SOURCE / "config.c").write_text(config, encoding="utf-8")
 
     cmake = original("windows/CMakeLists.txt")
     cmake = replace(cmake, "  storage.c)", "  storage.c wook-store.c)")
     cmake = replace(cmake, "  storage.c\n", "  storage.c\n  wook-store.c\n")
     cmake = replace(cmake, "printing.c jump-list.c sizetip.c", "printing.c no-jump-list.c sizetip.c")
+    cmake = replace(cmake, 'message("ConPTY not available; cannot build Windows pterm")',
+                    'message(STATUS "ConPTY not available; optional pterm is not built")')
+    cmake += '''
+if(WSHELL_ROOT)
+  add_library(wshell-terminal OBJECT window.c putty.c help.c ${CMAKE_SOURCE_DIR}/stubs/no-console.c)
+  be_list(wshell-terminal wShell SSH SERIAL OTHERBACKENDS)
+  add_dependencies(wshell-terminal generated_licence_h)
+  add_library(wshell-keys STATIC "${WSHELL_ROOT}/src/keys.c")
+  target_include_directories(wshell-keys PRIVATE "${WSHELL_ROOT}/src")
+  add_subdirectory("${WSHELL_ROOT}" "${CMAKE_BINARY_DIR}/workspace")
+endif()
+'''
     (SOURCE / "windows/CMakeLists.txt").write_text(cmake, encoding="utf-8")
     nojump = original("windows/no-jump-list.c")
     nojump += "\nbool set_explicit_app_user_model_id(void) { return true; }\n"

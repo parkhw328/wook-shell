@@ -1,4 +1,5 @@
 #include "core.hpp"
+#include "backup.hpp"
 #include <shellapi.h>
 #include <filesystem>
 #include <fstream>
@@ -42,6 +43,7 @@ int wmain() {
         wchar_t *path = wsPath(L"sessions", wook::utf8(profile.name).c_str());
         WsStore *writer = wsOpen(path, 1);
         check(writer != nullptr, "open writer");
+        wsSet(writer, "ProxyPassword", "test-only-secret-must-not-export");
         check(wsSet(writer, "PortForwardings", "L8080=localhost:80") && wsSave(writer), "preserve advanced tunnel configuration");
         WsStore *blocked = wsOpen(path, 1);
         check(blocked == nullptr, "exclusive writer lock");
@@ -60,6 +62,32 @@ int wmain() {
         check(reader && std::string(wsGet(reader, "PortForwardings")) == "L8080=localhost:80", "advanced values survive host editing");
         check(std::string(wsGet(reader, "TrueColour")) == "1" && std::string(wsGet(reader, "Font")) == "JetBrains Mono", "terminal defaults");
         wsClose(reader);
+        auto backup = data + L"\\settings.wshell";
+        wchar_t *trustPath = wsPath(L"trust", "hostkeys");
+        writer = wsOpen(trustPath, 1); free(trustPath);
+        wsSet(writer, "rsa@22:test", "source-host-key"); check(wsSave(writer), "seed export trust"); wsClose(writer);
+        wook::exportSettings(backup);
+        { std::ifstream in(std::filesystem::path(backup), std::ios::binary); std::string bytes((std::istreambuf_iterator<char>(in)), {});
+          check(bytes.find("test-only-secret-must-not-export") == std::string::npos, "export excludes proxy passwords"); }
+        auto importedData = data + L"-import";
+        SetEnvironmentVariableW(L"WOOK_DATA_DIR", importedData.c_str());
+        wook::initializeDefaults(); wook::importSettings(backup);
+        saved = wook::loadProfiles();
+        check(saved.size() == 1 && saved[0].name == profile.name && saved[0].port == 2222, "backup round trip");
+        auto edited = saved[0]; edited.port = 3333; wook::saveProfile(edited, edited.name);
+        trustPath = wsPath(L"trust", "hostkeys"); writer = wsOpen(trustPath, 1);
+        wsSet(writer, "rsa@22:test", "existing-host-key"); check(wsSave(writer), "seed existing trust"); wsClose(writer);
+        wook::importSettings(backup);
+        check(wook::loadProfiles()[0].port == 3333, "import preserves existing session names");
+        reader = wsOpen(trustPath, 0); free(trustPath);
+        check(std::string(wsGet(reader, "rsa@22:test")) == "existing-host-key", "import cannot replace an existing trusted host key"); wsClose(reader);
+        auto broken = data + L"\\broken.wshell";
+        { std::ifstream in(std::filesystem::path(backup), std::ios::binary); std::string bytes((std::istreambuf_iterator<char>(in)), {});
+          bytes.pop_back(); std::ofstream out(std::filesystem::path(broken), std::ios::binary); out << bytes; }
+        SetEnvironmentVariableW(L"WOOK_DATA_DIR", (data + L"-invalid-import").c_str());
+        rejects([&] { wook::importSettings(broken); }, "truncated backup is rejected");
+        check(wook::loadProfiles().empty(), "invalid backup makes no partial changes");
+        SetEnvironmentVariableW(L"WOOK_DATA_DIR", data.c_str());
         { std::ofstream f(std::filesystem::path(path), std::ios::binary); f << "WS1\nnot-hex=broken\n"; }
         check(wsOpen(path, 0) == nullptr, "malformed file fails closed");
         rejects([&] { wook::saveProfile(profile, profile.name); }, "corrupt record is not silently overwritten");

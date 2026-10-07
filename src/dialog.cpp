@@ -55,16 +55,16 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 #endif
     case WM_PAINT: {
         PAINTSTRUCT ps; auto dc = BeginPaint(hwnd, &ps); RECT r; GetClientRect(hwnd, &r); ui::fill(dc, r, ui::panel);
-        ui::label(dc, form->existing ? L"Edit host" : L"A new connection", ui::rect(28, 17, 490, 34), 18, ui::bright, true);
+        ui::label(dc, form->existing ? L"Edit host" : L"A new connection", ui::rect(28, 17, 490, 34), ui::TextSize::title, ui::bright, true);
         const struct { const wchar_t *text; int x, y; } labels[] = {
             {L"NAME",28,61}, {L"ADDRESS / SERIAL PORT",28,135}, {L"PROTOCOL",28,206}, {L"PORT / BAUD",276,206},
             {L"USERNAME",28,278}, {L"GROUP",276,278}, {L"PRIVATE KEY (.ppk)",28,351}, {L"FONT SIZE",28,425}
         };
-        for (auto l : labels) ui::label(dc, l.text, ui::rect(l.x, l.y, 230, 20), 9, ui::muted, true);
+        for (auto l : labels) ui::label(dc, l.text, ui::rect(l.x, l.y, 230, 20), ui::TextSize::caption, ui::muted, true);
         const RECT boxes[] = {ui::rect(27,83,489,41), ui::rect(27,157,489,41), ui::rect(275,228,241,41),
             ui::rect(27,300,239,41), ui::rect(275,300,241,41), ui::rect(27,373,390,41), ui::rect(27,447,124,41)};
         for (auto b : boxes) ui::round(dc, b, ui::raised);
-        ui::label(dc, L"Passwords stay in the terminal. Your key is never copied.", ui::rect(28,503,490,23), 9, ui::muted);
+        ui::label(dc, L"Passwords stay in the terminal. Your key is never copied.", ui::rect(28,503,490,23), ui::TextSize::caption, ui::muted);
         EndPaint(hwnd, &ps); return 0;
     }
     case WM_CTLCOLORSTATIC:
@@ -128,10 +128,10 @@ bool editHost(HWND owner, wook::Profile &profile, bool existing) {
 }
 void showAbout(HWND owner) {
     MessageBoxW(owner,
-        L"wShell 0.1.0\nA quiet workspace for your servers.\n\n"
+        L"wShell 0.2.0\nA quiet workspace for your servers.\n\n"
         L"Native Windows x64 · Portable · MIT License\n\n"
         L"PuTTY 0.85 — modified portable build (MIT)\nFlexoki — Steph Ango (MIT)\nJetBrains Mono — SIL OFL 1.1\n\n"
-        L"Full copyright and license notices are included in the licenses folder.\n"
+        L"Full notices are embedded: Tools → Open-source licenses.\n"
         L"Independent project; not affiliated with PuTTY or Termius.\n\n"
         L"Ctrl+Shift+T  New connection\nCtrl+Shift+D  Duplicate tab\nCtrl+Tab  Next tab\nCtrl+Shift+W  Close tab\n"
         L"Ctrl+Shift+P  Find hosts\nCtrl+Shift+C / V  Copy / paste\nAlt+1…9  Switch tabs\nF11  Full screen",
