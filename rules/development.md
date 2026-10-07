@@ -4,7 +4,8 @@
 
 - 2026-10-07 사용자 요청에 따라 당분간 Windows만 빌드·테스트·패키징한다. macOS와 iPad 빌드는 사용자가 해당 플랫폼의 빌드 또는 재개를 명시적으로 요청할 때까지 중단한다.
 - 일반적인 "빌드", "전체 점검", "배포 파일 갱신" 요청은 Windows 범위로 해석한다. macOS·iPad의 로컬 빌드, CI 수동 실행, 서명·패키징을 함께 수행하지 않는다.
-- push·PR의 자동 CI는 Windows만 실행한다. macOS는 `windows.yml`의 수동 실행에서 `build_macos: true`를 지정할 때만, iPad는 `ipad.yml`을 수동 실행할 때만 빌드할 수 있다. 에이전트는 해당 플랫폼의 명시적 요청 없이 이 경로를 실행하지 않는다.
+- 2026-10-08 GitHub Actions 포함 사용량 소진으로 Windows도 로컬 빌드·검증을 기본으로 한다. `windows.yml`과 `ipad.yml`은 수동 실행 전용이며 push·PR에서 자동 빌드를 실행하지 않는다. 한도가 초기화되더라도 자동으로 CI를 재개하지 않고 사용자의 재개 요청을 따른다.
+- GitHub-hosted CI는 사용자가 실행을 명시적으로 요청했을 때만 사용한다. macOS는 추가로 `windows.yml`의 `build_macos: true`를, iPad는 `ipad.yml`을 선택해야 하며 해당 플랫폼 빌드 중단 규칙도 유지한다.
 - 기존 macOS·iPad 소스와 빌드 절차는 재개를 위해 보존한다. Windows 검증 결과를 다른 플랫폼의 검증 완료로 표시하지 않으며, 이전 산출물을 최신 Windows 변경까지 반영한 것으로 안내하지 않는다.
 - 아래 macOS 및 [iPad 규칙](ipad.md)의 빌드·검증 절차는 해당 플랫폼을 명시적으로 요청받았을 때 적용한다.
 
@@ -38,7 +39,9 @@
 - 개인키 등록: `node tests/ssh/key-import-integration.cjs`. 외부 형식 가져오기, 등록 파일 보호와 배포 EXE의 실제 키 인증·재사용을 검증한다.
 - 테스트는 임시 루프백 SSH 서버와 `build/` 아래 격리 데이터만 사용한다. 테스트 창은 자동 종료한다.
 - 데스크톱 버전은 루트 `VERSION`에서 관리한다. 현재 배포 대상은 `dist/<version>/windows-x64/`이며 `scripts/index-dist.py`로 해시 manifest를 생성한다. `dist/<version>/macos-universal/`은 macOS 빌드를 명시적으로 요청받았을 때만 갱신한다.
-- 새 Windows 배포는 소스 커밋을 푸시하고 CI 검증이 통과한 EXE·ZIP·SHA-256·manifest를 내려받아 별도 배포 커밋으로 푸시한다. manifest의 `sourceCommit`과 `workflow`는 실제 빌드를 가리키며, 내려받은 뒤에는 `python scripts/index-dist.py --catalog-only`로 검증·목록만 갱신한다.
+- 새 Windows 배포는 `VERSION`을 올리고 소스 변경을 커밋한 뒤 `scripts/build.ps1`과 위의 로컬 회귀 검증을 실행한다. 검증한 EXE·ZIP·SHA-256·manifest를 별도 배포 커밋으로 푸시한다. 소스 커밋·푸시와 `dist` 파일 공유에 GitHub Actions 실행은 필요하지 않다.
+- 로컬 배포 manifest는 실제 `sourceCommit`과 `sourceDirty: false`를 확인한다. 로컬 빌드에는 `workflow`가 없으며 CI 통과로 표시하지 않는다. 명시적으로 요청받은 CI 배포는 통과한 산출물을 내려받고 `python scripts/index-dist.py --catalog-only`로 검증·목록만 갱신해 원래 소스 커밋과 CI 링크를 보존한다.
+- 실제 키보드·마우스를 사용하는 UI 검사는 잠기지 않은 대화형 Windows 데스크톱에서 실행한다. 포커스 확보 실패 등 환경 문제를 통과로 바꾸거나 검사에서 제외하지 않는다. 미완료 검증은 명확히 기록하며 CI 한도 소진을 빌드 자체의 불가능으로 취급하지 않는다.
 - 이미 공개한 버전의 파일은 덮어쓰지 않는다. 수정 배포에는 `VERSION`을 올린다. `dist/README.md`에서 버전별 다운로드를 제공하며, 배포 파일만 변경한 푸시는 빌드를 다시 실행하지 않는다. CI는 현재 `VERSION` 폴더만 산출물로 업로드한다.
 - `dist`에는 허용한 배포 파일만 추가한다. `data`, 실제 암호·개인키, 로그·캐시를 포함하지 않는다. Windows ZIP의 유일한 파일은 함께 배포하는 EXE와 바이트가 같아야 한다. 기존 macOS·iPad 산출물 보관은 해당 플랫폼의 새 빌드나 최신 기능 검증을 뜻하지 않는다.
 - 배포 검증 스크립트의 손상 해시·다른 EXE·키 파일 차단과 manifest 보존은 `python -m unittest discover -s tests -p test_release.py`로 검사한다.

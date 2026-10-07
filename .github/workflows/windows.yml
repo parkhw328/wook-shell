@@ -1,10 +1,6 @@
 name: Desktop builds
 on:
-  push:
-    branches: [main]
-    paths-ignore: ['dist/**']
-  pull_request:
-    paths-ignore: ['dist/**']
+  # Hosted Actions allowance is exhausted. Build locally; run CI only on request.
   workflow_dispatch:
     inputs:
       build_macos:

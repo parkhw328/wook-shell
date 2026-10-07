@@ -5,7 +5,7 @@
 **가볍게 열고, 여러 서버를 한 창에서.** Windows x64와 macOS용 네이티브 터미널입니다.
 탭 작업 공간, 공개 Flexoki Dark 팔레트와 JetBrains Mono를 사용합니다. Created by **Hyunwook Park**.
 
-**현재 작업 범위 (2026-10-07): Windows에 집중합니다.** macOS·iPad 빌드는 당분간 중단하며 해당 플랫폼을 명시적으로 요청받았을 때만 실행합니다. push·PR에서는 Windows만 자동 빌드합니다. [개발 규칙](rules/development.md#현재-작업-범위--windows-집중)
+**현재 작업 범위 (2026-10-08): Windows 로컬 빌드에 집중합니다.** GitHub Actions 포함 사용량 소진으로 push·PR 자동 빌드는 중단하고, CI는 명시적으로 요청할 때만 수동 실행합니다. macOS·iPad 빌드 중단도 유지합니다. [개발 규칙](rules/development.md#현재-작업-범위--windows-집중)
 
 ![wShell workspace](assets/screenshots/workspace.png)
 
@@ -59,7 +59,7 @@ macOS의 `.app`은 Finder에서 하나의 앱으로 이동하는 번들이며, �
 
 ### 버전별 배포
 
-루트 `VERSION`에서 앱·패키지 버전을 관리합니다. **0.13.0은 Windows 배포**입니다. 실행파일·ZIP·SHA-256·manifest를 Git의 `dist`에 버전별로 보관하며 [전체 다운로드 목록](dist/README.md)에서 이전 버전도 받을 수 있습니다. 새 배포 manifest에는 빌드 소스 커밋과 CI 실행 링크를 기록합니다. 성공한 GitHub Actions의 `Desktop builds`에서도 현재 버전을 받을 수 있습니다. macOS는 기존 0.11.0, iPad는 기존 unsigned 0.1.0 산출물을 보관하며 새로 빌드하지 않습니다. [0.13.0 변경 내역](docs/releases/0.13.0.md)
+루트 `VERSION`에서 앱·패키지 버전을 관리합니다. **0.13.0은 Windows 배포**입니다. 실행파일·ZIP·SHA-256·manifest를 Git의 `dist`에 버전별로 보관하며 [전체 다운로드 목록](dist/README.md)에서 이전 버전도 받을 수 있습니다. 새 배포 manifest에는 빌드 소스 커밋을 기록하며, CI에서 빌드한 경우에만 실행 링크를 추가합니다. 기존 0.13.0은 CI 검증 완료본이고 이후 배포는 로컬 빌드·검증을 기본으로 합니다. macOS는 기존 0.11.0, iPad는 기존 unsigned 0.1.0 산출물을 보관하며 새로 빌드하지 않습니다. [0.13.0 변경 내역](docs/releases/0.13.0.md)
 
 ```text
 dist/
@@ -271,6 +271,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 -Bootstrap
 # 이후 변경 빌드, 핵심 테스트, 배포 ZIP 생성
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1
 ```
+
+이 명령은 현재 PC에서 실행하며 GitHub Actions 사용 시간을 소비하지 않습니다. 결과는 `dist/<VERSION>/windows-x64/`에 생성합니다. 새 버전 배포 시 `VERSION`을 올리고 소스를 먼저 커밋한 뒤 빌드·검증하여, 기존 배포 파일을 덮어쓰지 않고 새 버전 폴더를 커밋·푸시합니다. GitHub-hosted CI는 현재 수동 실행 전용입니다.
 
 실제 SSH 및 네이티브 UI 통합 테스트에는 개발용 Node.js 22 이상이 추가로 필요합니다.
 테스트가 자체 창을 잠시 열고 루프백 서버에 연결합니다. 외부 서버·사용자 키·실제 접속 데이터는 사용하지 않습니다.

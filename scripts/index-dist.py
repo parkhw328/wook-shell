@@ -125,7 +125,7 @@ def index(catalog_only=False):
                "\n\nmacOS and iPad builds are paused. These older artifacts do not include newer Windows changes. "
                "The macOS app is ad-hoc signed, without Developer ID notarization. "
                "The unsigned IPA requires separate Apple-account signing before installation; it is not a directly installable release.\n\n"
-               "Manifests record file sizes and SHA-256 values; new builds also record the source commit and CI run. "
+               "Manifests record file sizes and SHA-256 values; new builds also record the source commit, plus the CI run when built on Actions. "
                "Historical manifests retain known metadata only. Build tools, caches, passwords and private keys are excluded.\n")
     (ROOT / "dist/README.md").write_text(catalog, encoding="utf-8")
     print(f"Verified and indexed {len(folders)} desktop releases and {len(ipad_rows)} archived iPad builds.")
