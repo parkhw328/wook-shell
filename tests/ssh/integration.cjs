@@ -74,6 +74,7 @@ const server = new Server({ hostKeys: [key] }, client => {
         stream.write('  developer@loopback  $ ');
         if (username === 'password') signal('password-shell-' + ++passwordShells);
         if (username === 'password-fallback') signal('password-fallback-shell');
+        if (username === 'key') signal('key-shell');
         const decoder = new StringDecoder('utf8');
         stream.on('data', bytes => {
           events.received += decoder.write(bytes); stream.write(bytes);

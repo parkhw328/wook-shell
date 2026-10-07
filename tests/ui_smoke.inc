@@ -45,6 +45,7 @@ void runUiSmoke(App &app) {
         ++checks;
     };
     auto ready = [&] {
+        if (app.tabs.empty()) return false;
         for (auto &t : app.tabs) if (!IsWindow(t->terminal)) return false;
         return true;
     };
@@ -129,7 +130,7 @@ void runUiSmoke(App &app) {
             require(wsSave(store), "Cannot store host key pin"); wsClose(store);
             app.refresh(); app.connect(p, true, false, true);
             phase = 6; waits = 0;
-        } else if (phase == 6 && ready() && waits > 7) {
+        } else if (phase == 6 && ready() && received(L"key-shell.ready") && app.inputReady(app.tabs[0].get()) && waits > 7) {
             wchar_t *path = wsPath(L"sessions", wook::utf8(app.tabs[0]->storageName).c_str());
             auto store = wsOpen(path, 0); free(path);
             require(store && wsGet(store, "PingIntervalSecs") && std::string(wsGet(store, "PingIntervalSecs")) == "45", "Connection settings must persist keepalives");
