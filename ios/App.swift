@@ -34,66 +34,7 @@ struct Workspace: View {
     @State private var backup = BackupDocument(Data())
     @State private var search = ""
     var body: some View {
-        NavigationSplitView {
-            VStack(alignment: .leading, spacing: 18) {
-                Text("wShell").font(Palette.font(24, bold: true)).padding(.top, 20)
-                Text("YOUR CONNECTIONS").font(Palette.font(11)).foregroundStyle(Palette.muted)
-                TextField("Search hosts", text: $search).textFieldStyle(.roundedBorder)
-                Button { editor = Host() } label: { Label("Add a host", systemImage: "plus").frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8) }
-                List(store.hosts.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }) { host in
-                    VStack(alignment: .leading, spacing: 10) {
-                        Button(host.name) { openRequest = OpenRequest(host: host, sftp: false) }.font(Palette.font(14, bold: true))
-                        Text("\(host.user)@\(host.address)").font(Palette.font(11)).foregroundStyle(Palette.muted).lineLimit(1)
-                        HStack {
-                            Button("SFTP") { openRequest = OpenRequest(host: host, sftp: true) }
-                            Spacer()
-                            Button("Edit") { editor = host }
-                        }.buttonStyle(.borderless)
-                    }.padding(.vertical, 8).listRowBackground(Palette.panel)
-                }.listStyle(.plain).scrollContentBackground(.hidden)
-                Button("Export / Import") { backupInfo = true }
-                Button("About wShell") { about = true }
-            }.padding(18).background(Palette.panel).navigationBarHidden(true)
-        } detail: {
-            VStack(spacing: 0) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        Button("Home") { select(nil) }
-                        ForEach(sessions) { session in
-                            HStack(spacing: 12) {
-                                Button((session.isSFTP ? "⇅ " : "") + session.host.name) { select(session.id) }
-                                Button { close(session) } label: { Image(systemName: "xmark") }.accessibilityLabel("Close \(session.host.name)")
-                            }.padding(12).background(selected == session.id ? Palette.orange.opacity(0.2) : Palette.panel).clipShape(RoundedRectangle(cornerRadius: 8))
-                        }
-                        Menu("Split") {
-                            ForEach(1...4, id: \.self) { count in
-                                Button(count == 1 ? "Single pane" : "\(count) panes") { setSplit(count) }.disabled(sessions.count < count || selected == nil)
-                            }
-                        }.padding(.horizontal, 12)
-                    }.padding(12)
-                }.background(Palette.panel)
-                if selected != nil, !visibleSessions.isEmpty {
-                    GeometryReader { geometry in
-                        let visible = visibleSessions
-                        let frames = SplitLayout.frames(count: visible.count, in: CGRect(origin: .zero, size: geometry.size))
-                        ForEach(Array(visible.enumerated()), id: \.element.id) { index, session in
-                            SessionPane(connection: session) { openRequest = OpenRequest(host: session.host, sftp: session.isSFTP) }
-                                .overlay { Rectangle().stroke(selected == session.id && visible.count > 1 ? Palette.orange : Palette.muted.opacity(0.2), lineWidth: visible.count > 1 ? 2 : 0).allowsHitTesting(false) }
-                                .frame(width: frames[index].width, height: frames[index].height)
-                                .position(x: frames[index].midX, y: frames[index].midY)
-                                .simultaneousGesture(TapGesture().onEnded { select(session.id) })
-                        }
-                    }
-                } else {
-                    VStack(alignment: .leading, spacing: 22) {
-                        Text("Made for the\ncommand line.").font(Palette.font(32, bold: true))
-                        Text("Your servers. Your iPad.\nSSH terminals and SFTP, side by side.").foregroundStyle(Palette.muted)
-                        Button { editor = Host() } label: { Label("Add a host", systemImage: "plus").padding(12) }.buttonStyle(.borderedProminent)
-                        Text("Personal preview · Created by Hyunwook Park").font(Palette.font(11)).foregroundStyle(Palette.muted)
-                    }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                }
-            }.background(Palette.background).navigationBarHidden(true)
-        }.navigationSplitViewStyle(.balanced)
+        NavigationSplitView { sidebarContent } detail: { detailContent }.navigationSplitViewStyle(.balanced)
         .sheet(item: $editor) { host in HostEditor(store: store, host: host) }
         .sheet(item: $openRequest, onDismiss: {
             let action = pendingConnection; pendingConnection = nil; action?()
@@ -139,6 +80,67 @@ struct Workspace: View {
         .onChange(of: phase) { _, next in
             if next == .background { sessions.forEach { $0.stop() } }
         }
+    }
+    private var sidebarContent: some View {
+            VStack(alignment: .leading, spacing: 18) {
+                Text("wShell").font(Palette.font(24, bold: true)).padding(.top, 20)
+                Text("YOUR CONNECTIONS").font(Palette.font(11)).foregroundStyle(Palette.muted)
+                TextField("Search hosts", text: $search).textFieldStyle(.roundedBorder)
+                Button { editor = Host() } label: { Label("Add a host", systemImage: "plus").frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8) }
+                List(store.hosts.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }) { host in
+                    VStack(alignment: .leading, spacing: 10) {
+                        Button(host.name) { openRequest = OpenRequest(host: host, sftp: false) }.font(Palette.font(14, bold: true))
+                        Text("\(host.user)@\(host.address)").font(Palette.font(11)).foregroundStyle(Palette.muted).lineLimit(1)
+                        HStack {
+                            Button("SFTP") { openRequest = OpenRequest(host: host, sftp: true) }
+                            Spacer()
+                            Button("Edit") { editor = host }
+                        }.buttonStyle(.borderless)
+                    }.padding(.vertical, 8).listRowBackground(Palette.panel)
+                }.listStyle(.plain).scrollContentBackground(.hidden)
+                Button("Export / Import") { backupInfo = true }
+                Button("About wShell") { about = true }
+            }.padding(18).background(Palette.panel).navigationBarHidden(true)
+    }
+    private var detailContent: some View {
+            VStack(spacing: 0) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        Button("Home") { select(nil) }
+                        ForEach(sessions) { session in
+                            HStack(spacing: 12) {
+                                Button((session.isSFTP ? "⇅ " : "") + session.host.name) { select(session.id) }
+                                Button { close(session) } label: { Image(systemName: "xmark") }.accessibilityLabel("Close \(session.host.name)")
+                            }.padding(12).background(selected == session.id ? Palette.orange.opacity(0.2) : Palette.panel).clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                        Menu("Split") {
+                            ForEach(1...4, id: \.self) { count in
+                                Button(count == 1 ? "Single pane" : "\(count) panes") { setSplit(count) }.disabled(sessions.count < count || selected == nil)
+                            }
+                        }.padding(.horizontal, 12)
+                    }.padding(12)
+                }.background(Palette.panel)
+                if selected != nil, !visibleSessions.isEmpty {
+                    GeometryReader { geometry in
+                        let visible = visibleSessions
+                        let frames = SplitLayout.frames(count: visible.count, in: CGRect(origin: .zero, size: geometry.size))
+                        ForEach(Array(visible.enumerated()), id: \.element.id) { index, session in
+                            SessionPane(connection: session) { openRequest = OpenRequest(host: session.host, sftp: session.isSFTP) }
+                                .overlay { Rectangle().stroke(selected == session.id && visible.count > 1 ? Palette.orange : Palette.muted.opacity(0.2), lineWidth: visible.count > 1 ? 2 : 0).allowsHitTesting(false) }
+                                .frame(width: frames[index].width, height: frames[index].height)
+                                .position(x: frames[index].midX, y: frames[index].midY)
+                                .simultaneousGesture(TapGesture().onEnded { select(session.id) })
+                        }
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 22) {
+                        Text("Made for the\ncommand line.").font(Palette.font(32, bold: true))
+                        Text("Your servers. Your iPad.\nSSH terminals and SFTP, side by side.").foregroundStyle(Palette.muted)
+                        Button { editor = Host() } label: { Label("Add a host", systemImage: "plus").padding(12) }.buttonStyle(.borderedProminent)
+                        Text("Personal preview · Created by Hyunwook Park").font(Palette.font(11)).foregroundStyle(Palette.muted)
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                }
+            }.background(Palette.background).navigationBarHidden(true)
     }
     private func report(_ message: String) { error = message; showError = true }
     private var visibleSessions: [Connection] {

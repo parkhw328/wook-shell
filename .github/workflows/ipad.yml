@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['ios/**', 'scripts/build-ios.py', 'tests/ssh/ios-integration.cjs', '.github/workflows/ipad.yml']
+    paths: ['ios/**', 'scripts/build-ios.py', 'tests/ssh/ios-integration.cjs', '.github/workflows/ipad.yml', 'mac/Sources/CSFTP/**', 'mac/Sources/WShellCore/SplitLayout.swift', 'mac/Package.resolved']
 permissions:
   contents: read
 jobs:
