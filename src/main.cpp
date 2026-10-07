@@ -212,9 +212,10 @@ void App::paint(HDC dc) {
         }
     } else {
         auto &tab = *tabs[active];
-        ui::label(dc, tab.preview ? L"Terminal preview" : tab.profile.name, ui::rect(sidebar + 22, 61, std::max(100, width - sidebar - 370), 24), ui::TextSize::body, ui::bright, true);
+        int toolbarSpace = !tab.preview && !tab.files && tab.profile.protocol == L"ssh" ? 458 : 370;
+        ui::label(dc, tab.preview ? L"Terminal preview" : tab.profile.name, ui::rect(sidebar + 22, 61, std::max(100, width - sidebar - toolbarSpace), 24), ui::TextSize::body, ui::bright, true);
         std::wstring endpoint = tab.preview ? L"Local preview · no connection" : tab.profile.protocol == L"local" ? L"Local terminal · this computer" : tab.profile.protocol + L"  /  " + (tab.profile.user.empty() ? L"" : tab.profile.user + L"@") + tab.profile.host + L":" + std::to_wstring(tab.profile.port);
-        ui::label(dc, endpoint, ui::rect(sidebar + 22, 85, std::max(100, width - sidebar - 370), 19), ui::TextSize::caption, ui::muted, false, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        ui::label(dc, endpoint, ui::rect(sidebar + 22, 85, std::max(100, width - sidebar - toolbarSpace), 19), ui::TextSize::caption, ui::muted, false, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         ui::fill(dc, ui::rect(sidebar, 112, width - sidebar, 1), ui::raised);
         if (!IsWindow(tab.terminal)) {
             int cx = sidebar + 56;
