@@ -21,14 +21,11 @@ struct Settings {
     HWND listDrag{};
     int selected = -1, contentHeight{}, scroll{}, dragY{}, dragScroll{}, listDragY{}, listDragTop{};
     UINT dpi = 96;
-    ULONG_PTR imageToken{};
-    std::unique_ptr<Gdiplus::Bitmap> wordmark;
     std::vector<Page> pages;
     std::vector<int> filtered;
 #ifdef WOOK_UI_TEST
     int testStep = 0, testChecks = 0, testRun = 0;
 #endif
-    ~Settings() { wordmark.reset(); if (imageToken) Gdiplus::GdiplusShutdown(imageToken); }
 };
 Settings *state(HWND hwnd) {
     while (hwnd) {
@@ -297,10 +294,7 @@ void paint(Settings *s, HDC dc) {
     RECT r = client(s->window); int width = MulDiv(r.right, 96, s->dpi), height = MulDiv(r.bottom, 96, s->dpi);
     ui::fill(dc, r, ui::bg); ui::fill(dc, ui::rect(0, 0, side, height), ui::panel);
     ui::fill(dc, ui::rect(side, 0, 1, height), ui::line);
-    if (s->wordmark) {
-        Gdiplus::Graphics g(dc); g.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
-        g.DrawImage(s->wordmark.get(), ui::px(10), ui::px(6), ui::px(224), ui::px(74));
-    }
+    ui::label(dc, L"wShell", ui::rect(24, 15, 212, 43), ui::TextSize::title, ui::bright, true);
     ui::label(dc, s->authorities ? L"HOST AUTHORITIES" : s->live ? L"SESSION SETTINGS" : L"CONNECTION SETTINGS", ui::rect(24, 71, 218, 21), ui::TextSize::caption, ui::muted, true);
     ui::round(dc, ui::rect(18, 101, side - 36, 42), ui::raised);
     ui::label(dc, std::to_wstring(s->filtered.size()) + L" sections", ui::rect(26, height - 38, 195, 23), ui::TextSize::caption, ui::muted);
@@ -334,8 +328,6 @@ extern "C" HWND wsSettingsBegin(HWND window, WsSettingsKind kind, void *context,
     SendMessageW(window, WM_SETICON, ICON_BIG, (LPARAM)LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(101)));
     auto style = GetWindowLongPtrW(window, GWL_STYLE) | WS_CLIPCHILDREN | WS_THICKFRAME | WS_MAXIMIZEBOX;
     SetWindowLongPtrW(window, GWL_STYLE, style);
-    Gdiplus::GdiplusStartupInput input; Gdiplus::GdiplusStartup(&s->imageToken, &input, nullptr);
-    try { s->wordmark = wook::loadWordmark(); } catch (...) { /* Header text remains available if resources cannot be read. */ }
     WNDCLASSW wc{}; wc.lpfnWndProc = viewportProc; wc.hInstance = GetModuleHandleW(nullptr);
     wc.lpszClassName = L"wShellSettingsViewport"; wc.hCursor = LoadCursorW(nullptr, IDC_ARROW); RegisterClassW(&wc);
     s->search = ui::edit(window, L"Search settings…", Search);

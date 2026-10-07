@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(WookShell VERSION 0.4.0 LANGUAGES C CXX RC)
+project(WookShell VERSION 0.4.1 LANGUAGES C CXX RC)
 if(NOT TARGET wshell-terminal)
     message(FATAL_ERROR "Use scripts/build.ps1 to build wShell with its statically linked terminal.")
 endif()
@@ -16,7 +16,6 @@ set(workspace_sources src/main.cpp src/dialog.cpp src/resources.cpp src/key_dial
 set_property(SOURCE assets/app.rc APPEND PROPERTY OBJECT_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/assets/app.manifest"
     "${CMAKE_CURRENT_SOURCE_DIR}/assets/wshell.ico"
-    "${CMAKE_CURRENT_SOURCE_DIR}/assets/branding/wshell-wordmark.png"
     "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/JetBrainsMono-Regular.ttf"
     "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/JetBrainsMono-Bold.ttf"
     "${CMAKE_CURRENT_SOURCE_DIR}/build/legal-notices.txt"
@@ -24,7 +23,7 @@ set_property(SOURCE assets/app.rc APPEND PROPERTY OBJECT_DEPENDS
     "${CMAKE_SOURCE_DIR}/windows/wshell-common.rc2"
     "${CMAKE_SOURCE_DIR}/windows/wshell.ico")
 set(workspace_libraries wook-core wshell-keys guiterminal guimisc eventloop sshclient otherbackends settings network keygen crypto utils
-    comctl32 dwmapi uxtheme comdlg32 shell32 gdi32 user32 gdiplus ole32 advapi32 imm32 ws2_32 bcrypt)
+    comctl32 dwmapi uxtheme comdlg32 shell32 gdi32 user32 ole32 advapi32 imm32 ws2_32 bcrypt)
 add_executable(WookShell WIN32 ${workspace_sources})
 set_target_properties(WookShell PROPERTIES OUTPUT_NAME wShell)
 target_link_libraries(WookShell PRIVATE ${workspace_libraries})

@@ -5,7 +5,7 @@ import shutil
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-NAME = "wshell-0.4.0-win-x64"
+NAME = "wshell-0.4.1-win-x64"
 OUT = ROOT / "dist" / NAME
 OUT.mkdir(parents=True, exist_ok=True)
 binary = OUT / "wShell.exe"

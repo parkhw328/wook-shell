@@ -75,7 +75,6 @@ void runUiSmoke(App &app) {
         if (++waits > 80) throw std::runtime_error("Timed out waiting for hosted terminal windows.");
         if (phase == 0) {
             require(GetClassLongPtrW(app.hwnd, GCLP_HICON) != 0 && GetClassLongPtrW(app.hwnd, GCLP_HICONSM) != 0, "Executable must include large and small app icons");
-            require(app.wordmark && app.wordmark->GetLastStatus() == Gdiplus::Ok, "Brand wordmark must load from inside the executable");
             auto fontDc = GetDC(app.hwnd); auto oldFont = SelectObject(fontDc, ui::font()); wchar_t face[100]{};
             GetTextFaceW(fontDc, 100, face); SelectObject(fontDc, oldFont); ReleaseDC(app.hwnd, fontDc);
             require(std::wstring(face) == L"JetBrains Mono", "Embedded UI font must resolve without installed fonts");

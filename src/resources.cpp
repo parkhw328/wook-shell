@@ -13,23 +13,6 @@ std::string resourceBytes(int id) {
     if (!bytes || !size) throw std::runtime_error("An embedded wShell resource is missing.");
     return std::string((const char *)bytes, size);
 }
-std::unique_ptr<Gdiplus::Bitmap> loadWordmark() {
-    auto bytes = resourceBytes(102);
-    auto memory = GlobalAlloc(GMEM_MOVEABLE, bytes.size());
-    if (!memory) throw std::bad_alloc();
-    void *target = GlobalLock(memory);
-    if (!target) { GlobalFree(memory); throw std::bad_alloc(); }
-    memcpy(target, bytes.data(), bytes.size()); GlobalUnlock(memory);
-    IStream *stream = nullptr;
-    if (FAILED(CreateStreamOnHGlobal(memory, TRUE, &stream))) { GlobalFree(memory); throw std::runtime_error("Cannot load branding image."); }
-    auto image = std::unique_ptr<Gdiplus::Bitmap>(Gdiplus::Bitmap::FromStream(stream));
-    std::unique_ptr<Gdiplus::Bitmap> copy;
-    if (image && image->GetLastStatus() == Gdiplus::Ok)
-        copy.reset(image->Clone(0, 0, image->GetWidth(), image->GetHeight(), PixelFormat32bppARGB));
-    image.reset(); stream->Release();
-    if (!copy) throw std::runtime_error("Embedded branding image is invalid.");
-    return copy;
-}
 namespace {
 LRESULT CALLBACK licenseProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (msg == WM_CREATE) {

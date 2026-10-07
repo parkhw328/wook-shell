@@ -8,7 +8,7 @@ import subprocess
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-NAME = "wshell-0.4.0-win-x64"
+NAME = "wshell-0.4.1-win-x64"
 folder = ROOT / "dist" / NAME
 archive = ROOT / "dist" / f"{NAME}.zip"
 expected = archive.with_suffix(".zip.sha256").read_text().split()[0]
@@ -59,8 +59,7 @@ try:
     count = struct.unpack_from("<H", payload, 4)[0]
     dimensions = {payload[6 + i * 14] or 256 for i in range(count)}
     assert dimensions == {16, 24, 32, 48, 64, 128, 256}, f"Missing icon resolutions: {dimensions}"
-    for resource_id, source in ((102, ROOT / "assets/branding/wshell-wordmark.png"),
-                                (103, ROOT / "assets/fonts/JetBrainsMono-Regular.ttf"),
+    for resource_id, source in ((103, ROOT / "assets/fonts/JetBrainsMono-Regular.ttf"),
                                 (104, ROOT / "assets/fonts/JetBrainsMono-Bold.ttf"),
                                 (105, ROOT / "build/legal-notices.txt")):
         resource = kernel.FindResourceW(module, resource_id, 10)

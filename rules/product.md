@@ -5,7 +5,9 @@
 - 네이티브 Win32 UI와 PuTTY 엔진을 사용하여 용량과 메모리 사용을 줄인다.
 - Flexoki Dark와 번들 JetBrains Mono를 기본으로 사용한다. Termius의 비공개 자산은 사용하지 않는다.
 - UI 글꼴은 JetBrains Mono Regular/Bold, 공통 크기는 보조 9pt·본문 11pt·섹션 13pt·제목 20pt로 통일한다. 개별 화면에서 임의 크기를 추가하지 않는다.
-- 생성한 wShell 이미지 브랜딩을 앱 헤더와 README에 사용한다. 다중 해상도 ICO를 실행파일·작업 표시줄 아이콘으로 내장한다.
+- 앱·설정 화면의 왼쪽 상단에는 JetBrains Mono로 `wShell` 텍스트만 표시하며 로고를 붙이지 않는다.
+- 버튼·선택·포커스의 공통 강조색은 주황색 `#DA702C`다. 터미널 출력의 ANSI 팔레트는 유지한다.
+- 실행파일 아이콘은 회색 띠·그라데이션·화살표가 없는 단색 주황색 `w`다. 생성한 PNG를 README에 사용하고 다중 해상도 ICO를 실행파일·작업 표시줄에 내장한다.
 - ANSI, 256색, 24비트 True Color, UTF-8, 터미널 리사이즈를 지원한다.
 - SSH, Telnet, Rlogin, Raw, Serial과 PuTTY의 고급 설정을 유지한다.
 - 연결·세션·호스트 인증기관 설정은 wShell 테마의 자체 화면으로 제공한다. 설정 모델과 검증 로직은 기존 엔진을 유지한다.

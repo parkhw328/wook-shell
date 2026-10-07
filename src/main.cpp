@@ -8,8 +8,6 @@
 #include <windowsx.h>
 #include <shellapi.h>
 #include <commdlg.h>
-#include <objidl.h>
-#include <gdiplus.h>
 #include <memory>
 #include <stdexcept>
 #include <vector>
@@ -37,7 +35,6 @@ struct App {
     HWND hwnd = nullptr, controls[24]{};
     HANDLE job = nullptr;
     std::wstring directory;
-    std::unique_ptr<Gdiplus::Bitmap> wordmark;
     std::vector<Profile> profiles;
     std::vector<size_t> filtered;
     std::vector<std::unique_ptr<Tab>> tabs;
@@ -147,11 +144,7 @@ void App::paint(HDC dc) {
     ui::fill(dc, ui::rect(0, 0, width, height), ui::bg);
     ui::fill(dc, ui::rect(0, 0, sidebar, height), ui::panel);
     ui::fill(dc, ui::rect(sidebar, 0, 1, height), ui::line);
-    if (wordmark && wordmark->GetLastStatus() == Gdiplus::Ok) {
-        Gdiplus::Graphics graphics(dc);
-        graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
-        graphics.DrawImage(wordmark.get(), ui::px(10), ui::px(3), ui::px(226), ui::px(75));
-    } else ui::label(dc, L"wShell", ui::rect(24, 15, 212, 43), ui::TextSize::title, ui::bright, true);
+    ui::label(dc, L"wShell", ui::rect(24, 15, 212, 43), ui::TextSize::title, ui::bright, true);
     ui::label(dc, L"YOUR PERSONAL WORKSPACE", ui::rect(24, 67, 211, 14), ui::TextSize::caption, ui::muted, true);
     ui::round(dc, ui::rect(18, 90, sidebar - 36, 45), ui::raised);
     ui::label(dc, L"SAVED HOSTS", ui::rect(21, 200, 150, 23), ui::TextSize::caption, ui::muted, true);
@@ -624,16 +617,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
         auto arguments = wook::utf8(command);
         return wshellTerminalMain(instance, nullptr, arguments.data(), show);
     }
-    Gdiplus::GdiplusStartupInput imageInput;
-    ULONG_PTR imageToken = 0;
-    Gdiplus::GdiplusStartup(&imageToken, &imageInput, nullptr);
-    struct ImageRuntime { ULONG_PTR token; ~ImageRuntime() { if (token) Gdiplus::GdiplusShutdown(token); } } imageRuntime{imageToken};
     try {
         SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32 | LOAD_LIBRARY_SEARCH_APPLICATION_DIR);
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_STANDARD_CLASSES}; InitCommonControlsEx(&controls);
         App app; app.directory=wook::executableDirectory();
-        app.wordmark = wook::loadWordmark();
 #ifdef WOOK_UI_TEST
         auto isolated = app.directory + L"\\ui-data-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64());
         SetEnvironmentVariableW(L"WOOK_DATA_DIR", isolated.c_str());

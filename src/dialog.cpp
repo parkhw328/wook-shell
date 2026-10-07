@@ -188,7 +188,7 @@ bool editHost(HWND owner, wook::Profile &profile, bool existing) {
 }
 void showAbout(HWND owner) {
     MessageBoxW(owner,
-        L"wShell 0.4.0\nA quiet workspace for your servers.\n\n"
+        L"wShell 0.4.1\nA quiet workspace for your servers.\n\n"
         L"Native Windows x64 · Portable · MIT License\n\n"
         L"PuTTY 0.85 — modified portable build (MIT)\nFlexoki — Steph Ango (MIT)\nJetBrains Mono — SIL OFL 1.1\n\n"
         L"Full notices are embedded: Tools → Open-source licenses.\n"
