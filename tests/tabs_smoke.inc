@@ -27,6 +27,16 @@ template<typename Check> void testTabOverflow(App &app, Check require) {
         SendMessageW(app.hwnd, WM_MOUSEHWHEEL, MAKEWPARAM(0, 120), MAKELPARAM(pointer.x, pointer.y));
         require(app.tabScroll == 2, "Horizontal wheel scrolls right");
         captureTestWindow(app.hwnd, width == 980 ? L"ui-tabs-overflow-small.bmp" : L"ui-tabs-overflow-large.bmp");
+        // Native mouse clicks focus buttons; reaching the edge disables the
+        // button during BN_CLICKED. Restore the editor even at that boundary.
+        if (GetForegroundWindow() == app.hwnd) {
+            app.scrollTabs(1 - app.tabScroll); SetFocus(app.control(Search));
+            auto button = app.control(TabsPrevious);
+            SendMessageW(button, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(10, 10));
+            SendMessageW(button, WM_LBUTTONUP, 0, MAKELPARAM(10, 10));
+            require(app.tabScroll == 0 && !IsWindowEnabled(button) && GetFocus() == app.control(Search),
+                    "A mouse scroll reaching the edge must restore the prior editor focus");
+        }
         app.command(6); UpdateWindow(app.hwnd);
         require(app.active == 30 && std::any_of(app.hits.begin(), app.hits.end(), [](const auto &hit) { return hit.index == 30; }), "Ctrl+Shift+Tab reveals the selected offscreen tab");
         auto selectedName = app.tabs[app.active]->profile.name;

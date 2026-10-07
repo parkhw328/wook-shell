@@ -876,7 +876,8 @@ LRESULT CALLBACK scrollButtonProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UIN
     if (msg == WM_LBUTTONDOWN) app.scrollButtonFocus = GetFocus();
     auto result = DefSubclassProc(hwnd, msg, wp, lp);
     if (msg == WM_LBUTTONUP) {
-        if (GetFocus() == hwnd && GetForegroundWindow() == app.hwnd && IsWindow(app.scrollButtonFocus) && IsWindowVisible(app.scrollButtonFocus))
+        // Reaching an edge disables the clicked button and can clear its focus.
+        if (GetForegroundWindow() == app.hwnd && IsWindow(app.scrollButtonFocus) && IsWindowVisible(app.scrollButtonFocus))
             SetFocus(app.scrollButtonFocus);
         app.scrollButtonFocus = nullptr;
     }
@@ -987,7 +988,8 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 if (header->idFrom >= 1000 && header->idFrom < 1000 + app->tabs.size()) {
                     auto &tab = *app->tabs[header->idFrom - 1000];
                     app->tooltipText = tab.profile.displayName();
-                    if (!tab.preview) app->tooltipText += L"\n" + (tab.profile.user.empty() ? L"" : tab.profile.user + L"@") + tab.profile.host + L":" + std::to_wstring(tab.profile.port);
+                    if (tab.profile.protocol == L"local") app->tooltipText += L"\nLocal terminal";
+                    else if (!tab.preview) app->tooltipText += L"\n" + (tab.profile.user.empty() ? L"" : tab.profile.user + L"@") + tab.profile.host + L":" + std::to_wstring(tab.profile.port);
                     ((NMTTDISPINFOW *)lp)->lpszText = app->tooltipText.data(); return 0;
                 }
                 int id = GetDlgCtrlID((HWND)header->idFrom);
