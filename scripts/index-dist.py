@@ -70,7 +70,7 @@ def manifest_for(release, artifacts, provenance=None):
         return manifest
     manifest.update(version=release.name, createdBy="Hyunwook Park", artifacts=artifacts)
     if provenance is not None:
-        for key in ("sourceCommit", "sourceDirty", "workflow"):
+        for key in ("sourceCommit", "sourceDirty", "workflow", "buildHost", "validation"):
             manifest.pop(key, None)
         manifest.update(provenance)
     return manifest
@@ -88,21 +88,37 @@ def build_provenance():
     return result
 
 
-def index(catalog_only=False):
+def validation_note(manifest):
+    if manifest.get("validation", {}).get("windowsRuntime") == "not-run":
+        return "Linux cross-build; static package checks passed. Windows runtime / NGS testing has not been run."
+    return ""
+
+
+def index(catalog_only=False, cross_built=False):
     version = (ROOT / "VERSION").read_text().strip()
     folders = [path for path in (ROOT / "dist").iterdir() if path.is_dir() and re.fullmatch(r"\d+\.\d+\.\d+", path.name)]
     folders.sort(key=lambda path: tuple(map(int, path.name.split("."))), reverse=True)
     pending, rows = [], []
+    current_note = ""
     for release in folders:
         artifacts = artifacts_for(release)
         provenance = build_provenance() if release.name == version and not catalog_only else None
+        if provenance is not None and cross_built:
+            if provenance["sourceDirty"]:
+                raise ValueError("Commit source changes before indexing a cross-built release")
+            provenance.pop("workflow", None)
+            provenance.update(buildHost="linux", validation={"staticPackage": "passed", "windowsRuntime": "not-run", "ngs": "not-run"})
         manifest = manifest_for(release, artifacts, provenance)
+        note = validation_note(manifest)
+        if release.name == version:
+            current_note = note
         pending.append((release / "manifest.json", manifest))
         for item in artifacts:
             if item["file"].endswith(".exe"):
                 continue
             path = f"{release.name}/{item['file']}"
-            rows.append(f"| {release.name} | {item['platform']} | [ZIP]({path}) | [SHA-256]({path}.sha256) · [manifest]({release.name}/manifest.json) |")
+            status = f" · {note}" if item["platform"] == "windows-x64" and note else ""
+            rows.append(f"| {release.name} | {item['platform']} | [ZIP]({path}) | [SHA-256]({path}.sha256) · [manifest]({release.name}/manifest.json){status} |")
     ipad_rows = []
     for path in sorted((ROOT / "dist/ipad").glob("*/*.ipa")):
         digest = checksum(path)
@@ -118,6 +134,7 @@ def index(catalog_only=False):
     catalog = ("# wShell downloads\n\n"
                f"Current Windows release: **{version}**. [Standalone EXE]({version}/windows-x64/wShell.exe) · "
                f"[ZIP]({version}/windows-x64/wshell-{version}-windows-x64.zip)\n\n"
+               + (f"**Validation status: {current_note}**\n\n" if current_note else "") +
                "Versioned binaries, checksums and manifests are tracked in Git. Open a file and select **Download raw file** to download it. "
                "Each Windows ZIP contains only wShell.exe. Windows releases are unsigned.\n\n"
                "| Version | Platform | Download | Verification |\n| --- | --- | --- | --- |\n" + "\n".join(rows) +
@@ -133,5 +150,8 @@ def index(catalog_only=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--catalog-only", action="store_true", help="Verify downloads without changing build provenance")
-    index(parser.parse_args().catalog_only)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--catalog-only", action="store_true", help="Verify downloads without changing build provenance")
+    mode.add_argument("--cross-built", action="store_true", help="Record Linux static verification and unrun Windows runtime tests")
+    args = parser.parse_args()
+    index(args.catalog_only, args.cross_built)

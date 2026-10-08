@@ -39,7 +39,7 @@ iPad용 네이티브 SSH·SFTP 앱은 별도로 준비 중입니다. 무료 Appl
 
 ### Windows
 
-1. **[`wShell.exe`](dist/0.13.0/windows-x64/wShell.exe) 하나**를 원하는 폴더에 복사합니다. [`wshell-0.13.0-windows-x64.zip`](dist/0.13.0/windows-x64/wshell-0.13.0-windows-x64.zip)에도 이 파일만 들어 있습니다. GitHub 파일 화면의 **Download raw file**로 받습니다.
+1. **[`wShell.exe`](dist/0.14.0/windows-x64/wShell.exe) 하나**를 원하는 폴더에 복사합니다. [`wshell-0.14.0-windows-x64.zip`](dist/0.14.0/windows-x64/wshell-0.14.0-windows-x64.zip)에도 이 파일만 들어 있습니다. GitHub 파일 화면의 **Download raw file**로 받습니다.
 2. 실행합니다. 설치, 관리자 권한, WebView2, .NET, Node.js가 필요하지 않습니다.
 3. `New host`에서 접속 정보를 저장하거나, 빠른 연결 칸에 `user@hostname:22`를 입력합니다.
 4. 처음 접속하는 SSH 서버의 키 지문을 확인한 뒤 신뢰 여부를 선택합니다.
@@ -59,18 +59,18 @@ macOS의 `.app`은 Finder에서 하나의 앱으로 이동하는 번들이며, �
 
 ### 버전별 배포
 
-루트 `VERSION`에서 앱·패키지 버전을 관리합니다. **0.13.0은 Windows 배포**입니다. 실행파일·ZIP·SHA-256·manifest를 Git의 `dist`에 버전별로 보관하며 [전체 다운로드 목록](dist/README.md)에서 이전 버전도 받을 수 있습니다. 새 배포 manifest에는 빌드 소스 커밋을 기록하며, CI에서 빌드한 경우에만 실행 링크를 추가합니다. 기존 0.13.0은 CI 검증 완료본이고 이후 배포는 로컬 빌드·검증을 기본으로 합니다. macOS는 기존 0.11.0, iPad는 기존 unsigned 0.1.0 산출물을 보관하며 새로 빌드하지 않습니다. [0.13.0 변경 내역](docs/releases/0.13.0.md)
+루트 `VERSION`에서 앱·패키지 버전을 관리합니다. **현재 Windows 배포는 0.14.0**입니다. Linux 교차 빌드·정적 패키지 검사 완료본이며 **Windows/NGS 실기 검증은 미실행**입니다. 실행파일·ZIP·SHA-256·manifest를 Git의 `dist`에 버전별로 보관하며 [전체 다운로드 목록](dist/README.md)에서 이전 버전도 받을 수 있습니다. 새 배포 manifest에는 빌드 소스 커밋을 기록하며, CI에서 빌드한 경우에만 실행 링크를 추가합니다. 기존 0.13.0은 CI 검증 완료본이고 이후 배포는 로컬 빌드·검증을 기본으로 합니다. macOS는 기존 0.11.0, iPad는 기존 unsigned 0.1.0 산출물을 보관하며 새로 빌드하지 않습니다. [0.14.0 변경 내역](docs/releases/0.14.0.md)
 
 ```text
 dist/
   README.md
-  0.13.0/
+  0.14.0/
     manifest.json
     windows-x64/
       wShell.exe
       wShell.exe.sha256
-      wshell-0.13.0-windows-x64.zip
-      wshell-0.13.0-windows-x64.zip.sha256
+      wshell-0.14.0-windows-x64.zip
+      wshell-0.14.0-windows-x64.zip.sha256
   0.11.0/
     macos-universal/
       wshell-0.11.0-macos-universal.zip
@@ -288,7 +288,7 @@ python3 scripts/build-windows-linux.py
 python3 scripts/build-windows-linux.py --jobs 4
 ```
 
-EXE·ZIP·SHA-256은 `build/packages/<VERSION>/windows-x64/`에 생성됩니다. 기존 `dist/` 배포 파일과 manifest를 덮어쓰지 않습니다. 중간 빌드는 `build/windows-linux/`이며 Windows 테스트 실행파일도 함께 컴파일합니다. EXE의 x64 형식, DLL 의존성, ZIP 무결성, 내장 폰트·라이선스·아이콘은 Linux에서 정적으로 검사합니다.
+작업 중 EXE·ZIP·SHA-256은 `build/packages/<VERSION>/windows-x64/`에 생성됩니다. 배포 요청 시에는 소스와 `VERSION` 변경을 먼저 커밋하고 `python3 scripts/build-windows-linux.py --dist`를 실행합니다. 새 버전의 `dist/<VERSION>/windows-x64/`에 같은 파일을 모으고, manifest와 다운로드 목록에 Linux 정적 검사 통과·Windows/NGS 실행 미검증 상태를 기록합니다. 이후 `dist/` 변경을 커밋·푸시합니다. 이미 존재하는 버전 폴더는 `--dist`가 거부하므로 수정 배포에는 버전을 올리세요. 기존 `dist/` 배포 파일과 manifest를 덮어쓰지 않습니다. 중간 빌드는 `build/windows-linux/`이며 Windows 테스트 실행파일도 함께 컴파일합니다. EXE의 x64 형식, DLL 의존성, ZIP 무결성, 내장 폰트·라이선스·아이콘은 Linux에서 정적으로 검사합니다.
 
 **이 명령은 Windows 실행 테스트를 수행하지 않습니다.** SSH·UI·IME·DPAPI 등의 실제 동작 검증은 Windows에서 별도로 수행해야 합니다. Linux 빌드 성공을 Windows 회귀 테스트 통과나 새 버전 배포 완료로 취급하지 않습니다. Windows와 Linux 빌드는 생성 리소스와 PuTTY 소스를 공유하므로 같은 checkout에서 동시에 실행하지 마세요.
 

@@ -31,8 +31,8 @@
 
 ## 빌드와 회귀 검증
 
-- Linux x86_64 교차 빌드: `python3 scripts/build-windows-linux.py --bootstrap`, 이후 `python3 scripts/build-windows-linux.py`. 도구는 `.tools/`, 중간 빌드는 `build/windows-linux/`, 미배포 EXE·ZIP·해시는 `build/packages/<VERSION>/windows-x64/`에 둔다. 기존 `dist/`와 manifest는 변경하지 않는다.
-- Linux에서는 PE·ZIP·내장 리소스를 정적으로 검증하고 Windows 테스트 EXE를 컴파일한다. Windows 실행·SSH·UI·IME·DPAPI 회귀 검증은 실행하지 않으며 통과로 표시하지 않는다. Windows와 Linux 빌드는 같은 checkout에서 동시에 실행하지 않는다. 교차 빌드 산출물은 Windows 실기 검증 전 배포하지 않는다.
+- Linux x86_64 교차 빌드: `python3 scripts/build-windows-linux.py --bootstrap`, 이후 `python3 scripts/build-windows-linux.py`. 도구는 `.tools/`, 중간 빌드는 `build/windows-linux/`, 작업 중 EXE·ZIP·해시는 `build/packages/<VERSION>/windows-x64/`에 둔다. 배포 요청 시 소스를 커밋하고 `python3 scripts/build-windows-linux.py --dist`로 새 버전을 `dist/<VERSION>/windows-x64/`에 모은다.
+- Linux에서는 PE·ZIP·내장 리소스를 정적으로 검증하고 Windows 테스트 EXE를 컴파일한다. Windows 실행·SSH·UI·IME·DPAPI 회귀 검증은 실행하지 않으며 통과로 표시하지 않는다. Windows와 Linux 빌드는 같은 checkout에서 동시에 실행하지 않는다. 2026-10-08 사용자 요청에 따라 Windows 실기 검증 전의 교차 빌드도 `dist/`에서 제공하되, manifest와 다운로드 안내에 Linux 정적 검사 통과·Windows/NGS 실행 미검증을 명시한다. 이는 이전의 실기 검증 전 배포 금지 규칙을 대체한다.
 - Python 빌드 도구 회귀 검증: `python3 -m unittest discover -s tests -p 'test_*.py'`. Linux 호스트 런타임 호환 설정은 README의 교차 빌드 절차를 따른다.
 - 최초 빌드: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 -Bootstrap`.
 - 이후 빌드: `scripts/build.ps1`; CTest의 `core-tests`와 배포 ZIP 생성까지 수행한다.
@@ -41,6 +41,7 @@
 - 실행 인자: `node tests/ssh/launch-integration.cjs`. 배포 EXE로 실제 루프백 SSH 인증, 저장 호스트 재사용, UTF-8 파이프, 일회용 암호 정리와 자식 명령줄을 검증한다.
 - 개인키 등록: `node tests/ssh/key-import-integration.cjs`. 외부 형식 가져오기, 등록 파일 보호와 배포 EXE의 실제 키 인증·재사용을 검증한다.
 - 테스트는 임시 루프백 SSH 서버와 `build/` 아래 격리 데이터만 사용한다. 테스트 창은 자동 종료한다.
+- 배포 산출물은 플랫폼별 기존 `dist` 경로로 일원화하고 해시·manifest·다운로드 목록·설명서를 함께 갱신해 커밋·푸시한다. 실행파일과 ZIP 내부 이름은 항상 `wShell.exe`이며 NGS용 별도 이름의 파일은 제공하지 않는다. NGS 환경의 수동 이름 변경은 README에만 안내한다. Linux 배포 manifest는 `--cross-built`로 생성하고 재검증은 `--catalog-only`로 기존 출처와 검증 상태를 보존한다.
 - 데스크톱 버전은 루트 `VERSION`에서 관리한다. 현재 배포 대상은 `dist/<version>/windows-x64/`이며 `scripts/index-dist.py`로 해시 manifest를 생성한다. `dist/<version>/macos-universal/`은 macOS 빌드를 명시적으로 요청받았을 때만 갱신한다.
 - 새 Windows 배포는 `VERSION`을 올리고 소스 변경을 커밋한 뒤 `scripts/build.ps1`과 위의 로컬 회귀 검증을 실행한다. 검증한 EXE·ZIP·SHA-256·manifest를 별도 배포 커밋으로 푸시한다. 소스 커밋·푸시와 `dist` 파일 공유에 GitHub Actions 실행은 필요하지 않다.
 - 로컬 배포 manifest는 실제 `sourceCommit`과 `sourceDirty: false`를 확인한다. 로컬 빌드에는 `workflow`가 없으며 CI 통과로 표시하지 않는다. 명시적으로 요청받은 CI 배포는 통과한 산출물을 내려받고 `python scripts/index-dist.py --catalog-only`로 검증·목록만 갱신해 원래 소스 커밋과 CI 링크를 보존한다.

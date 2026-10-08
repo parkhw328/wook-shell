@@ -70,6 +70,17 @@ class ReleaseTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Published manifest mismatch"):
             release.manifest_for(self.folder, changed)
 
+    def test_cross_build_status_survives_catalog_refresh(self):
+        artifacts = release.artifacts_for(self.folder)
+        provenance = {"sourceCommit": "fixture", "sourceDirty": False, "buildHost": "linux",
+                      "validation": {"staticPackage": "passed", "windowsRuntime": "not-run", "ngs": "not-run"}}
+        manifest = release.manifest_for(self.folder, artifacts, provenance)
+        (self.folder / "manifest.json").write_text(json.dumps(manifest))
+        refreshed = release.manifest_for(self.folder, artifacts)
+        self.assertEqual(refreshed, manifest)
+        self.assertIn("has not been run", release.validation_note(refreshed))
+        self.assertNotIn("workflow", refreshed)
+
 
 if __name__ == "__main__":
     unittest.main()

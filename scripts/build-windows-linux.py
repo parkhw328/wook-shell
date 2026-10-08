@@ -1,8 +1,9 @@
-"""Cross-build Windows x64 on Linux; packages stay outside published dist releases."""
+"""Cross-build Windows x64 on Linux; optionally collect a new version in dist."""
 import argparse
 import os
 from pathlib import Path
 import platform
+import shutil
 import subprocess
 import sys
 
@@ -13,11 +14,23 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bootstrap", action="store_true", help="Download SHA-256 pinned build tools and PuTTY")
     parser.add_argument("--jobs", type=int, default=min(8, os.cpu_count() or 1))
+    parser.add_argument("--dist", action="store_true", help="Collect a new version in dist with explicit runtime-test status; requires committed source")
     args = parser.parse_args()
     if sys.platform != "linux" or platform.machine() != "x86_64":
         parser.error("Requires Linux x86_64")
     if args.jobs < 1:
         parser.error("--jobs must be positive")
+    version = (ROOT / "VERSION").read_text().strip()
+    destination = ROOT / "dist" / version / "windows-x64"
+
+    def check_release_source():
+        if destination.parent.exists():
+            parser.error("This dist version already exists; increment VERSION rather than overwrite it")
+        if subprocess.check_output(["git", "status", "--porcelain", "--", ".", ":(exclude)dist"], cwd=ROOT, text=True).strip():
+            parser.error("Commit source changes before using --dist")
+
+    if args.dist:
+        check_release_source()
 
     def run(*command):
         subprocess.run([str(value) for value in command], cwd=ROOT, check=True)
@@ -49,13 +62,17 @@ def main():
         "-DCMAKE_EXE_LINKER_FLAGS=-static -Wl,--nxcompat,--dynamicbase,--high-entropy-va")
     run(cmake, "--build", build, "--target", "WookShell", "ui-smoke-tests", "core-tests",
         "ime-tests", "sftp-tests", "sftp-codec-tests", "launch-relay-tests", "plink", "--parallel", args.jobs)
-    version = (ROOT / "VERSION").read_text().strip()
     output = ROOT / "build/packages" / version / "windows-x64"
     run(sys.executable, ROOT / "scripts/package.py", "--binary", build / "wShell.exe", "--output", output)
     run(sys.executable, ROOT / "scripts/verify-package.py", "--folder", output,
         "--inspector", llvm / "llvm-readobj")
     print(f"Cross-build and static package checks passed: {output}", flush=True)
-    print("NOT RUN: Windows executable tests, SSH/UI/IME/DPAPI runtime validation. Run on Windows before release.")
+    if args.dist:
+        check_release_source()
+        shutil.copytree(output, destination)
+        run(sys.executable, ROOT / "scripts/index-dist.py", "--cross-built")
+        print(f"Collected in {destination}; Windows runtime tests remain unrun.", flush=True)
+    print("NOT RUN: Windows executable tests, SSH/UI/IME/DPAPI runtime validation.")
 
 
 if __name__ == "__main__":
