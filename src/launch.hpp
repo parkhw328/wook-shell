@@ -37,5 +37,7 @@ inline constexpr wchar_t launchHelp[] =
     L"Passwords apply to this connection only. Command-line passwords may\n"
     L"appear in process listings or shell history; prefer --password-stdin\n"
     L"with a UTF-8 pipe, or omit the password and enter it in the terminal.\n"
-    L"Unknown server keys still require confirmation.";
+    L"Unknown server keys still require confirmation.\n\n"
+    L"Additional launches open new tabs in the existing workspace for this\n"
+    L"Windows logon, integrity level and settings directory.";
 }

@@ -14,9 +14,9 @@ fs.copyFileSync(path.join(root, 'build/native/wShell.exe'), executable);
 const key = utils.generateKeyPairSync('ed25519').private;
 const password = 'fixture 한글 & | " \\ ' + crypto.randomBytes(16).toString('hex');
 const clients = new Set(), processes = new Set();
-const watchdog = setTimeout(() => { for (const child of processes) child.kill(); process.exitCode = 1; server.close(); }, 60000);
+const watchdog = setTimeout(() => { for (const child of processes) child.kill(); process.exitCode = 1; server.close(); server2.close(); }, 120000);
 let authenticated = 0, shells = 0;
-const server = new Server({ hostKeys: [key] }, client => {
+const onClient = client => {
   clients.add(client); client.on('close', () => clients.delete(client)); client.on('error', () => {});
   client.on('authentication', ctx => {
     if (ctx.username === 'seed' && ctx.method === 'none') ctx.accept();
@@ -31,7 +31,9 @@ const server = new Server({ hostKeys: [key] }, client => {
     session.on('exec', accept => { const stream = accept(); stream.exit(0); stream.end(); });
     session.on('shell', accept => { ++shells; const stream = accept(); stream.on('error', () => {}); stream.write('CLI fixture connected\r\n'); });
   }));
-});
+};
+const server = new Server({ hostKeys: [key] }, onClient);
+const server2 = new Server({ hostKeys: [key] }, onClient);
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(predicate) {
   const limit = Date.now() + 15000;
@@ -91,10 +93,43 @@ function records() {
   const piped = await launch(['127.0.0.1', '-l', 'deploy', '-P', port, '--password-stdin'], password + '\r\n');
   assert.equal(piped.text, original.text, 'Password pipe does not change the saved host');
   assert.equal(authenticated, 3, 'All public launch forms authenticate exactly once');
-  const report = { passed: true, authenticated, shells, puttyArguments: true, longOptions: true, utf8Pipe: true, passwordSingleUse: true, savedHostPreserved: true, childArgumentsContainNoPassword: true };
+  // Keep a renamed workspace alive, then emulate repeated NGS launches to a
+  // different SSH endpoint. Requests must become its terminal children.
+  await new Promise(resolve => server2.listen(0, '127.0.0.1', resolve));
+  const port2 = String(server2.address().port);
+  const seed2 = start(path.join(root, 'build/native/plink.exe'), ['-legacy-stdio-prompts', '-no-antispoof', '-ssh', '-P', port2, '-l', 'seed', '127.0.0.1', 'seed'], 'y\n');
+  assert.equal(await new Promise(resolve => seed2.once('exit', resolve)), 0, 'Second fixture trust setup succeeds');
+  const renamed = path.join(artifact, 'putty.exe'); fs.copyFileSync(executable, renamed);
+  const owner = start(renamed, ['-ssh', 'deploy@127.0.0.1', '-P', port, '-pw', password]);
+  await until(() => shells === 4);
+  const forwarded = start(executable, ['-ssh', 'deploy@127.0.0.1', '-P', port2, '--name', 'NGS second server', '-pw', password]);
+  await until(() => forwarded.exitCode === 0 && shells === 5);
+  assert.equal(owner.exitCode, null, 'Original workspace remains running');
+  const parallel = [
+    start(renamed, ['-ssh', 'deploy@127.0.0.1', '-P', port2, '-pw', password]),
+    start(executable, ['--host', '127.0.0.1', '--user', 'deploy', '--port', port2, '--password-stdin'], password + '\n'),
+  ];
+  await until(() => parallel.every(child => child.exitCode === 0) && shells === 7);
+  const commandLines = await childArguments(owner.pid);
+  assert.equal((commandLines.match(/--terminal/g) || []).length, 4, 'All four tabs belong to the original workspace');
+  assert.ok(!commandLines.includes('-pw') && !commandLines.includes('--password') && !commandLines.includes(password.slice(-32)),
+            'Relayed credentials never appear in terminal command lines');
+  assert.ok(!records().some(r => r.name.startsWith('__wook_launch_')), 'All relayed one-use passwords are consumed');
+  const activate = start(executable, []);
+  await until(() => activate.exitCode === 0);
+  assert.equal(shells, 7, 'An empty launch activates the workspace without connecting');
+  assert.equal(authenticated, 7, 'Each forwarded request authenticates exactly once');
+  await stop(owner);
+  // Killing the owner must release the pipe so a new workspace can start.
+  const replacement = start(executable, ['-ssh', 'deploy@127.0.0.1', '-P', port, '-pw', password]);
+  await until(() => shells === 8);
+  assert.ok((await childArguments(replacement.pid)).includes('--terminal'), 'Workspace can restart after owner termination');
+  await stop(replacement);
+  const report = { passed: true, authenticated, shells, puttyArguments: true, longOptions: true, utf8Pipe: true, passwordSingleUse: true, savedHostPreserved: true, childArgumentsContainNoPassword: true,
+    existingWindowTabs: true, differentServers: true, renamedExecutable: true, concurrentLaunches: true, relayedPasswordPipe: true, ownerRestart: true };
   fs.writeFileSync(path.join(artifact, 'result.json'), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report)); console.log('Evidence: ' + artifact);
 })().catch(error => { console.error(error.message); process.exitCode = 1; }).finally(async () => {
   for (const child of processes) await stop(child);
-  for (const client of clients) client.end(); server.close(); clearTimeout(watchdog);
+  for (const client of clients) client.end(); server.close(); server2.close(); clearTimeout(watchdog);
 });

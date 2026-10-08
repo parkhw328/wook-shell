@@ -17,7 +17,7 @@ try {
     if ($LASTEXITCODE) { throw 'License resource generation failed' }
     & $cmake -S .deps/putty -B build/native @commonArgs "-DCMAKE_CXX_COMPILER=$llvmBin/x86_64-w64-mingw32-g++.exe" "-DWSHELL_ROOT=$($repoRoot.Replace('\', '/'))"
     if ($LASTEXITCODE) { throw 'Engine configure failed' }
-    & $cmake --build build/native --target WookShell ui-smoke-tests core-tests ime-tests sftp-tests sftp-codec-tests plink -j 8
+    & $cmake --build build/native --target WookShell ui-smoke-tests core-tests ime-tests sftp-tests sftp-codec-tests launch-relay-tests plink -j 8
     if ($LASTEXITCODE) { throw 'Engine build failed' }
     if (!$EngineOnly) {
         if (!$SkipTests) {

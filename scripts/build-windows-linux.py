@@ -48,7 +48,7 @@ def main():
         "-DCMAKE_BUILD_TYPE=Release", f"-DWSHELL_ROOT={ROOT}",
         "-DCMAKE_EXE_LINKER_FLAGS=-static -Wl,--nxcompat,--dynamicbase,--high-entropy-va")
     run(cmake, "--build", build, "--target", "WookShell", "ui-smoke-tests", "core-tests",
-        "ime-tests", "sftp-tests", "sftp-codec-tests", "plink", "--parallel", args.jobs)
+        "ime-tests", "sftp-tests", "sftp-codec-tests", "launch-relay-tests", "plink", "--parallel", args.jobs)
     version = (ROOT / "VERSION").read_text().strip()
     output = ROOT / "build/packages" / version / "windows-x64"
     run(sys.executable, ROOT / "scripts/package.py", "--binary", build / "wShell.exe", "--output", output)

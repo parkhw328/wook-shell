@@ -11,6 +11,7 @@
 #include "split.hpp"
 #include "tab_strip.hpp"
 #include "launch.hpp"
+#include "launch_relay.hpp"
 #include "broadcast.h"
 #include <windowsx.h>
 #include <shellapi.h>
@@ -47,6 +48,7 @@ struct Tab {
 };
 struct Hit { RECT rect; int index; bool close; };
 struct App {
+    wook::LaunchRelay *launchRelay = nullptr;
     HWND hwnd = nullptr, controls[ControlEnd - Search]{}, tooltips = nullptr;
     std::wstring tooltipText;
     bool navigationVisible = true;
@@ -1198,7 +1200,20 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             for (auto &tab:app->tabs) if (IsWindow(tab->terminal)) PostMessageW(tab->terminal,WM_CLOSE,0,0);
             DestroyWindow(hwnd); return 0;
         }
-        case WM_DESTROY: KillTimer(hwnd,1); PostQuitMessage(0); return 0;
+        case wook::launchRelayMessage: {
+            auto request = app->launchRelay ? app->launchRelay->take() : nullptr;
+            if (!request) return 0;
+            ShowWindow(hwnd, IsIconic(hwnd) ? SW_RESTORE : SW_SHOW);
+            SetForegroundWindow(hwnd);
+            if (request->mode == wook::LaunchRequest::Mode::connect) {
+                auto profile = wook::resolveLaunchProfile(*request); app->refresh();
+                app->connect(profile, true, false, false, false, {request->password.data(), request->password.size()});
+            }
+            return 0;
+        }
+        case WM_DESTROY:
+            if (app->launchRelay) app->launchRelay->stop();
+            KillTimer(hwnd,1); PostQuitMessage(0); return 0;
         }
     } catch (const std::exception &e) { ui::error(hwnd,e); }
     return DefWindowProcW(hwnd,msg,wp,lp);
@@ -1238,8 +1253,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
             MessageBoxW(nullptr, wook::launchHelp, L"wShell · Launch arguments", MB_OK | MB_ICONINFORMATION); return 0;
         }
         wook::readLaunchPassword(launch);
+        std::unique_ptr<wook::LaunchRelay> relay;
+#ifndef WOOK_UI_TEST
+        if (launch.mode != wook::LaunchRequest::Mode::preview) {
+            relay = std::make_unique<wook::LaunchRelay>();
+            if (relay->forward(launch)) return 0;
+        }
+#endif
         INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_STANDARD_CLASSES}; InitCommonControlsEx(&controls);
         App app; app.directory=wook::executableDirectory();
+        app.launchRelay = relay.get();
         app.navigationVisible = wook::loadNavigationVisible();
         app.sidebar = app.navigationVisible ? sidebarExpanded : sidebarCollapsed;
         std::wstring migrationError;
@@ -1263,6 +1286,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
         HWND hwnd=CreateWindowExW(0,wc.lpszClassName,L"wShell",WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
                                   CW_USEDEFAULT,CW_USEDEFAULT,ui::px(1230),ui::px(820),nullptr,nullptr,instance,&app);
         if (!hwnd) throw std::runtime_error("Cannot create the application window.");
+        if (relay) relay->start(hwnd);
         ShowWindow(hwnd,show); UpdateWindow(hwnd);
         if (!migrationError.empty()) MessageBoxW(hwnd, migrationError.c_str(), L"wShell · Data migration", MB_OK | MB_ICONEXCLAMATION);
         if (launch.mode == wook::LaunchRequest::Mode::preview) app.action(Preview);
