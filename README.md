@@ -264,6 +264,32 @@ macOS는 `~/Library/Application Support/wShell/`의 `settings.json`과 `known_ho
 
 ## 개발 및 검증
 
+### Linux에서 Windows 교차 빌드
+
+Linux x86_64에서도 Windows EXE와 ZIP을 만들 수 있습니다. Python 3.12 이상과 인터넷 연결이 필요하며, 컴파일러 실행에는 `GLIBCXX_3.4.30`을 제공하는 호환 libstdc++가 필요합니다. 현재 Rocky Linux 9 / glibc 2.34 환경에서 아래 호스트 런타임 설정으로 검증했습니다. 아래 명령은 고정 버전·SHA-256으로 검증한 LLVM-MinGW, CMake, Ninja와 PuTTY 소스를 `.tools/`, `.deps/`에 준비합니다. 시스템 전역에 컴파일러를 설치하지 않습니다.
+
+```sh
+python3 scripts/build-windows-linux.py --bootstrap
+# 이후 변경 빌드 (다운로드 생략)
+python3 scripts/build-windows-linux.py
+# 빌드 병렬 작업 수 제한
+python3 scripts/build-windows-linux.py --jobs 4
+```
+
+EXE·ZIP·SHA-256은 `build/packages/<VERSION>/windows-x64/`에 생성됩니다. 기존 `dist/` 배포 파일과 manifest를 덮어쓰지 않습니다. 중간 빌드는 `build/windows-linux/`이며 Windows 테스트 실행파일도 함께 컴파일합니다. EXE의 x64 형식, DLL 의존성, ZIP 무결성, 내장 폰트·라이선스·아이콘은 Linux에서 정적으로 검사합니다.
+
+**이 명령은 Windows 실행 테스트를 수행하지 않습니다.** SSH·UI·IME·DPAPI 등의 실제 동작 검증은 Windows에서 별도로 수행해야 합니다. Linux 빌드 성공을 Windows 회귀 테스트 통과나 새 버전 배포 완료로 취급하지 않습니다. Windows와 Linux 빌드는 생성 리소스와 PuTTY 소스를 공유하므로 같은 checkout에서 동시에 실행하지 마세요.
+
+현재 Rocky Linux 9 환경에서는 기본 libstdc++에 `GLIBCXX_3.4.30`이 없어, 기존 `/root/miniconda3/lib/libstdc++.so.6`를 `.tools/linux-host-libs/libstdc++.so.6`에 심볼릭 링크로 연결했습니다. 빌드 스크립트는 이 선택적 디렉터리를 자식 빌드 프로세스의 `LD_LIBRARY_PATH`에 추가합니다. Windows EXE에 이 Linux 라이브러리를 포함하지 않습니다. 다른 PC에서 같은 오류가 발생하면 그 PC의 호환 libstdc++를 해당 디렉터리에 연결하세요. 현재 서버의 경로를 다른 PC에 그대로 적용하지 마세요.
+
+```sh
+python3 -m unittest discover -s tests -p 'test_*.py'
+```
+
+위 명령은 배포 무결성 검사와 PE 리소스 판독기의 정상·손상 입력 회귀 테스트를 실행합니다.
+
+### Windows에서 빌드와 실행 검증
+
 빌드 환경은 Windows x64, Python 3.10 이상, PowerShell입니다. C++ 컴파일러·CMake·Ninja·PuTTY 소스는 다음 명령이 저장소 내부로 다운로드하고 SHA-256을 확인합니다.
 
 ```powershell

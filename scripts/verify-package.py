@@ -1,6 +1,8 @@
 """Verify the x64 portable contract and embedded Windows icon, without running code."""
 from pathlib import Path
+import argparse
 import ctypes
+import sys
 import hashlib
 import re
 import struct
@@ -10,7 +12,11 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 NAME = f"wshell-{VERSION}-windows-x64"
-folder = ROOT / "dist" / VERSION / "windows-x64"
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--folder", type=Path, default=ROOT / "dist" / VERSION / "windows-x64")
+parser.add_argument("--inspector", type=Path, default=ROOT / ".tools/llvm-mingw-20260922-ucrt-x86_64/bin/llvm-readobj.exe")
+args = parser.parse_args()
+folder = args.folder
 archive = folder / f"{NAME}.zip"
 expected = archive.with_suffix(".zip.sha256").read_text().split()[0]
 assert hashlib.sha256(archive.read_bytes()).hexdigest() == expected, "ZIP checksum mismatch"
@@ -29,7 +35,7 @@ allowed = {"advapi32.dll", "comctl32.dll", "comdlg32.dll", "crypt32.dll", "dwmap
            "imm32.dll", "kernel32.dll", "msvcrt.dll", "netapi32.dll", "normaliz.dll", "ole32.dll", "oleaut32.dll",
            "secur32.dll", "shell32.dll", "shlwapi.dll", "user32.dll", "userenv.dll", "uxtheme.dll", "version.dll",
            "winmm.dll", "winspool.drv", "ws2_32.dll", "wtsapi32.dll", "bcrypt.dll", "ncrypt.dll"}
-inspector = ROOT / ".tools/llvm-mingw-20260922-ucrt-x86_64/bin/llvm-readobj.exe"
+inspector = args.inspector
 for binary in folder.glob("*.exe"):
     data = binary.read_bytes()
     pe = struct.unpack_from("<I", data, 0x3C)[0]
@@ -38,38 +44,54 @@ for binary in folder.glob("*.exe"):
     for library in re.findall(r"^  Name: (.+)$", imports, re.MULTILINE):
         assert library.lower() in allowed or library.lower().startswith("api-ms-win-crt-"), f"External runtime required: {binary.name}: {library}"
 
-# Ask the Windows resource loader to read the actual executable's icon group.
-kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-kernel.LoadLibraryExW.argtypes = [ctypes.c_wchar_p, ctypes.c_void_p, ctypes.c_uint32]
-kernel.LoadLibraryExW.restype = ctypes.c_void_p
-kernel.FindResourceW.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
-kernel.FindResourceW.restype = ctypes.c_void_p
-kernel.LoadResource.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
-kernel.LoadResource.restype = ctypes.c_void_p
-kernel.LockResource.argtypes = [ctypes.c_void_p]
-kernel.LockResource.restype = ctypes.c_void_p
-kernel.SizeofResource.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
-kernel.SizeofResource.restype = ctypes.c_uint32
-kernel.FreeLibrary.argtypes = [ctypes.c_void_p]
-module = kernel.LoadLibraryExW(str(folder / "wShell.exe"), None, 2)  # LOAD_LIBRARY_AS_DATAFILE
-assert module, "Cannot load executable resources"
-try:
-    resource = kernel.FindResourceW(module, 101, 14)  # RT_GROUP_ICON
-    assert resource, "Executable icon is missing"
-    size = kernel.SizeofResource(module, resource)
-    pointer = kernel.LockResource(kernel.LoadResource(module, resource))
-    payload = ctypes.string_at(pointer, size)
+if sys.platform != "win32":
+    from pe_resources import read_resource
+    data = (folder / "wShell.exe").read_bytes()
+    payload = read_resource(data, 14, 101)
     count = struct.unpack_from("<H", payload, 4)[0]
     dimensions = {payload[6 + i * 14] or 256 for i in range(count)}
     assert dimensions == {16, 24, 32, 48, 64, 128, 256}, f"Missing icon resolutions: {dimensions}"
+    for i in range(count):
+        entry = 6 + i * 14
+        size, icon_id = struct.unpack_from("<IH", payload, entry + 8)
+        assert len(read_resource(data, 3, icon_id)) == size, "Missing or truncated icon image"
     for resource_id, source in ((103, ROOT / "assets/fonts/JetBrainsMono-Regular.ttf"),
                                 (104, ROOT / "assets/fonts/JetBrainsMono-Bold.ttf"),
                                 (105, ROOT / "build/legal-notices.txt")):
-        resource = kernel.FindResourceW(module, resource_id, 10)
-        assert resource, f"Missing embedded asset {resource_id}"
+        assert read_resource(data, 10, resource_id) == source.read_bytes(), f"Embedded asset changed: {source.name}"
+else:
+    # Ask the Windows resource loader to read the actual executable's icon group.
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.LoadLibraryExW.argtypes = [ctypes.c_wchar_p, ctypes.c_void_p, ctypes.c_uint32]
+    kernel.LoadLibraryExW.restype = ctypes.c_void_p
+    kernel.FindResourceW.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+    kernel.FindResourceW.restype = ctypes.c_void_p
+    kernel.LoadResource.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    kernel.LoadResource.restype = ctypes.c_void_p
+    kernel.LockResource.argtypes = [ctypes.c_void_p]
+    kernel.LockResource.restype = ctypes.c_void_p
+    kernel.SizeofResource.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    kernel.SizeofResource.restype = ctypes.c_uint32
+    kernel.FreeLibrary.argtypes = [ctypes.c_void_p]
+    module = kernel.LoadLibraryExW(str(folder / "wShell.exe"), None, 2)  # LOAD_LIBRARY_AS_DATAFILE
+    assert module, "Cannot load executable resources"
+    try:
+        resource = kernel.FindResourceW(module, 101, 14)  # RT_GROUP_ICON
+        assert resource, "Executable icon is missing"
         size = kernel.SizeofResource(module, resource)
         pointer = kernel.LockResource(kernel.LoadResource(module, resource))
-        assert ctypes.string_at(pointer, size) == source.read_bytes(), f"Embedded asset changed: {source.name}"
-finally:
-    kernel.FreeLibrary(module)
+        payload = ctypes.string_at(pointer, size)
+        count = struct.unpack_from("<H", payload, 4)[0]
+        dimensions = {payload[6 + i * 14] or 256 for i in range(count)}
+        assert dimensions == {16, 24, 32, 48, 64, 128, 256}, f"Missing icon resolutions: {dimensions}"
+        for resource_id, source in ((103, ROOT / "assets/fonts/JetBrainsMono-Regular.ttf"),
+                                    (104, ROOT / "assets/fonts/JetBrainsMono-Bold.ttf"),
+                                    (105, ROOT / "build/legal-notices.txt")):
+            resource = kernel.FindResourceW(module, resource_id, 10)
+            assert resource, f"Missing embedded asset {resource_id}"
+            size = kernel.SizeofResource(module, resource)
+            pointer = kernel.LockResource(kernel.LoadResource(module, resource))
+            assert ctypes.string_at(pointer, size) == source.read_bytes(), f"Embedded asset changed: {source.name}"
+    finally:
+        kernel.FreeLibrary(module)
 print(f"PASS: single EXE, embedded fonts/branding/licenses, x64 system-only imports, seven icon resolutions ({archive.stat().st_size / 1048576:.2f} MiB ZIP).")

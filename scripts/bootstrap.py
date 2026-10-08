@@ -2,6 +2,9 @@
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import hashlib
+import platform
+import sys
+import tarfile
 import urllib.request
 import zipfile
 
@@ -12,6 +15,18 @@ PACKAGES = [
     ("ninja", ".tools/ninja", "https://github.com/ninja-build/ninja/releases/download/v1.13.2/ninja-win.zip", "07fc8261b42b20e71d1720b39068c2e14ffcee6396b76fb7a795fb460b78dc65"),
     ("putty", ".deps/putty", "https://the.earth.li/~sgtatham/putty/0.85/putty-src.zip", "232c5c286a5b35f445dbbf49e159469acde372a3907aef738d88e28b4b0f6da2"),
 ]
+
+if sys.platform == "linux":
+    if platform.machine() != "x86_64":
+        raise SystemExit("Linux bootstrap currently requires x86_64.")
+    PACKAGES = [
+        ("llvm", ".tools", "https://github.com/mstorsjo/llvm-mingw/releases/download/20260922/llvm-mingw-20260922-ucrt-ubuntu-22.04-x86_64.tar.xz", "bb7bb7654b33d5aa8712acb837c963b2e0c56352560c76105270a3268c665c21"),
+        ("cmake", ".tools", "https://github.com/Kitware/CMake/releases/download/v4.4.4/cmake-4.4.4-linux-x86_64.tar.gz", "e5bb807f7728cb60cd8b27ebc97a2edb469b68655f21e844a600c3575b76f5bb"),
+        ("ninja", ".tools/ninja-linux", "https://github.com/ninja-build/ninja/releases/download/v1.13.2/ninja-linux.zip", "5749cbc4e668273514150a80e387a957f933c6ed3f5f11e03fb30955e2bbead6"),
+        PACKAGES[-1],
+    ]
+elif sys.platform != "win32":
+    raise SystemExit("Windows tool bootstrap supports Windows and Linux x86_64 only.")
 
 
 def fetch(package):
@@ -29,12 +44,20 @@ def fetch(package):
     marker = target / f".{name}-{expected[:12]}"
     if not marker.exists():
         target.mkdir(parents=True, exist_ok=True)
-        with zipfile.ZipFile(archive) as bundle:
-            for member in bundle.infolist():
-                resolved = (target / member.filename).resolve()
-                if not resolved.is_relative_to(target.resolve()):
-                    raise RuntimeError(f"Unsafe archive path: {member.filename}")
-            bundle.extractall(target)
+        if archive.name.endswith(".zip"):
+            with zipfile.ZipFile(archive) as bundle:
+                for member in bundle.infolist():
+                    resolved = (target / member.filename).resolve()
+                    if not resolved.is_relative_to(target.resolve()):
+                        raise RuntimeError(f"Unsafe archive path: {member.filename}")
+                bundle.extractall(target)
+            if sys.platform == "linux" and name == "ninja":
+                (target / "ninja").chmod(0o755)
+        else:
+            if not hasattr(tarfile, "data_filter"):
+                raise RuntimeError("Linux bootstrap needs Python with tarfile.data_filter (Python 3.12+ recommended).")
+            with tarfile.open(archive) as bundle:
+                bundle.extractall(target, filter="data")
         marker.touch()
     print(f"Verified and ready: {name}", flush=True)
 

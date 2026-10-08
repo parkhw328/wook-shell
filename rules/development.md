@@ -31,6 +31,9 @@
 
 ## 빌드와 회귀 검증
 
+- Linux x86_64 교차 빌드: `python3 scripts/build-windows-linux.py --bootstrap`, 이후 `python3 scripts/build-windows-linux.py`. 도구는 `.tools/`, 중간 빌드는 `build/windows-linux/`, 미배포 EXE·ZIP·해시는 `build/packages/<VERSION>/windows-x64/`에 둔다. 기존 `dist/`와 manifest는 변경하지 않는다.
+- Linux에서는 PE·ZIP·내장 리소스를 정적으로 검증하고 Windows 테스트 EXE를 컴파일한다. Windows 실행·SSH·UI·IME·DPAPI 회귀 검증은 실행하지 않으며 통과로 표시하지 않는다. Windows와 Linux 빌드는 같은 checkout에서 동시에 실행하지 않는다. 교차 빌드 산출물은 Windows 실기 검증 전 배포하지 않는다.
+- Python 빌드 도구 회귀 검증: `python3 -m unittest discover -s tests -p 'test_*.py'`. Linux 호스트 런타임 호환 설정은 README의 교차 빌드 절차를 따른다.
 - 최초 빌드: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 -Bootstrap`.
 - 이후 빌드: `scripts/build.ps1`; CTest의 `core-tests`와 배포 ZIP 생성까지 수행한다.
 - SSH/UI: `npm --prefix tests/ssh ci --ignore-scripts --omit=optional` 후 `node tests/ssh/integration.cjs`.

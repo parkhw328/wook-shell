@@ -5,7 +5,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_
 configure_file(assets/version.h.in "${CMAKE_CURRENT_SOURCE_DIR}/build/version.h" @ONLY)
 configure_file(assets/app.manifest "${CMAKE_CURRENT_SOURCE_DIR}/build/app.manifest" @ONLY)
 if(NOT TARGET wshell-terminal)
-    message(FATAL_ERROR "Use scripts/build.ps1 to build wShell with its statically linked terminal.")
+    message(FATAL_ERROR "Use scripts/build.ps1 (Windows) or scripts/build-windows-linux.py (Linux) to build wShell with its statically linked terminal.")
 endif()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
