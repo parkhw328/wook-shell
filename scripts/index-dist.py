@@ -80,7 +80,7 @@ def build_provenance():
     commit = os.environ.get("GITHUB_SHA") or subprocess.check_output(
         ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     dirty = bool(subprocess.check_output(
-        ["git", "status", "--porcelain", "--", ".", ":(exclude)release", ":(exclude)dist"], cwd=ROOT, text=True).strip())
+        ["git", "status", "--porcelain", "--", ".", ":(exclude)release"], cwd=ROOT, text=True).strip())
     result = {"sourceCommit": commit, "sourceDirty": dirty}
     if os.environ.get("GITHUB_RUN_ID"):
         result["workflow"] = (f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}"

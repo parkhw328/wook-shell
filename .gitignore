@@ -14,8 +14,6 @@ build/
 !/release/*/macos-universal/
 !/release/*/macos-universal/wshell-*-macos-universal.zip
 !/release/*/macos-universal/wshell-*-macos-universal.zip.sha256
-/dist/**
-!/dist/README.md
 data/
 # Local SSH keys supplied for connection troubleshooting; never distribute.
 /resources/
