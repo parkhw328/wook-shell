@@ -216,15 +216,4 @@ bool editHost(HWND owner, wook::Profile &profile, bool existing) {
     if (form.accepted) profile = form.profile;
     return form.accepted;
 }
-void showAbout(HWND owner) {
-    MessageBoxW(owner,
-        L"wShell " WSHELL_VERSION_WIDE L"\nA quiet workspace for your servers.\n\n"
-        L"Native Windows x64 · Portable · MIT License\n\n"
-        L"Created by Hyunwook Park\n\n"
-        L"PuTTY 0.85 — modified portable build (MIT)\nFlexoki — Steph Ango (MIT)\nJetBrains Mono — SIL OFL 1.1\n\n"
-        L"Full notices are embedded: Tools → Open-source licenses.\n"
-        L"Independent project; not affiliated with PuTTY or Termius.\n\n"
-        L"Ctrl+Shift+T  New connection\nCtrl+Shift+D  Duplicate tab\nCtrl+Tab  Next tab\nCtrl+Shift+W  Close tab\n"
-        L"Ctrl+Shift+H  Show / hide hosts\nCtrl+Shift+P  Search connections\nCtrl+Shift+C / V  Copy / paste\nAlt+1…9  Switch tabs\nF11  Full screen",
-        L"About wShell", MB_OK | MB_ICONINFORMATION);
-}
+void showAbout(HWND owner) { wsShowAbout(owner); }

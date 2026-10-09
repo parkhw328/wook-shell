@@ -181,7 +181,7 @@ void Browser::transfer(bool upload) {
     }
     if(!approved.empty()) {
         auto text=L"Replace "+std::to_wstring(approved.size())+L" existing file(s) in "+(upload?L"remote "+remote:L"local "+local)+L"?\n"+conflicts+L"\n\nCompleted transfers replace these files. Cancelled or failed transfers keep the previous file.";
-        if(MessageBoxW(owner,text.c_str(),L"Confirm file replacement",MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2)!=IDYES)return;
+        if(wsMessageBoxW(owner,text.c_str(),L"Confirm file replacement",MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2)!=IDYES)return;
     }
     auto fromLocal=local,fromRemote=remote;
     start([this,entries,approved,upload,fromLocal,fromRemote](Result&r){
@@ -215,7 +215,7 @@ void Browser::action(int id) {
         if(!wsftp_local_name(text))throw std::runtime_error("Enter a single portable filename, without path separators or reserved characters.");name=wook::wide(text);
     } else {
         auto question=L"Permanently delete "+std::to_wstring(entries.size())+L" selected item(s) from the "+(remoteSide?L"remote":L"local")+L" pane?\n\nOnly files, links and empty folders are removed. This does not use the Recycle Bin.";
-        if(MessageBoxW(owner,question.c_str(),L"Delete selected items",MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2)!=IDYES)return;
+        if(wsMessageBoxW(owner,question.c_str(),L"Delete selected items",MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2)!=IDYES)return;
     }
     auto localPath=local, remotePath=remote;
     start([this,id,entries,name,remoteSide,localPath,remotePath](Result&r){

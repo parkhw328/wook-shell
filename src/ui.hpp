@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <map>
 #include <string>
+#include "message_dialog.h"
 
 namespace ui {
 inline UINT dpi = 96;
@@ -107,6 +108,6 @@ inline void drawButton(const DRAWITEMSTRUCT *d, bool primary = false, TextSize s
     }
 }
 inline void error(HWND owner, const std::exception &e) {
-    auto str = wook::wide(e.what()); MessageBoxW(owner, str.c_str(), L"wShell", MB_OK | MB_ICONEXCLAMATION);
+    auto str = wook::wide(e.what()); wsMessageBoxW(owner, str.c_str(), L"wShell", MB_OK | MB_ICONEXCLAMATION);
 }
 }

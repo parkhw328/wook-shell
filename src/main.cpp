@@ -21,6 +21,7 @@
 #include <stdexcept>
 #include <vector>
 #ifdef WOOK_UI_TEST
+#include <functional>
 #include "../tests/capture.hpp"
 #include "keys.h"
 #include "ime.h"
@@ -718,7 +719,7 @@ void App::command(int code) {
                 Profile p = t.profile; bool saved = !t.transient, preview = t.preview;
                 closeTab(active); connect(p, saved, preview);
             } else if (IsWindow(t.terminal) &&
-                MessageBoxW(hwnd, L"Restart this connection? The current session will be disconnected.", L"Reconnect", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) == IDYES)
+                wsMessageBoxW(hwnd, L"Restart this connection? The current session will be disconnected.", L"Reconnect", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) == IDYES)
                 PostMessageW(t.terminal, WM_APP + 60, 0, 0);
         } break;
     case 5: select(active >= (int)tabs.size() - 1 ? -1 : active + 1); break;
@@ -831,7 +832,7 @@ void App::toolsMenu() {
         ofn.Flags = OFN_NOCHANGEDIR | OFN_PATHMUSTEXIST | (selected == 6 ? OFN_OVERWRITEPROMPT : OFN_FILEMUSTEXIST);
         if (selected == 6 ? GetSaveFileNameW(&ofn) : GetOpenFileNameW(&ofn)) {
             auto result = selected == 6 ? wook::exportSettings(path) : wook::importSettings(path);
-            refresh(); MessageBoxW(hwnd, result.c_str(), L"wShell · Settings backup", MB_OK | MB_ICONINFORMATION);
+            refresh(); wsMessageBoxW(hwnd, result.c_str(), L"wShell · Settings backup", MB_OK | MB_ICONINFORMATION);
         }
     } else if (selected == 3) {
         wchar_t *root = wsRoot();
@@ -894,7 +895,7 @@ void App::hostMenu(POINT point) {
     int choice = TrackPopupMenu(menu, TPM_RETURNCMD, point.x, point.y, 0, hwnd, nullptr); DestroyMenu(menu);
     if (choice == 1) action(ConnectHost); else if (choice == 2) action(EditHost); else if (choice == 4) action(Advanced);
     else if (choice == 3) { Profile p = *selectedHost(); p.name += L" copy"; if (editHost(hwnd, p, false)) refresh(); }
-    else if (choice == 5 && MessageBoxW(hwnd, L"Delete this saved host? Existing terminal tabs will stay open.", L"Delete host", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) == IDYES) {
+    else if (choice == 5 && wsMessageBoxW(hwnd, L"Delete this saved host? Existing terminal tabs will stay open.", L"Delete host", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) == IDYES) {
         wook::deleteProfile(selectedHost()->name); refresh();
     }
 }
@@ -1196,7 +1197,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             break;
         case WM_CLOSE: {
             bool live=false; for (auto &tab:app->tabs) if (!tab->ended && !tab->preview) live=true;
-            if (live && MessageBoxW(hwnd,L"Close wShell and disconnect all active sessions?",L"Close workspace",MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2)!=IDYES) return 0;
+            if (live && wsMessageBoxW(hwnd,L"Close wShell and disconnect all active sessions?",L"Close workspace",MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2)!=IDYES) return 0;
             for (auto &tab:app->tabs) if (IsWindow(tab->terminal)) PostMessageW(tab->terminal,WM_CLOSE,0,0);
             DestroyWindow(hwnd); return 0;
         }
@@ -1240,6 +1241,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
         }
 #endif
         wshellLoadFonts();
+        wsInitializeMessageDialogs();
 #ifdef WOOK_UI_TEST
         if (fontProbe) return testFontEnumerable() ? 0 : 2;
         if (keyImportProbe) return runKeyImportTest();
@@ -1250,7 +1252,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
         }
         auto launch = wook::parseLaunchCommand(GetCommandLineW());
         if (launch.mode == wook::LaunchRequest::Mode::help) {
-            MessageBoxW(nullptr, wook::launchHelp, L"wShell · Launch arguments", MB_OK | MB_ICONINFORMATION); return 0;
+            wsMessageBoxW(nullptr, wook::launchHelp, L"wShell · Launch arguments", MB_OK | MB_ICONINFORMATION); return 0;
         }
         wook::readLaunchPassword(launch);
         std::unique_ptr<wook::LaunchRelay> relay;
@@ -1288,7 +1290,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
         if (!hwnd) throw std::runtime_error("Cannot create the application window.");
         if (relay) relay->start(hwnd);
         ShowWindow(hwnd,show); UpdateWindow(hwnd);
-        if (!migrationError.empty()) MessageBoxW(hwnd, migrationError.c_str(), L"wShell · Data migration", MB_OK | MB_ICONEXCLAMATION);
+        if (!migrationError.empty()) wsMessageBoxW(hwnd, migrationError.c_str(), L"wShell · Data migration", MB_OK | MB_ICONEXCLAMATION);
         if (launch.mode == wook::LaunchRequest::Mode::preview) app.action(Preview);
         else if (launch.mode == wook::LaunchRequest::Mode::connect) {
             auto profile = wook::resolveLaunchProfile(launch); app.refresh();

@@ -151,6 +151,8 @@ CONF_OPTION(no_mouse_rep,''')
     window = replace(window, '.notify_session_started = nullseat_notify_session_started,', '.notify_session_started = wookSftpStarted,')
     window = replace(window, '    return term_data(wgs->term, data, len);', '    if (wookSftp) return wookSftpOutput(type, data, len);\n    return term_data(wgs->term, data, len);')
     window = replace(window, '    if (wookImeMessage(wgs, message, wParam, &lParam)) return 0;', '    if (wookSftp && message == WM_TIMER && wParam == 0x57534654) { wookSftpPump(wgs); return 0; }\n    if (wookImeMessage(wgs, message, wParam, &lParam)) return 0;')
+    window = replace(window, '#include "putty.h"', '#include "putty.h"\n#include "wshell-message-dialog.h"')
+    window = window.replace("MessageBox(", "wsMessageBoxA(")
     (SOURCE / "windows/window.c").write_text(window, encoding="utf-8")
     seat = original("windows/win-gui-seat.h")
     seat = replace(seat, "    HWND term_hwnd;", "    HWND term_hwnd;\n    struct WsIme *wshell_ime;")
@@ -237,6 +239,8 @@ CONF_OPTION(no_mouse_rep,''')
                     '        if (!wookPreview) load_open_settings(NULL, conf);\n        conf_set_str(conf, CONF_host, "demo-server.example.com");\n        conf_set_int(conf, CONF_close_on_exit, FORCE_OFF);')
     putty = replace(putty, "        schedule_timer(TICKSPERSEC, demo_terminal_screenshot, (void *)hwnd);", "        if (!wookPreview) schedule_timer(TICKSPERSEC, demo_terminal_screenshot, (void *)hwnd);")
     putty = replace(putty, 'return L"SimonTatham.PuTTY";', 'return L"WookShell.Terminal";')
+    putty = replace(putty, '#include "putty.h"', '#include "putty.h"\n#include "wshell-message-dialog.h"')
+    putty = putty.replace("MessageBox(", "wsMessageBoxA(")
     (SOURCE / "windows/putty.c").write_text(putty, encoding="utf-8")
     manifest = original("windows/putty.mft")
     manifest = replace(manifest, "       <dpiAware>true</dpiAware>",
@@ -311,6 +315,40 @@ CONF_OPTION(no_mouse_rep,''')
     PortableDialogStuff *pds = pds_new(1);''', '''void show_ca_config_box(dlgparam *dp)
 {
     PortableDialogStuff *pds = pds_new(2);''')
+    dialog = replace(dialog, '#include "putty.h"', '#include "putty.h"\n#include "wshell-message-dialog.h"')
+    dialog = dialog.replace("MessageBox(", "wsMessageBoxA(")
+    dialog = replace(dialog, '''    EnableWindow(hwnd, 0);
+    DialogBox(hinst, MAKEINTRESOURCE(IDD_ABOUTBOX), hwnd, AboutProc);
+    EnableWindow(hwnd, 1);
+    SetActiveWindow(hwnd);''', '''    wsShowAbout(hwnd);''')
+    dialog = replace(dialog, '''    DialogBox(hinst, MAKEINTRESOURCE(IDD_ABOUTBOX), hwnd, AboutProc);''',
+                     '''    wsShowAbout(hwnd);''')
+    start = dialog.index("struct hostkey_dialog_ctx {")
+    end = dialog.index("static const char *process_seatdialogtext(", start)
+    dialog = replace(dialog, dialog[start:end], "")
+    start = dialog.index("static INT_PTR HostKeyDialogProc(")
+    end = dialog.index("const SeatDialogPromptDescriptions *win_seat_prompt_descriptions(", start)
+    dialog = replace(dialog, dialog[start:end], "")
+    dialog = replace(dialog, '''    struct hostkey_dialog_ctx ctx[1];
+    ctx->text = text;
+    ctx->helpctx = helpctx;
+
+    int mbret = ShinyDialogBox(
+        hinst, MAKEINTRESOURCE(IDD_HOSTKEY), "PuTTYHostKeyDialog",
+        wgs->term_hwnd, HostKeyDialogProc, ctx);''', '''    strbuf *body = strbuf_new(), *details = strbuf_new();
+    const char *heading = NULL;
+    const char *title = process_seatdialogtext(body, &heading, text);
+    strbuf *message = strbuf_new();
+    if (heading) put_fmt(message, "%s\\r\\n\\r\\n", heading);
+    put_data(message, body->s, body->len);
+    for (SeatDialogTextItem *item = text->items, *end = item + text->nitems; item < end; item++) {
+        if (item->type == SDT_MORE_INFO_KEY || item->type == SDT_MORE_INFO_VALUE_SHORT ||
+            item->type == SDT_MORE_INFO_VALUE_BLOB)
+            put_fmt(details, "%s\\r\\n\\r\\n", item->text);
+    }
+    int choice = wsHostKeyDialog(wgs->term_hwnd, title, message->s, details->s, heading != NULL);
+    strbuf_free(body); strbuf_free(details); strbuf_free(message);
+    int mbret = choice == IDYES ? IDC_HK_ACCEPT : choice == IDNO ? IDC_HK_ONCE : IDCANCEL;''')
     (SOURCE / "windows/dialog.c").write_text(dialog, encoding="utf-8")
     controls = original("windows/controls.c")
     controls = replace(controls, '#include "dialog.h"', '#include "dialog.h"\n#include "wshell-settings-ui.h"')
@@ -327,7 +365,14 @@ CONF_OPTION(no_mouse_rep,''')
     controls = replace(controls, '''          cp->boxtext ? cp->boxtext : "", cp->boxid);
     cp->ypos += GAPYBOX;''', '''          cp->boxtext ? cp->boxtext : "", cp->boxid);
     cp->ypos += GAPYBOX + (GetPropW(cp->hwnd, L"wShell.SettingsPage") ? 4 : 0);''')
+    controls = replace(controls, '#include "putty.h"', '#include "putty.h"\n#include "wshell-message-dialog.h"')
+    controls = controls.replace("MessageBox(", "wsMessageBoxA(")
     (SOURCE / "windows/controls.c").write_text(controls, encoding="utf-8")
+    message_box = original("windows/utils/message_box.c")
+    message_box = replace(message_box, '#include "putty.h"', '#include "putty.h"\n\nint (*wshellMessageBoxIndirect)(const MSGBOXPARAMSW *) = NULL;')
+    message_box = replace(message_box, '    int toret = MessageBoxIndirectW(&mbox);',
+                          '    int toret = wshellMessageBoxIndirect ? wshellMessageBoxIndirect(&mbox) : MessageBoxIndirectW(&mbox);')
+    (SOURCE / "windows/utils/message_box.c").write_text(message_box, encoding="utf-8")
 
     cmake = original("windows/CMakeLists.txt")
     cmake = replace(cmake, "  storage.c)", "  storage.c wook-store.c)")
@@ -356,6 +401,7 @@ shutil.copyfile(ROOT / "patches/wook-window.h", SOURCE / "windows/wook-window.h"
 shutil.copyfile(ROOT / "src/broadcast.h", SOURCE / "windows/wshell-broadcast.h")
 shutil.copyfile(ROOT / "patches/wook-sftp.h", SOURCE / "windows/wook-sftp.h")
 shutil.copyfile(ROOT / "src/prompt.h", SOURCE / "windows/wshell-prompt.h")
+shutil.copyfile(ROOT / "src/message_dialog.h", SOURCE / "windows/wshell-message-dialog.h")
 shutil.copyfile(ROOT / "patches/wshell-config.h", SOURCE / "windows/wshell-config.h")
 shutil.copyfile(ROOT / "src/settings_ui.h", SOURCE / "windows/wshell-settings-ui.h")
 shutil.copyfile(ROOT / "src/key_import.h", SOURCE / "windows/wshell-key-import.h")

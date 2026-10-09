@@ -159,7 +159,7 @@ LRESULT CALLBACK keyProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         else if (!form->nextPath.empty()) form->savedPath = form->nextPath;
         refreshLibrary(hwnd, form);
         setBusy(hwnd, form, false);
-        if (!form->error.empty()) MessageBoxW(hwnd, form->error.c_str(), L"wShell · Key manager", MB_OK | MB_ICONEXCLAMATION);
+        if (!form->error.empty()) wsMessageBoxW(hwnd, form->error.c_str(), L"wShell · Key manager", MB_OK | MB_ICONEXCLAMATION);
         if (form->useWhenReady && form->error.empty() && !form->savedPath.empty()) {
             form->acceptedPath = form->savedPath; DestroyWindow(hwnd); return 0;
         }
