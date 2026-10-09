@@ -10,7 +10,7 @@
     },
     {
       "platform": "windows-x64",
-      "file": "windows-x64/wshell-windows-x64.zip",
+      "file": "windows-x64/wshell-1.0.5-windows-x64.zip",
       "bytes": 1598210,
       "sha256": "7f4dcc1d482c18b5bd9355cead45f5a0ffef4a6d127299fb4db53a49dc3f67b3"
     }
