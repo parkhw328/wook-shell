@@ -1,20 +1,21 @@
 # wShell downloads
 
-Current Windows release: **1.0.3**. [Standalone EXE](1.0.3/windows-x64/wShell.exe) · [ZIP](1.0.3/windows-x64/wshell-1.0.3-windows-x64.zip)
+Current Windows release: **1.0.4**. [Standalone EXE](1.0.4/windows-x64/wShell.exe) · [ZIP](1.0.4/windows-x64/wshell-1.0.4-windows-x64.zip)
 
 ## Latest available builds
 
 | Platform | Version | Download |
 | --- | --- | --- |
-| windows-x64 | 1.0.3 | [EXE](1.0.3/windows-x64/wShell.exe) · [ZIP](1.0.3/windows-x64/wshell-1.0.3-windows-x64.zip) |
+| windows-x64 | 1.0.4 | [EXE](1.0.4/windows-x64/wShell.exe) · [ZIP](1.0.4/windows-x64/wshell-1.0.4-windows-x64.zip) |
 | macos-universal | 0.11.0 | [ZIP](0.11.0/macos-universal/wshell-0.11.0-macos-universal.zip) |
 
-Latest means the newest published build for each platform. The macOS build predates the new Windows icon and features. See the [Windows release notes](../docs/releases/1.0.3.md) for test results and limitations. iPad is on hold.
+Latest means the newest published build for each platform. The macOS build predates the new Windows icon and features. See the [Windows release notes](../docs/releases/1.0.4.md) for test results and limitations. iPad is on hold.
 
 Versioned binaries, checksums and manifests are tracked in Git. Open a file and select **Download raw file** to download it. Each Windows ZIP contains only wShell.exe. Windows releases are unsigned.
 
 | Version | Platform | Download | Verification |
 | --- | --- | --- | --- |
+| 1.0.4 | windows-x64 | [ZIP](1.0.4/windows-x64/wshell-1.0.4-windows-x64.zip) | [SHA-256](1.0.4/windows-x64/wshell-1.0.4-windows-x64.zip.sha256) · [manifest](1.0.4/manifest.json) |
 | 1.0.3 | windows-x64 | [ZIP](1.0.3/windows-x64/wshell-1.0.3-windows-x64.zip) | [SHA-256](1.0.3/windows-x64/wshell-1.0.3-windows-x64.zip.sha256) · [manifest](1.0.3/manifest.json) |
 | 1.0.2 | windows-x64 | [ZIP](1.0.2/windows-x64/wshell-1.0.2-windows-x64.zip) | [SHA-256](1.0.2/windows-x64/wshell-1.0.2-windows-x64.zip.sha256) · [manifest](1.0.2/manifest.json) |
 | 1.0.1 | windows-x64 | [ZIP](1.0.1/windows-x64/wshell-1.0.1-windows-x64.zip) | [SHA-256](1.0.1/windows-x64/wshell-1.0.1-windows-x64.zip.sha256) · [manifest](1.0.1/manifest.json) |
