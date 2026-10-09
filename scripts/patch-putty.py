@@ -25,6 +25,18 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
     SAVE_KEYWORD("WookMouseClipboard"),
 )
 CONF_OPTION(no_mouse_rep,''')
+    # Older saved sessions contain PuTTY's true ScrollOnDisp default. Use a
+    # wShell key so those sessions also retain manually viewed history, while
+    # the existing scrollback checkbox can still opt in and persist that choice.
+    conf_header = replace(conf_header, '''CONF_OPTION(scroll_on_disp,
+    VALUE_TYPE(BOOL),
+    DEFAULT_BOOL(true),
+    SAVE_KEYWORD("ScrollOnDisp"),
+)''', '''CONF_OPTION(scroll_on_disp,
+    VALUE_TYPE(BOOL),
+    DEFAULT_BOOL(false),
+    SAVE_KEYWORD("WookScrollOnDisp"),
+)''')
     (SOURCE / "conf.h").write_text(conf_header, encoding="utf-8")
     terminal_header = replace(original("terminal/terminal.h"), "struct terminal_tag {", "struct terminal_tag {\n    void (*wshell_input)(void *, int, int, const void *, int);\n    void *wshell_input_context;")
     (SOURCE / "terminal/terminal.h").write_text(terminal_header, encoding="utf-8")
@@ -53,6 +65,15 @@ CONF_OPTION(no_mouse_rep,''')
     }''')
     window = replace(window, "(conf_get_int(wgs->conf, CONF_mouse_is_xterm) == MOUSE_WINDOWS))) {",
                      "(!conf_get_bool(wgs->conf, CONF_wshell_mouse_clipboard) &&\n              conf_get_int(wgs->conf, CONF_mouse_is_xterm) == MOUSE_WINDOWS))) {")
+    # Any-event tracking also reports passive motion. Preserve modifiers here
+    # so Shift override suppresses it just as it suppresses clicks and drags.
+    window = replace(window, '''            term_mouse(wgs->term, MBT_NOTHING, MBT_NOTHING, MA_MOVE,
+                       TO_CHR_X(X_POS(lParam)),
+                       TO_CHR_Y(Y_POS(lParam)), false,
+                       false, false);''', '''            term_mouse(wgs->term, MBT_NOTHING, MBT_NOTHING, MA_MOVE,
+                       TO_CHR_X(X_POS(lParam)),
+                       TO_CHR_Y(Y_POS(lParam)), wParam & MK_SHIFT,
+                       wParam & MK_CONTROL, is_alt_pressed());''')
     # Both initial and idle focus checks must recognise embedded child windows.
     focus_check = "term_set_focus(wgs->term, GetForegroundWindow() == wgs->term_hwnd);"
     if window.count(focus_check) != 2:

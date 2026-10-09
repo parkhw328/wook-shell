@@ -1,6 +1,7 @@
 // Compiled only into ui-smoke-tests.exe, never into the release application.
 #include "focus_smoke.inc"
 #include "mouse_smoke.inc"
+#include "scroll_smoke.inc"
 #include "workspace_smoke.inc"
 #include "tabs_smoke.inc"
 #include "key_import_test.inc"
@@ -44,7 +45,8 @@ template<typename Check> void testNativeKeys(const std::wstring &directory, Chec
 void runUiSmoke(App &app) {
     static const bool focusOnly = GetEnvironmentVariableW(L"WOOK_TEST_FOCUS_ONLY", nullptr, 0) != 0;
     static const bool mouseOnly = GetEnvironmentVariableW(L"WOOK_TEST_MOUSE_ONLY", nullptr, 0) != 0;
-    static int phase = mouseOnly ? 56 : focusOnly ? 33 : 0;
+    static const bool scrollOnly = GetEnvironmentVariableW(L"WOOK_TEST_SCROLL_ONLY", nullptr, 0) != 0;
+    static int phase = scrollOnly ? 57 : mouseOnly ? 56 : focusOnly ? 33 : 0;
     static int waits = 0;
     static int checks = 0;
     static std::vector<Tab *> zoomGroup;
@@ -82,7 +84,9 @@ void runUiSmoke(App &app) {
       progress << "{\"phase\":" << phase << ",\"waits\":" << waits << ",\"tabs\":" << app.tabs.size() << "}\n"; }
     try {
         if (++waits > 80) throw std::runtime_error("Timed out waiting for hosted terminal windows.");
-        if (phase == 56) {
+        if (phase == 57) {
+            if (testTerminalScroll(app, require)) { phase = 37; waits = 0; }
+        } else if (phase == 56) {
             if (testTerminalMouse(app, require)) { phase = 37; waits = 0; }
         } else if (phase == 0) {
             require(GetClassLongPtrW(app.hwnd, GCLP_HICON) != 0 && GetClassLongPtrW(app.hwnd, GCLP_HICONSM) != 0, "Executable must include large and small app icons");

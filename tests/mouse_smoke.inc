@@ -60,6 +60,16 @@ template<typename Check> bool testTerminalMouse(App &app, Check require) {
         require(focus().hwndFocus == terminal(), "Right-click must focus the clicked single terminal");
         SendMessageW(terminal(), WM_RBUTTONUP, shift ? MK_SHIFT : 0, point(12));
     };
+    auto hover = [&](bool shift, const wchar_t *probe) {
+        for (int column = 67; column <= 76; ++column) {
+            auto position = MAKELPARAM(cell.left + (cell.right - cell.left) * column,
+                                      cell.top + (cell.bottom - cell.top) * 22);
+            SendMessageW(terminal(), WM_MOUSEMOVE, shift ? MK_SHIFT : 0, position);
+        }
+        // A keyboard marker fences all preceding mouse messages on the SSH stream.
+        for (auto p = probe; *p; ++p) SendMessageW(terminal(), WM_CHAR, *p, 1);
+        SendMessageW(terminal(), WM_CHAR, '\r', 1);
+    };
     { std::ofstream progress(file(L"mouse-progress.json")); progress << "{\"step\":" << step << "}\n"; }
     if (++waits > 40) throw std::runtime_error("Mouse regression timed out waiting for SSH input");
     if (step == 0) {
@@ -95,6 +105,8 @@ template<typename Check> bool testTerminalMouse(App &app, Check require) {
     } else if (step == 3 && std::filesystem::exists(file(L"mouse-normal-paste.ready"))) {
         std::ofstream(file(L"mouse-enable.request")) << "enable\n"; ++step; waits = 0;
     } else if (step == 4 && std::filesystem::exists(file(L"mouse-reporting.ready"))) {
+        hover(false, L"hover-active");
+        hover(true, L"hover-shift");
         setClipboard(L"raw-selection-sentinel"); drag(false); ++step; waits = 0;
     } else if (step == 5) {
         require(clipboard() == (applicationMouse ? L"raw-selection-sentinel" : L"COPY-MOUSE"),
@@ -123,6 +135,16 @@ template<typename Check> bool testTerminalMouse(App &app, Check require) {
         require(clipboard() == L"COPY-MOUSE", "Normal drag must return after the application releases mouse capture");
         setClipboard(L"restored-paste-한글"); paste(false); ++step; waits = 0;
     } else if (step == 11 && std::filesystem::exists(file(L"mouse-restored-paste.ready"))) {
+        hover(false, L"hover-restored");
+        std::ofstream(file(L"mouse-abandon.request")) << "abandon\n"; step = 15; waits = 0;
+    } else if (step == 15 && std::filesystem::exists(file(L"mouse-abandoned.ready"))) {
+        hover(false, L"hover-abandoned"); step = 16; waits = 0;
+    } else if (step == 16 && std::filesystem::exists(file(L"mouse-abandoned-input.ready"))) {
+        hover(true, L"hover-abandoned-shift");
+        // Literal report-looking user input must survive; fix the producer, not text.
+        for (auto c : std::wstring(L"35;68;23M\r")) SendMessageW(terminal(), WM_CHAR, c, 1);
+        setClipboard(L"abandoned-paste-한글"); paste(true); step = 17; waits = 0;
+    } else if (step == 17 && std::filesystem::exists(file(L"mouse-abandoned-paste.ready"))) {
         restoreMouseTestClipboard(app.hwnd);
         app.closeTab(0, true); return true;
     }

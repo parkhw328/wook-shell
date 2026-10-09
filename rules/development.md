@@ -38,6 +38,7 @@
 - 이후 빌드: `scripts/build.ps1`; CTest의 `core-tests`와 배포 ZIP 생성까지 수행한다.
 - SSH/UI: `npm --prefix tests/ssh ci --ignore-scripts --omit=optional` 후 `node tests/ssh/integration.cjs`.
 - 폰트 캐시: `node tests/ssh/font-integration.cjs`. 폰트 선택·탐색 UI와 실제 분할 입력은 SSH/UI 테스트에 포함한다.
+- 터미널 마우스·스크롤: `node tests/ssh/mouse-integration.cjs`, `node tests/ssh/mouse-integration.cjs --application-mouse`, `node tests/ssh/scroll-integration.cjs`, `node tests/ssh/scroll-integration.cjs --follow-output`. 실제 루프백 SSH·클립보드·스크롤바와 Win32 메시지를 사용하며 OS의 실제 포커스 라우팅 검사와 구분한다.
 - 실행 인자: `node tests/ssh/launch-integration.cjs`. 배포 EXE로 실제 루프백 SSH 인증, 저장 호스트 재사용, UTF-8 파이프, 일회용 암호 정리와 자식 명령줄을 검증한다.
 - 개인키 등록: `node tests/ssh/key-import-integration.cjs`. 외부 형식 가져오기, 등록 파일 보호와 배포 EXE의 실제 키 인증·재사용을 검증한다.
 - 테스트는 임시 루프백 SSH 서버와 `build/` 아래 격리 데이터만 사용한다. 테스트 창은 자동 종료한다.

@@ -17,6 +17,7 @@ const fingerprint = 'SHA256:' + crypto.createHash('sha256').update(utils.parseKe
 const signal = name => fs.writeFileSync(path.join(artifact, `mouse-${name}.ready`), 'ready\n');
 const clients = new Set();
 let received = '', stage = 'screen', timer;
+const hoverReports = {};
 const server = new Server({ hostKeys: [key] }, client => {
   clients.add(client);
   client.on('error', () => {});
@@ -35,7 +36,17 @@ const server = new Server({ hostKeys: [key] }, client => {
       stream.on('data', bytes => {
         received += decoder.write(bytes);
         if (received.includes('\x1b[1;1R')) signal(stage);
-        for (const kind of ['normal', 'preferred', 'shift', 'toggled', 'restored']) {
+        for (const name of ['active', 'shift', 'restored', 'abandoned', 'abandoned-shift']) {
+          const marker = `hover-${name}\r`;
+          if (!(name in hoverReports) && received.includes(marker)) {
+            const preceding = received.slice(0, received.indexOf(marker));
+            const previousMarker = preceding.lastIndexOf('hover-');
+            const segment = previousMarker < 0 ? preceding : preceding.slice(preceding.indexOf('\r', previousMarker) + 1);
+            hoverReports[name] = segment.match(/\x1b\[<\d+;\d+;\d+[mM]/g) || [];
+            if (name === 'abandoned') signal('abandoned-input');
+          }
+        }
+        for (const kind of ['normal', 'preferred', 'shift', 'toggled', 'restored', 'abandoned']) {
           if (received.includes(`${kind}-paste-한글`)) signal(`${kind}-paste`);
         }
         if (/\x1b\[<0;\d+;\d+M/.test(received) && /\x1b\[<2;\d+;\d+M/.test(received)) signal(stage === 'toggled' ? 'toggled-raw' : 'raw-clicks');
@@ -51,6 +62,11 @@ const server = new Server({ hostKeys: [key] }, client => {
           fs.writeFileSync(path.join(artifact, 'toggled-input.json'), JSON.stringify(received));
           stage = 'restored'; received = '';
           stream.write('\x1b[?1003l\x1b[?1002l\x1b[?1000l\x1b[?1006l\x1b[?1004l\x1b[?2004l'); screen();
+        } else if (stage === 'restored' && fs.existsSync(path.join(artifact, 'mouse-abandon.request'))) {
+          fs.writeFileSync(path.join(artifact, 'restored-input.json'), JSON.stringify(received));
+          stage = 'abandoned'; received = '';
+          // A TUI returns to the normal screen without resetting any-event reporting.
+          stream.write('\x1b[?1049h\x1b[?1003h\x1b[?1006h\x1b[?1049l'); screen();
         }
       }, 30);
     });
@@ -68,6 +84,7 @@ const server = new Server({ hostKeys: [key] }, client => {
     const timeout = setTimeout(() => child.kill(), 60000);
     const code = await new Promise((resolve, reject) => { child.on('error', reject); child.on('close', resolve); }).finally(() => clearTimeout(timeout));
     const result = JSON.parse(fs.readFileSync(path.join(artifact, 'ui-smoke-result.json'), 'utf8'));
+    fs.writeFileSync(path.join(artifact, 'hover-reports.json'), JSON.stringify(hoverReports, null, 2));
     console.log(JSON.stringify({ artifact, applicationMouse, code, ...result }, null, 2));
     assert.equal(code, 0, 'Mouse test process must exit successfully');
     assert.equal(result.passed, true, JSON.stringify(result));
@@ -92,7 +109,14 @@ const server = new Server({ hostKeys: [key] }, client => {
       assert.match(toggled, /\x1b\[<0;\d+;\d+M/, 'Disabling priority live must restore left clicks');
       assert.match(toggled, /\x1b\[<2;\d+;\d+M/, 'Disabling priority live must restore right clicks');
     }
-    assert.ok(received.includes('restored-paste-한글') && !received.includes('\x1b[200~'), 'Plain paste resumes after mode reset');
+    const restored = JSON.parse(fs.readFileSync(path.join(artifact, 'restored-input.json'), 'utf8'));
+    assert.ok(restored.includes('restored-paste-한글') && !restored.includes('\x1b[200~'), 'Plain paste resumes after mode reset');
+    assert.equal(hoverReports.active.length, applicationMouse ? 10 : 0, 'Only explicit application mouse mode sends passive movement');
+    assert.deepEqual(hoverReports.shift, [], 'Shift must suppress passive movement as well as clicks');
+    assert.deepEqual(hoverReports.restored, [], 'No movement reports after normal TUI cleanup');
+    assert.equal(hoverReports.abandoned.length, applicationMouse ? 0 : 10, 'Reproduce stale reporting only when application mouse mode is allowed');
+    assert.deepEqual(hoverReports['abandoned-shift'], [], 'Shift must also suppress movement when the TUI leaves mouse reporting enabled');
+    assert.ok(received.includes('35;68;23M\r'), 'Do not remove literal report-looking keyboard input');
     console.log('Mouse capture, Shift override, focus return and bracketed paste checks passed.');
   } finally {
     clearInterval(timer); for (const client of clients) client.destroy(); server.close();
