@@ -62,7 +62,9 @@ const server = new Server({ hostKeys: [key] }, client => {
           fs.writeFileSync(path.join(artifact, 'toggled-input.json'), JSON.stringify(received));
           stage = 'restored'; received = '';
           stream.write('\x1b[?1003l\x1b[?1002l\x1b[?1000l\x1b[?1006l\x1b[?1004l\x1b[?2004l'); screen();
-        } else if (stage === 'restored' && fs.existsSync(path.join(artifact, 'mouse-abandon.request'))) {
+        } else if (stage === 'restored' && 'restored' in hoverReports && fs.existsSync(path.join(artifact, 'mouse-abandon.request'))) {
+          // The local request can beat the final marker byte over SSH. Do not
+          // clear the input buffer until the complete probe has been received.
           fs.writeFileSync(path.join(artifact, 'restored-input.json'), JSON.stringify(received));
           stage = 'abandoned'; received = '';
           // A TUI returns to the normal screen without resetting any-event reporting.
