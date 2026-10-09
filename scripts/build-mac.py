@@ -59,7 +59,7 @@ for line in imports.splitlines():
     if "compatibility version" in line:
         library = line.strip().split(" (")[0]
         assert library.startswith(("/usr/lib/", "/System/Library/", "@rpath/libswift")), library
-output = ROOT / "dist" / VERSION / "macos-universal"; output.mkdir(parents=True, exist_ok=True)
+output = ROOT / "release" / VERSION / "macos-universal"; output.mkdir(parents=True, exist_ok=True)
 archive = output / f"wshell-{VERSION}-macos-universal.zip"
 if archive.exists(): archive.unlink()
 run("ditto", "-c", "-k", "--keepParent", APP, archive)

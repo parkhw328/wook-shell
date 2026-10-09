@@ -48,8 +48,8 @@ jobs:
         with:
           name: wshell-windows-x64
           path: |
-            dist/${{ steps.release.outputs.version }}/windows-x64/*
-            dist/${{ steps.release.outputs.version }}/manifest.json
+            release/${{ steps.release.outputs.version }}/windows-x64/*
+            release/${{ steps.release.outputs.version }}/manifest.json
           if-no-files-found: error
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
@@ -92,7 +92,7 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: wshell-macos-universal
-          path: dist/${{ steps.release.outputs.version }}/macos-universal/*
+          path: release/${{ steps.release.outputs.version }}/macos-universal/*
           if-no-files-found: error
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()

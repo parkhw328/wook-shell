@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
 spec = importlib.util.spec_from_file_location("release", Path(__file__).resolve().parents[1] / "scripts/index-dist.py")
@@ -80,6 +81,31 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual(refreshed, manifest)
         self.assertIn("has not been run", release.validation_note(refreshed))
         self.assertNotIn("workflow", refreshed)
+
+    def test_release_catalog_selects_latest_per_platform_and_preserves_manifest(self):
+        root = Path(self.temp.name)
+        releases = root / "release"
+        releases.mkdir()
+        artifacts = release.artifacts_for(self.folder)
+        manifest = release.manifest_for(self.folder, artifacts, {"sourceCommit": "original", "sourceDirty": False})
+        original = json.dumps(manifest, indent=4).encode()
+        (self.folder / "manifest.json").write_bytes(original)
+        self.folder.rename(releases / "0.13.0")
+        (root / "VERSION").write_text("0.13.0\n")
+        mac = releases / "0.11.0" / "macos-universal"
+        mac.mkdir(parents=True)
+        archive = mac / "wshell-0.11.0-macos-universal.zip"
+        with zipfile.ZipFile(archive, "w") as bundle:
+            bundle.writestr("wShell.app/Contents/MacOS/wShell", b"mac fixture")
+        digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+        archive.with_name(archive.name + ".sha256").write_text(f"{digest}  {archive.name}\n")
+        with patch.object(release, "ROOT", root), patch("builtins.print"):
+            release.index(catalog_only=True)
+        catalog = (releases / "README.md").read_text(encoding="utf-8")
+        self.assertIn("| windows-x64 | 0.13.0 |", catalog)
+        self.assertIn("| macos-universal | 0.11.0 |", catalog)
+        self.assertIn("0.11.0/macos-universal/wshell-0.11.0-macos-universal.zip", catalog)
+        self.assertEqual((releases / "0.13.0/manifest.json").read_bytes(), original)
 
 
 if __name__ == "__main__":

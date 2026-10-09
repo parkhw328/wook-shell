@@ -80,7 +80,7 @@ def build_provenance():
     commit = os.environ.get("GITHUB_SHA") or subprocess.check_output(
         ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     dirty = bool(subprocess.check_output(
-        ["git", "status", "--porcelain", "--", ".", ":(exclude)dist"], cwd=ROOT, text=True).strip())
+        ["git", "status", "--porcelain", "--", ".", ":(exclude)release", ":(exclude)dist"], cwd=ROOT, text=True).strip())
     result = {"sourceCommit": commit, "sourceDirty": dirty}
     if os.environ.get("GITHUB_RUN_ID"):
         result["workflow"] = (f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}"
@@ -96,9 +96,10 @@ def validation_note(manifest):
 
 def index(catalog_only=False, cross_built=False):
     version = (ROOT / "VERSION").read_text().strip()
-    folders = [path for path in (ROOT / "dist").iterdir() if path.is_dir() and re.fullmatch(r"\d+\.\d+\.\d+", path.name)]
+    folders = [path for path in (ROOT / "release").iterdir() if path.is_dir() and re.fullmatch(r"\d+\.\d+\.\d+", path.name)]
     folders.sort(key=lambda path: tuple(map(int, path.name.split("."))), reverse=True)
     pending, rows = [], []
+    latest = {}
     current_note = ""
     for release in folders:
         artifacts = artifacts_for(release)
@@ -117,6 +118,7 @@ def index(catalog_only=False, cross_built=False):
             if item["file"].endswith(".exe"):
                 continue
             path = f"{release.name}/{item['file']}"
+            latest.setdefault(item["platform"], (release.name, path))
             status = f" · {note}" if item["platform"] == "windows-x64" and note else ""
             rows.append(f"| {release.name} | {item['platform']} | [ZIP]({path}) | [SHA-256]({path}.sha256) · [manifest]({release.name}/manifest.json){status} |")
     ipad_rows = []
@@ -126,15 +128,29 @@ def index(catalog_only=False, cross_built=False):
         manifest = json.loads((path.parent / "manifest.json").read_text())
         if manifest["sha256"] != digest or manifest["bytes"] != path.stat().st_size:
             raise ValueError(f"iPad manifest mismatch: {path}")
-        relative = path.relative_to(ROOT / "dist").as_posix()
-        ipad_rows.append(f"- iPad {path.parent.name}: [unsigned IPA]({relative}) · [SHA-256]({relative}.sha256) · [manifest](ipad/{path.parent.name}/manifest.json)")
+        relative = "../" + path.relative_to(ROOT).as_posix()
+        ipad_rows.append(f"- iPad {path.parent.name}: [unsigned IPA]({relative}) · [SHA-256]({relative}.sha256) · [manifest](../dist/ipad/{path.parent.name}/manifest.json)")
     # Write only after all releases validate. Catalog-only preserves provenance.
     for path, manifest in pending:
-        path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        if not path.exists() or json.loads(path.read_text(encoding="utf-8")) != manifest:
+            path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    latest_rows = []
+    for platform in ("windows-x64", "macos-universal"):
+        if platform not in latest:
+            continue
+        latest_version, latest_path = latest[platform]
+        download = f"[ZIP]({latest_path})"
+        if platform == "windows-x64":
+            download = f"[EXE]({latest_version}/windows-x64/wShell.exe) · " + download
+        latest_rows.append(f"| {platform} | {latest_version} | {download} |")
     catalog = ("# wShell downloads\n\n"
                f"Current Windows release: **{version}**. [Standalone EXE]({version}/windows-x64/wShell.exe) · "
                f"[ZIP]({version}/windows-x64/wshell-{version}-windows-x64.zip)\n\n"
                + (f"**Validation status: {current_note}**\n\n" if current_note else "") +
+               "## Latest available builds\n\n"
+               "| Platform | Version | Download |\n| --- | --- | --- |\n" + "\n".join(latest_rows) + "\n\n"
+               "Latest means the newest published build for each platform. The macOS build predates the new Windows icon and features. "
+               "See the [Windows release notes](../docs/releases/" + version + ".md) for test results and limitations. iPad is on hold.\n\n"
                "Versioned binaries, checksums and manifests are tracked in Git. Open a file and select **Download raw file** to download it. "
                "Each Windows ZIP contains only wShell.exe. Windows releases are unsigned.\n\n"
                "| Version | Platform | Download | Verification |\n| --- | --- | --- | --- |\n" + "\n".join(rows) +
@@ -144,7 +160,7 @@ def index(catalog_only=False, cross_built=False):
                "The unsigned IPA requires separate Apple-account signing before installation; it is not a directly installable release.\n\n"
                "Manifests record file sizes and SHA-256 values; new builds also record the source commit, plus the CI run when built on Actions. "
                "Historical manifests retain known metadata only. Build tools, caches, passwords and private keys are excluded.\n")
-    (ROOT / "dist/README.md").write_text(catalog, encoding="utf-8")
+    (ROOT / "release/README.md").write_text(catalog, encoding="utf-8")
     print(f"Verified and indexed {len(folders)} desktop releases and {len(ipad_rows)} archived iPad builds.")
 
 

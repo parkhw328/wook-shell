@@ -21,6 +21,6 @@ gh run download RUN_ID -n ipad-test-evidence -D build/ipad-evidence-RUN_ID
 
 ## Desktop builds
 
-Windows and macOS run independent jobs. Inspect each job's test evidence before publishing. Release files must come from a successful run, and their SHA-256 values must match the versioned `dist/<version>/manifest.json` and uploaded assets.
+Windows and macOS run independent jobs. Inspect each job's test evidence before publishing. Release files must come from a successful run, and their SHA-256 values must match the versioned `release/<version>/manifest.json` and uploaded assets.
 
 Physical iPad installation, Korean system-keyboard behavior and personal signing remain separate from simulator validation.

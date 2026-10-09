@@ -22,7 +22,7 @@
 - Windows 키 가져오기·등록·재사용은 [개인키 등록 규칙](keys.md)을 따른다.
 - 텍스트 크기는 `src/ui.hpp`의 `TextSize`를 사용하고 굵기는 실제 내장 Regular/Bold만 사용한다.
 - 탐색창·상단 메뉴·검색·폰트를 변경할 때는 [작업 공간 UI 규칙](workspace-ui.md)을 적용한다. 폰트 캐시 생성 전부터 `WOOK_DATA_DIR`를 격리하고, 자식 터미널도 같은 캐시를 사용한다.
-- 외부 소스·도구는 버전과 SHA-256을 고정하고 검증한다. 개발 도구·중간 빌드·캐시는 커밋하지 않는다. 2026-10-08 사용자 요청에 따라 검증한 버전별 `dist` 배포 산출물은 Git에 함께 보관한다.
+- 외부 소스·도구는 버전과 SHA-256을 고정하고 검증한다. 개발 도구·중간 빌드·캐시는 커밋하지 않는다. 2026-10-08 사용자 요청에 따라 검증한 버전별 `release` 배포 산출물은 Git에 함께 보관한다.
 - 사용자 입력은 검증하고, 프로세스 인수는 Windows 규칙에 따라 인용한다. 셸을 경유해 실행하지 않는다.
 - 영속 설정은 파일 잠금과 원자적 교체로 보호한다. 저장 실패를 사용자에게 알린다.
 - 연결 수명주기, 탭 모델, 주소 파싱, 설정 저장·이전·백업과 설정 UI의 적용·취소를 테스트한다.
@@ -31,8 +31,8 @@
 
 ## 빌드와 회귀 검증
 
-- Linux x86_64 교차 빌드: `python3 scripts/build-windows-linux.py --bootstrap`, 이후 `python3 scripts/build-windows-linux.py`. 도구는 `.tools/`, 중간 빌드는 `build/windows-linux/`, 작업 중 EXE·ZIP·해시는 `build/packages/<VERSION>/windows-x64/`에 둔다. 배포 요청 시 소스를 커밋하고 `python3 scripts/build-windows-linux.py --dist`로 새 버전을 `dist/<VERSION>/windows-x64/`에 모은다.
-- Linux에서는 PE·ZIP·내장 리소스를 정적으로 검증하고 Windows 테스트 EXE를 컴파일한다. Windows 실행·SSH·UI·IME·DPAPI 회귀 검증은 실행하지 않으며 통과로 표시하지 않는다. Windows와 Linux 빌드는 같은 checkout에서 동시에 실행하지 않는다. 2026-10-08 사용자 요청에 따라 Windows 실기 검증 전의 교차 빌드도 `dist/`에서 제공하되, manifest와 다운로드 안내에 Linux 정적 검사 통과·Windows/NGS 실행 미검증을 명시한다. 이는 이전의 실기 검증 전 배포 금지 규칙을 대체한다.
+- Linux x86_64 교차 빌드: `python3 scripts/build-windows-linux.py --bootstrap`, 이후 `python3 scripts/build-windows-linux.py`. 도구는 `.tools/`, 중간 빌드는 `build/windows-linux/`, 작업 중 EXE·ZIP·해시는 `build/packages/<VERSION>/windows-x64/`에 둔다. 배포 요청 시 소스를 커밋하고 `python3 scripts/build-windows-linux.py --dist`로 새 버전을 `release/<VERSION>/windows-x64/`에 모은다.
+- Linux에서는 PE·ZIP·내장 리소스를 정적으로 검증하고 Windows 테스트 EXE를 컴파일한다. Windows 실행·SSH·UI·IME·DPAPI 회귀 검증은 실행하지 않으며 통과로 표시하지 않는다. Windows와 Linux 빌드는 같은 checkout에서 동시에 실행하지 않는다. 2026-10-08 사용자 요청에 따라 Windows 실기 검증 전의 교차 빌드도 `release/`에서 제공하되, manifest와 다운로드 안내에 Linux 정적 검사 통과·Windows/NGS 실행 미검증을 명시한다. 이는 이전의 실기 검증 전 배포 금지 규칙을 대체한다.
 - Python 빌드 도구 회귀 검증: `python3 -m unittest discover -s tests -p 'test_*.py'`. Linux 호스트 런타임 호환 설정은 README의 교차 빌드 절차를 따른다.
 - 최초 빌드: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 -Bootstrap`.
 - 이후 빌드: `scripts/build.ps1`; CTest의 `core-tests`와 배포 ZIP 생성까지 수행한다.
@@ -41,13 +41,13 @@
 - 실행 인자: `node tests/ssh/launch-integration.cjs`. 배포 EXE로 실제 루프백 SSH 인증, 저장 호스트 재사용, UTF-8 파이프, 일회용 암호 정리와 자식 명령줄을 검증한다.
 - 개인키 등록: `node tests/ssh/key-import-integration.cjs`. 외부 형식 가져오기, 등록 파일 보호와 배포 EXE의 실제 키 인증·재사용을 검증한다.
 - 테스트는 임시 루프백 SSH 서버와 `build/` 아래 격리 데이터만 사용한다. 테스트 창은 자동 종료한다.
-- 배포 산출물은 플랫폼별 기존 `dist` 경로로 일원화하고 해시·manifest·다운로드 목록·설명서를 함께 갱신해 커밋·푸시한다. 실행파일과 ZIP 내부 이름은 항상 `wShell.exe`이며 NGS용 별도 이름의 파일은 제공하지 않는다. NGS 환경의 수동 이름 변경은 README에만 안내한다. Linux 배포 manifest는 `--cross-built`로 생성하고 재검증은 `--catalog-only`로 기존 출처와 검증 상태를 보존한다.
-- 데스크톱 버전은 루트 `VERSION`에서 관리한다. 현재 배포 대상은 `dist/<version>/windows-x64/`이며 `scripts/index-dist.py`로 해시 manifest를 생성한다. `dist/<version>/macos-universal/`은 macOS 빌드를 명시적으로 요청받았을 때만 갱신한다.
-- 새 Windows 배포는 `VERSION`을 올리고 소스 변경을 커밋한 뒤 `scripts/build.ps1`과 위의 로컬 회귀 검증을 실행한다. 검증한 EXE·ZIP·SHA-256·manifest를 별도 배포 커밋으로 푸시한다. 소스 커밋·푸시와 `dist` 파일 공유에 GitHub Actions 실행은 필요하지 않다.
+- 배포 산출물은 플랫폼별 기존 `release` 경로로 일원화하고 해시·manifest·다운로드 목록·설명서를 함께 갱신해 커밋·푸시한다. 실행파일과 ZIP 내부 이름은 항상 `wShell.exe`이며 NGS용 별도 이름의 파일은 제공하지 않는다. NGS 환경의 수동 이름 변경은 README에만 안내한다. Linux 배포 manifest는 `--cross-built`로 생성하고 재검증은 `--catalog-only`로 기존 출처와 검증 상태를 보존한다.
+- 데스크톱 버전은 루트 `VERSION`에서 관리한다. 현재 배포 대상은 `release/<version>/windows-x64/`이며 `scripts/index-dist.py`로 해시 manifest를 생성한다. `release/<version>/macos-universal/`은 macOS 빌드를 명시적으로 요청받았을 때만 갱신한다.
+- 새 Windows 배포는 `VERSION`을 올리고 소스 변경을 커밋한 뒤 `scripts/build.ps1`과 위의 로컬 회귀 검증을 실행한다. 검증한 EXE·ZIP·SHA-256·manifest를 별도 배포 커밋으로 푸시한다. 소스 커밋·푸시와 `release` 파일 공유에 GitHub Actions 실행은 필요하지 않다.
 - 로컬 배포 manifest는 실제 `sourceCommit`과 `sourceDirty: false`를 확인한다. 로컬 빌드에는 `workflow`가 없으며 CI 통과로 표시하지 않는다. 명시적으로 요청받은 CI 배포는 통과한 산출물을 내려받고 `python scripts/index-dist.py --catalog-only`로 검증·목록만 갱신해 원래 소스 커밋과 CI 링크를 보존한다.
 - 실제 키보드·마우스를 사용하는 UI 검사는 잠기지 않은 대화형 Windows 데스크톱에서 실행한다. 포커스 확보 실패 등 환경 문제를 통과로 바꾸거나 검사에서 제외하지 않는다. 미완료 검증은 명확히 기록하며 CI 한도 소진을 빌드 자체의 불가능으로 취급하지 않는다.
-- 이미 공개한 버전의 파일은 덮어쓰지 않는다. 수정 배포에는 `VERSION`을 올린다. `dist/README.md`에서 버전별 다운로드를 제공하며, 배포 파일만 변경한 푸시는 빌드를 다시 실행하지 않는다. CI는 현재 `VERSION` 폴더만 산출물로 업로드한다.
-- `dist`에는 허용한 배포 파일만 추가한다. `data`, 실제 암호·개인키, 로그·캐시를 포함하지 않는다. Windows ZIP의 유일한 파일은 함께 배포하는 EXE와 바이트가 같아야 한다. 기존 macOS·iPad 산출물 보관은 해당 플랫폼의 새 빌드나 최신 기능 검증을 뜻하지 않는다.
+- 이미 공개한 버전의 파일은 덮어쓰지 않는다. 수정 배포에는 `VERSION`을 올린다. `release/README.md`에서 버전별 다운로드를 제공하며, 배포 파일만 변경한 푸시는 빌드를 다시 실행하지 않는다. CI는 현재 `VERSION` 폴더만 산출물로 업로드한다.
+- `release`에는 허용한 배포 파일만 추가한다. `data`, 실제 암호·개인키, 로그·캐시를 포함하지 않는다. Windows ZIP의 유일한 파일은 함께 배포하는 EXE와 바이트가 같아야 한다. 기존 macOS·iPad 산출물 보관은 해당 플랫폼의 새 빌드나 최신 기능 검증을 뜻하지 않는다.
 - 배포 검증 스크립트의 손상 해시·다른 EXE·키 파일 차단과 manifest 보존은 `python -m unittest discover -s tests -p test_release.py`로 검사한다.
 - UI 변경은 생성된 `build/ssh-test-*/standalone/ui-*.bmp` 화면을 확인한다. 암호·실제 서버 정보를 스크린샷에 포함하지 않는다.
 - 통합 테스트는 EXE만 복사한 빈 폴더에서 시작하고, 생성한 키의 실제 SSH 서명을 별도 서버 구현으로 검증한다.

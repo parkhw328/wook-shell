@@ -10,7 +10,7 @@ VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 NAME = f"wshell-{VERSION}-windows-x64"
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--binary", type=Path, default=ROOT / "build/native/wShell.exe")
-parser.add_argument("--output", type=Path, default=ROOT / "dist" / VERSION / "windows-x64")
+parser.add_argument("--output", type=Path, default=ROOT / "release" / VERSION / "windows-x64")
 args = parser.parse_args()
 OUT = args.output
 OUT.mkdir(parents=True, exist_ok=True)

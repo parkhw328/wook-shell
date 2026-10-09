@@ -29,6 +29,6 @@
 - macOS는 AppKit·SwiftTerm·OS OpenSSH를 사용하며 단일 `.app` 번들로 이동한다. Windows와 macOS의 기능 차이는 README에 명시한다.
 - macOS 저장소는 `~/Library/Application Support/wShell`이며 저장 비밀번호는 로그인 Keychain에 보관한다. 백업에 비밀번호가 포함되지 않는다는 안내는 두 플랫폼에 모두 표시한다.
 - 공개키 인증 화면은 서버에 등록하는 공개키와 서명에 필요한 개인키를 구분한다. `.pub` 단독 로그인을 지원한다고 표시하지 않는다.
-- About에는 `Created by Hyunwook Park`을 표시한다. 플랫폼별 산출물은 `dist/<version>/` 아래에 둔다.
+- About에는 `Created by Hyunwook Park`을 표시한다. 플랫폼별 산출물은 `release/<version>/` 아래에 둔다.
 - Windows·Mac 호스트는 별칭과 탭 색상을 지정할 수 있다. 별칭은 접속 주소나 저장된 자격 증명 식별자를 변경하지 않는다.
 - 분할 하단 공통 명령창과 키보드 동기화를 제공한다. 두 체크박스는 기본 해제이며 현재 보이는 연결 완료 터미널만 대상으로 한다. 세부 규칙은 `broadcast.md`를 따른다.

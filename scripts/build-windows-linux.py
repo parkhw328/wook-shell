@@ -1,4 +1,4 @@
-"""Cross-build Windows x64 on Linux; optionally collect a new version in dist."""
+"""Cross-build Windows x64 on Linux; optionally collect a new version in release."""
 import argparse
 import os
 from pathlib import Path
@@ -14,19 +14,19 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bootstrap", action="store_true", help="Download SHA-256 pinned build tools and PuTTY")
     parser.add_argument("--jobs", type=int, default=min(8, os.cpu_count() or 1))
-    parser.add_argument("--dist", action="store_true", help="Collect a new version in dist with explicit runtime-test status; requires committed source")
+    parser.add_argument("--dist", action="store_true", help="Collect a new version in release with explicit runtime-test status; requires committed source")
     args = parser.parse_args()
     if sys.platform != "linux" or platform.machine() != "x86_64":
         parser.error("Requires Linux x86_64")
     if args.jobs < 1:
         parser.error("--jobs must be positive")
     version = (ROOT / "VERSION").read_text().strip()
-    destination = ROOT / "dist" / version / "windows-x64"
+    destination = ROOT / "release" / version / "windows-x64"
 
     def check_release_source():
         if destination.parent.exists():
-            parser.error("This dist version already exists; increment VERSION rather than overwrite it")
-        if subprocess.check_output(["git", "status", "--porcelain", "--", ".", ":(exclude)dist"], cwd=ROOT, text=True).strip():
+            parser.error("This release version already exists; increment VERSION rather than overwrite it")
+        if subprocess.check_output(["git", "status", "--porcelain", "--", ".", ":(exclude)release"], cwd=ROOT, text=True).strip():
             parser.error("Commit source changes before using --dist")
 
     if args.dist:

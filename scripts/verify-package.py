@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 NAME = f"wshell-{VERSION}-windows-x64"
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--folder", type=Path, default=ROOT / "dist" / VERSION / "windows-x64")
+parser.add_argument("--folder", type=Path, default=ROOT / "release" / VERSION / "windows-x64")
 parser.add_argument("--inspector", type=Path, default=ROOT / ".tools/llvm-mingw-20260922-ucrt-x86_64/bin/llvm-readobj.exe")
 args = parser.parse_args()
 folder = args.folder
