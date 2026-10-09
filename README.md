@@ -39,18 +39,18 @@ iPad용 네이티브 SSH·SFTP 앱은 별도로 준비 중입니다. 무료 Appl
 
 ### 최신 버전 다운로드
 
-Windows 1.0.0은 공개 배포 버전입니다. SignPath 신청은 제출했으며, 현재 EXE는 **미서명**입니다. 문제와 개선 요청은 [GitHub Issues](https://github.com/parkhw328/wook-shell/issues)에 남겨주세요.
+Windows 1.0.1은 공개 배포 버전입니다. SignPath 신청은 제출했으며, 현재 EXE는 **미서명**입니다. 문제와 개선 요청은 [GitHub Issues](https://github.com/parkhw328/wook-shell/issues)에 남겨주세요.
 
 | 플랫폼 | 최신 배포 버전 | 다운로드 |
 | --- | --- | --- |
-| Windows x64 | 1.0.0 | [EXE 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/1.0.0/windows-x64/wShell.exe) · [ZIP 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/1.0.0/windows-x64/wshell-1.0.0-windows-x64.zip) |
+| Windows x64 | 1.0.1 | [EXE 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/1.0.1/windows-x64/wShell.exe) · [ZIP 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/1.0.1/windows-x64/wshell-1.0.1-windows-x64.zip) |
 | macOS Universal (Apple Silicon·Intel) | 0.11.0 | [ZIP 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/0.11.0/macos-universal/wshell-0.11.0-macos-universal.zip) |
 
-배포 파일은 루트 [`release/`](release/README.md)에 보관합니다. macOS는 현재 제공 가능한 최신 기존 빌드이며, Windows의 새 `>_` 아이콘과 이후 기능 변경은 포함하지 않습니다. iPad 배포는 잠정 보류합니다. Windows 검증 결과와 제한 사항은 [1.0.0 릴리스 노트](docs/releases/1.0.0.md)를 확인하세요.
+배포 파일은 루트 [`release/`](release/README.md)에 보관합니다. macOS는 현재 제공 가능한 최신 기존 빌드이며, Windows의 새 `>_` 아이콘과 이후 기능 변경은 포함하지 않습니다. iPad 배포는 잠정 보류합니다. Windows 검증 결과와 제한 사항은 [1.0.1 릴리스 노트](docs/releases/1.0.1.md)를 확인하세요.
 
 ### Windows
 
-1. **[`wShell.exe`](release/1.0.0/windows-x64/wShell.exe) 하나**를 원하는 폴더에 복사합니다. [`wshell-1.0.0-windows-x64.zip`](release/1.0.0/windows-x64/wshell-1.0.0-windows-x64.zip)에도 이 파일만 들어 있습니다. GitHub 파일 화면의 **Download raw file**로 받습니다.
+1. **[`wShell.exe`](release/1.0.1/windows-x64/wShell.exe) 하나**를 원하는 폴더에 복사합니다. [`wshell-1.0.1-windows-x64.zip`](release/1.0.1/windows-x64/wshell-1.0.1-windows-x64.zip)에도 이 파일만 들어 있습니다. GitHub 파일 화면의 **Download raw file**로 받습니다.
 2. 실행합니다. 설치, 관리자 권한, WebView2, .NET, Node.js가 필요하지 않습니다.
 3. `New host`에서 접속 정보를 저장하거나, 빠른 연결 칸에 `user@hostname:22`를 입력합니다.
 4. 처음 접속하는 SSH 서버의 키 지문을 확인한 뒤 신뢰 여부를 선택합니다.
@@ -70,18 +70,18 @@ macOS의 `.app`은 Finder에서 하나의 앱으로 이동하는 번들이며, �
 
 ### 버전별 배포
 
-루트 `VERSION`에서 앱·패키지 버전을 관리합니다. **현재 Windows 배포는 1.0.0**입니다. Windows 로컬 빌드이며 검증 범위는 [릴리스 노트](docs/releases/1.0.0.md)에 기록합니다. **NGS 환경 수동 검증은 미실행**입니다. 실행파일·ZIP·SHA-256·manifest를 Git의 `release`에 버전별로 보관하며 [전체 다운로드 목록](release/README.md)에서 이전 버전도 받을 수 있습니다. 새 배포 manifest에는 빌드 소스 커밋을 기록하며, CI에서 빌드한 경우에만 실행 링크를 추가합니다. 기존 0.13.0은 CI 검증 완료본이고 이후 배포는 로컬 빌드·검증을 기본으로 합니다. macOS는 기존 0.11.0, iPad는 기존 unsigned 0.1.0 산출물을 보관하며 새로 빌드하지 않습니다. [1.0.0 변경 내역](docs/releases/1.0.0.md)
+루트 `VERSION`에서 앱·패키지 버전을 관리합니다. **현재 Windows 배포는 1.0.1**입니다. Windows 로컬 빌드이며 검증 범위는 [릴리스 노트](docs/releases/1.0.1.md)에 기록합니다. **NGS 환경 수동 검증은 미실행**입니다. 실행파일·ZIP·SHA-256·manifest를 Git의 `release`에 버전별로 보관하며 [전체 다운로드 목록](release/README.md)에서 이전 버전도 받을 수 있습니다. 새 배포 manifest에는 빌드 소스 커밋을 기록하며, CI에서 빌드한 경우에만 실행 링크를 추가합니다. 기존 0.13.0은 CI 검증 완료본이고 이후 배포는 로컬 빌드·검증을 기본으로 합니다. macOS는 기존 0.11.0, iPad는 기존 unsigned 0.1.0 산출물을 보관하며 새로 빌드하지 않습니다. [1.0.1 변경 내역](docs/releases/1.0.1.md)
 
 ```text
 release/
   README.md
-  1.0.0/
+  1.0.1/
     manifest.json
     windows-x64/
       wShell.exe
       wShell.exe.sha256
-      wshell-1.0.0-windows-x64.zip
-      wshell-1.0.0-windows-x64.zip.sha256
+      wshell-1.0.1-windows-x64.zip
+      wshell-1.0.1-windows-x64.zip.sha256
   0.11.0/
     macos-universal/
       wshell-0.11.0-macos-universal.zip
@@ -222,6 +222,17 @@ RSA 생성은 Windows CNG, Ed25519와 키 형식 처리는 PuTTY 라이브러리
 
 ![Encrypted SSH password settings](assets/screenshots/password-host.png)
 
+## 마우스 복사·붙여넣기 (Windows)
+
+1.0.1부터 **일반 드래그로 텍스트를 선택하면 자동 복사**, **우클릭으로 붙여넣기**가 기본입니다. SSH에서 Codex CLI 같은 프로그램이 마우스 입력을 요청해도 같은 동작을 유지합니다. 기존 저장 연결에도 적용되며, 업데이트 후 연결을 다시 열면 새 기본값을 사용합니다. 여러 줄·한글 붙여넣기는 원격 프로그램이 요청한 bracketed paste 모드를 유지합니다.
+
+`Settings → Selection & clipboard → Prefer mouse copy and paste`에서 현재 연결의 동작을 바꾸고 **Apply changes**로 즉시 적용할 수 있습니다. 다음 연결에도 유지하려면 해당 호스트의 **Host settings**에서 같은 항목을 저장하세요.
+
+- **켜짐 (기본):** 드래그·우클릭은 시스템 클립보드를 사용하고, 휠은 터미널 기록을 스크롤합니다. 원격 앱의 마우스 클릭·드래그·휠 조작은 전달하지 않습니다.
+- **꺼짐:** 원격 앱의 마우스 기능을 허용하고 기존 선택·버튼·클립보드 설정을 따릅니다. 앱이 마우스를 사용하는 동안에는 `Shift+드래그`·`Shift+우클릭`으로 복사·붙여넣기를 할 수 있습니다. `Shift overrides application's use of mouse`가 켜져 있어야 하며, 별도의 `Terminal → Features → Disable xterm-style mouse reporting`이 켜져 있으면 앱 마우스 입력은 계속 차단됩니다. [PuTTY 마우스 설정 설명](https://the.earth.li/~sgtatham/putty/0.85/htmldoc/Chapter4.html#config-mouseoverride)
+
+`Ctrl+Shift+V`로 붙여넣기도 가능합니다. 단일 터미널과 분할 터미널에 같은 설정을 적용합니다. [설정 화면](assets/screenshots/mouse-settings.png)
+
 ## 단축키와 컬러
 
 | 단축키 | 동작 |
@@ -330,6 +341,8 @@ npm --prefix tests/ssh ci --ignore-scripts --omit=optional
 node tests/ssh/font-integration.cjs
 node tests/ssh/launch-integration.cjs
 node tests/ssh/key-import-integration.cjs
+node tests/ssh/mouse-integration.cjs
+node tests/ssh/mouse-integration.cjs --application-mouse
 node tests/ssh/integration.cjs
 node tests/ssh/sftp-integration.cjs
 python -m unittest discover -s tests -p test_release.py
@@ -338,6 +351,8 @@ git diff --check
 ```
 
 분할 포커스만 빠르게 재검증하려면 빌드 후 `node tests/ssh/focus-integration.cjs`를 실행합니다. 전체 UI 통합 테스트에도 같은 검증이 포함됩니다. 이 테스트는 자체 창을 전경으로 가져와 실제 마우스·키보드 입력, 명령창에서의 포커스 복귀, 커서·테두리 깜빡임을 검사합니다. 실행 중에는 테스트 창의 입력이 끝날 때까지 기다려 주세요.
+
+마우스 회귀 테스트는 격리된 루프백 SSH 서버에서 마우스 보고와 bracketed paste를 켜고 끄며, 터미널 HWND에 보낸 Win32 마우스 메시지와 실제 시스템 클립보드로 복사·한글 붙여넣기·설정 변경을 검증합니다. 기존 클립보드 텍스트는 복원합니다. OS의 실제 입력 대상 선택은 위의 별도 포커스 테스트에서 검증하며, 원격 Codex CLI 자체를 실행하는 테스트는 아닙니다.
 
 아래 macOS 절차는 해당 플랫폼을 명시적으로 요청받았을 때 사용합니다. CI에서는 `Desktop builds`를 수동 실행하면서 `build_macos`를 선택해야 macOS 작업이 실행됩니다. `iPad personal preview`도 수동 실행 전용입니다.
 

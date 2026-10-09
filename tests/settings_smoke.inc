@@ -20,6 +20,20 @@ void runSettingsSmoke(Settings *s) {
                << ",\"pages\":" << s->pages.size() << ",\"error\":\"" << error << "\"}\n";
     };
     try {
+        if (s->live && GetEnvironmentVariableW(L"WOOK_TEST_MOUSE_ONLY", nullptr, 0)) {
+            KillTimer(s->window, 92);
+            visit("Window/Selection");
+            HWND preference = nullptr;
+            for (HWND control = GetWindow(s->page, GW_CHILD); control; control = GetWindow(control, GW_HWNDNEXT))
+                if (clean(ui::value(control)) == L"Prefer mouse copy and paste") preference = control;
+            check(preference != nullptr, "Mouse clipboard preference must be visible in Selection settings");
+            bool applicationMouse = GetEnvironmentVariableW(L"WOOK_TEST_APP_MOUSE", nullptr, 0) != 0;
+            check(SendMessageW(preference, BM_GETCHECK, 0, 0) == (applicationMouse ? BST_UNCHECKED : BST_CHECKED),
+                  "Mouse preference must load its default or saved opt-out");
+            captureTestWindow(s->window, L"ui-mouse-settings.bmp");
+            SendMessageW(preference, BM_CLICK, 0, 0);
+            report(true); s->submit(s->context, 1); return;
+        }
         if (s->authorities) {
             KillTimer(s->window, 92);
             check(s->pages.size() == 1, "Host authorities page is missing");

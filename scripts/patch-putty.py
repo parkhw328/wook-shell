@@ -17,6 +17,15 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
     def original(name):
         return archive.read(name).decode("utf-8").replace("\r\n", "\n")
 
+    # A new key makes the clipboard-first default apply to old saved sessions
+    # without rewriting their settings. Explicit opt-out is persisted normally.
+    conf_header = replace(original("conf.h"), "CONF_OPTION(no_mouse_rep,", '''CONF_OPTION(wshell_mouse_clipboard,
+    VALUE_TYPE(BOOL),
+    DEFAULT_BOOL(true),
+    SAVE_KEYWORD("WookMouseClipboard"),
+)
+CONF_OPTION(no_mouse_rep,''')
+    (SOURCE / "conf.h").write_text(conf_header, encoding="utf-8")
     terminal_header = replace(original("terminal/terminal.h"), "struct terminal_tag {", "struct terminal_tag {\n    void (*wshell_input)(void *, int, int, const void *, int);\n    void *wshell_input_context;")
     (SOURCE / "terminal/terminal.h").write_text(terminal_header, encoding="utf-8")
     terminal = original("terminal/terminal.c")
@@ -25,8 +34,25 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
         ("void term_keyinput(Terminal *term, int codepage, const void *str, int len)", "2, codepage, str, len"),
         ("void term_do_paste(Terminal *term, const wchar_t *data, size_t len)", "3, 0, data, (int)len")]:
         terminal = replace(terminal, signature + "\n{", signature + "\n{\n    if (term->wshell_input) term->wshell_input(term->wshell_input_context, " + notify + ");")
+    terminal = replace(terminal, "    term->no_mouse_rep = conf_get_bool(term->conf, CONF_no_mouse_rep);",
+                       "    term->no_mouse_rep = conf_get_bool(term->conf, CONF_no_mouse_rep) ||\n        conf_get_bool(term->conf, CONF_wshell_mouse_clipboard);")
+    terminal = replace(terminal, "    term->xterm_mouse_forbidden = conf_get_bool(term->conf, CONF_no_mouse_rep);",
+                       "    term->xterm_mouse_forbidden = term->no_mouse_rep;")
     (SOURCE / "terminal/terminal.c").write_text(terminal, encoding="utf-8")
     window = original("windows/window.c")
+    window = replace(window, "    if (conf_get_bool(conf, CONF_mouseautocopy)) {",
+                     "    if (conf_get_bool(conf, CONF_wshell_mouse_clipboard) || conf_get_bool(conf, CONF_mouseautocopy)) {")
+    window = replace(window, "    switch (conf_get_int(conf, CONF_mousepaste)) {",
+                     "    switch (conf_get_bool(conf, CONF_wshell_mouse_clipboard) ? CLIPUI_EXPLICIT : conf_get_int(conf, CONF_mousepaste)) {")
+    window = replace(window, "static Mouse_Button translate_button(WinGuiSeat *wgs, Mouse_Button button)\n{", '''static Mouse_Button translate_button(WinGuiSeat *wgs, Mouse_Button button)
+{
+    if (conf_get_bool(wgs->conf, CONF_wshell_mouse_clipboard)) {
+        if (button == MBT_LEFT) return MBT_SELECT;
+        if (button == MBT_RIGHT) return MBT_PASTE;
+        if (button == MBT_MIDDLE) return MBT_EXTEND;
+    }''')
+    window = replace(window, "(conf_get_int(wgs->conf, CONF_mouse_is_xterm) == MOUSE_WINDOWS))) {",
+                     "(!conf_get_bool(wgs->conf, CONF_wshell_mouse_clipboard) &&\n              conf_get_int(wgs->conf, CONF_mouse_is_xterm) == MOUSE_WINDOWS))) {")
     # Both initial and idle focus checks must recognise embedded child windows.
     focus_check = "term_set_focus(wgs->term, GetForegroundWindow() == wgs->term_hwnd);"
     if window.count(focus_check) != 2:
@@ -209,6 +235,13 @@ with zipfile.ZipFile(ROOT / ".tools/downloads/putty-src.zip") as archive:
 
     # Do not present switches for external agent/sharing features that wShell disables.
     config = original("config.c")
+    config = replace(config, '''    ctrl_checkbox(s, "Shift overrides application's use of mouse", 'p',''', '''    ctrl_checkbox(s, "Prefer mouse copy and paste", NO_SHORTCUT,
+                  HELPCTX(selection_shiftdrag), conf_checkbox_handler,
+                  I(CONF_wshell_mouse_clipboard));
+    ctrl_text(s, "When enabled, dragging copies to the system clipboard and right-click pastes. "
+              "The wheel scrolls terminal history. Turn this off to use an application's mouse controls.",
+              HELPCTX(selection_shiftdrag));
+    ctrl_checkbox(s, "Shift overrides application's use of mouse", 'p',''')
     config = replace(config, '''        if (!midsession) {
             s = ctrl_getset(b, "Connection/SSH", "sharing", "Sharing an SSH connection between PuTTY tools");
 

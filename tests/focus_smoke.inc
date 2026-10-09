@@ -43,6 +43,14 @@ template<typename Check> bool testSplitFocus(App &app, Check require) {
         SendMessageW(terminal, WM_LBUTTONUP, 0, point);
     };
     auto nativeClick = [&](HWND target, POINT point) {
+        if (WindowFromPoint(point) != target) {
+            RECT bounds{}; GetWindowRect(target, &bounds);
+            std::ofstream diagnostic(marker(L"focus-click-hit").replace_extension(L".json"));
+            diagnostic << "{\"target\":" << (uintptr_t)target << ",\"hit\":" << (uintptr_t)WindowFromPoint(point)
+                       << ",\"point\":[" << point.x << ',' << point.y << "],\"bounds\":["
+                       << bounds.left << ',' << bounds.top << ',' << bounds.right << ',' << bounds.bottom
+                       << "],\"visible\":" << IsWindowVisible(target) << ",\"enabled\":" << IsWindowEnabled(target) << "}\n";
+        }
         require(WindowFromPoint(point) == target, "Native click must hit the test window, never another application");
         int left = GetSystemMetrics(SM_XVIRTUALSCREEN), top = GetSystemMetrics(SM_YVIRTUALSCREEN);
         int width = GetSystemMetrics(SM_CXVIRTUALSCREEN), height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
