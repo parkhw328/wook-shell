@@ -232,50 +232,71 @@ int wsftp_upload(WsFtp *c, const char *path, uint64_t size, WsFtpRead input, WsF
     }
     return progressCall(c, progress, context, done, size) && closeHandle(c, &h);
 }
+/* A bounded sliding window keeps reads in flight across RTTs. Completed
+ * blocks stay in file order; short replies refill only their missing tail. */
 int wsftp_download(WsFtp *c, const char *path, uint64_t size, WsFtpWrite output, WsFtpProgress progress, void *context) {
+    enum { WINDOW = 64 };
+    typedef struct ReadSlot { uint32_t id, expected, used; uint64_t offset; } ReadSlot;
+    ReadSlot slots[WINDOW] = {{0}};
     Handle h; if (!openHandle(c, 3, path, 0, &h)) return 0;
-    unsigned char *blocks = malloc(PIPELINE * CHUNK);
+    unsigned char *blocks = malloc(WINDOW * CHUNK);
     if (!blocks) return fail(c, "Cannot allocate transfer buffers.");
-    uint64_t done = 0; int ok = 1;
+    /* Bound request bytes too: the synchronous transport must be able to
+     * enqueue the window without deadlocking against buffered replies. */
+    unsigned window = 32768 / (25 + h.length);
+    if (window > WINDOW) window = WINDOW;
+    uint64_t done = 0, next = 0;
+    unsigned head = 0, count = 0;
+    int ok = progressCall(c, progress, context, 0, size);
     while (ok && done < size) {
-        uint32_t ids[PIPELINE], expected[PIPELINE], lengths[PIPELINE] = {0}; int received[PIPELINE] = {0}, count = 0;
-        uint64_t next = done;
-        for (; ok && count < PIPELINE && next < size; ++count) {
-            expected[count] = size - next > CHUNK ? CHUNK : (uint32_t)(size - next);
-            ids[count] = request(c, 5); blob(&c->out, h.data, h.length); put64(&c->out, next); put32(&c->out, expected[count]);
-            ok = send(c); next += expected[count];
+        while (count < window && next < size) {
+            unsigned index = (head + count) % WINDOW;
+            ReadSlot *slot = &slots[index];
+            slot->offset = next; slot->used = 0;
+            slot->expected = size - next > CHUNK ? CHUNK : (uint32_t)(size - next);
+            slot->id = request(c, 5); blob(&c->out, h.data, h.length);
+            put64(&c->out, next); put32(&c->out, slot->expected);
+            if (!(ok = send(c))) break;
+            next += slot->expected; ++count;
         }
-        for (int i = 0; ok && i < count; ++i) {
-            uint32_t id; int type = receive(c, &id), slot = -1;
-            if (!type) { ok = 0; break; }
-            for (int j = 0; j < count; ++j) if (ids[j] == id && !received[j]) slot = j;
-            if (slot < 0) { c->broken = 1; ok = fail(c, "Unexpected download response identifier."); break; }
-            received[slot] = 1;
-            if (type == 101) { status(c); ok = fail(c, "Remote file could not be read completely; it may have changed."); break; }
-            const unsigned char *data = type == 103 ? getBlob(&c->in, &lengths[slot]) : NULL;
-            if (!data || !lengths[slot] || lengths[slot] > expected[slot] || !valid(c)) { ok = fail(c, "Invalid SFTP data reply."); break; }
-            memcpy(blocks + slot * CHUNK, data, lengths[slot]);
+        if (!ok) break;
+        uint32_t id; int type = receive(c, &id), found = -1;
+        if (!type) { ok = 0; break; }
+        for (unsigned i = 0; i < count; ++i) {
+            unsigned index = (head + i) % WINDOW;
+            if (slots[index].id == id && slots[index].used < slots[index].expected) found = (int)index;
         }
-        for (int i = 0; ok && i < count; ++i) {
-            /* Short reads are legal. Fill their tails after draining the batch. */
-            while (lengths[i] < expected[i]) {
-                uint32_t id = request(c, 5), length;
-                blob(&c->out, h.data, h.length); put64(&c->out, done + lengths[i]); put32(&c->out, expected[i] - lengths[i]);
-                if (!exchange(c, id, 103)) { ok = 0; break; }
-                const unsigned char *data = getBlob(&c->in, &length);
-                if (!data || !length || length > expected[i] - lengths[i] || !valid(c)) { ok = fail(c, "Invalid short SFTP read."); break; }
-                memcpy(blocks + i * CHUNK + lengths[i], data, length); lengths[i] += length;
-            }
-            int written = 0;
-            while (ok && written < (int)lengths[i]) {
-                int n = output(context, blocks + i * CHUNK + written, lengths[i] - written);
-                if (n <= 0 || n > (int)lengths[i] - written) { ok = fail(c, "Cannot write the local file. Check free space and permissions."); break; }
+        if (found < 0) { ok = fail(c, "Unexpected download response identifier."); break; }
+        ReadSlot *slot = &slots[found];
+        if (type == 101) { status(c); ok = fail(c, "Remote file could not be read completely; it may have changed."); break; }
+        uint32_t length = 0;
+        const unsigned char *data = type == 103 ? getBlob(&c->in, &length) : NULL;
+        if (!data || !length || length > slot->expected - slot->used || !valid(c)) {
+            ok = fail(c, "Invalid SFTP data reply."); break;
+        }
+        memcpy(blocks + found * CHUNK + slot->used, data, length); slot->used += length;
+        if (slot->used < slot->expected) {
+            slot->id = request(c, 5); blob(&c->out, h.data, h.length);
+            put64(&c->out, slot->offset + slot->used); put32(&c->out, slot->expected - slot->used);
+            if (!(ok = send(c))) break;
+        }
+        while (ok && count && slots[head].used == slots[head].expected) {
+            unsigned written = 0;
+            while (written < slots[head].used) {
+                int n = output(context, blocks + head * CHUNK + written, slots[head].used - written);
+                if (n <= 0 || (unsigned)n > slots[head].used - written) {
+                    ok = fail(c, "Cannot write the local file. Check free space and permissions."); break;
+                }
                 written += n;
             }
-            done += lengths[i]; if (ok) ok = progressCall(c, progress, context, done, size);
+            if (!ok) break;
+            done += written; head = (head + 1) % WINDOW; --count;
         }
+        if (ok) ok = progressCall(c, progress, context, done, size);
     }
     free(blocks);
+    /* Failures may leave outstanding replies. Do not reuse this connection. */
+    if (!ok) c->broken = 1;
     return ok && progressCall(c, progress, context, done, size) && closeHandle(c, &h);
 }
 int wsftp_local_name(const char *name) {

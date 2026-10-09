@@ -1,5 +1,6 @@
 #include "sftp_view.hpp"
 #include "sftp.hpp"
+#include "transfer_rate.hpp"
 #include "ui.hpp"
 #include "prompt.h"
 #include <filesystem>
@@ -35,6 +36,8 @@ struct Browser {
     std::vector<sftp::Entry> localEntries, remoteEntries;
     std::atomic<uint64_t> done{}, total{};
     std::mutex progressLock;
+    sftp::TransferRate rate;
+    double kbps{};
     Browser(HWND parent, HANDLE j, std::wstring name, bool s) : owner(parent),job(j),session(std::move(name)),saved(s) {
         wchar_t home[32768]{}; GetEnvironmentVariableW(L"USERPROFILE",home,32768); local = *home ? home : L"C:\\";
     }
@@ -50,6 +53,12 @@ struct Browser {
     void readLocal();
     void state();
     void transferState();
+    std::wstring progressText() {
+        std::lock_guard lock(progressLock);
+        if (!busy || current.empty()) return status;
+        wchar_t speed[64];swprintf(speed,64,L"%.1f KB/s",kbps);
+        return std::wstring(speed)+L" · "+std::to_wstring(done.load())+L" / "+std::to_wstring(total.load())+L" bytes\n"+current;
+    }
     void start(const std::function<void(Result &)> &operation);
     void connect();
     void navigate(bool remoteSide, std::wstring path);
@@ -125,7 +134,12 @@ void Browser::readLocal() {
     fill(false);
 }
 void Browser::state() {
-    for(int id=1;id<=RemoteList;++id) EnableWindow(controls[id],id==Cancel?busy:!busy && ((id>=LocalUp&&id<=LocalList) || connected));
+    // Disabled native list views paint their unused area with a system colour,
+    // bypassing our dark item drawing. Keep the lists enabled for scrolling;
+    // action() and the double-click handler already block mutations while busy.
+    for(int id=1;id<=RemoteList;++id) EnableWindow(controls[id],
+        id==LocalList||id==RemoteList ? true : id==Cancel ? busy :
+        !busy && ((id>=LocalUp&&id<=LocalList) || connected));
     EnableWindow(controls[ShowHidden],!busy);
     transferState();
     InvalidateRect(hwnd,nullptr,TRUE);
@@ -187,7 +201,7 @@ void Browser::transfer(bool upload) {
     start([this,entries,approved,upload,fromLocal,fromRemote](Result&r){
         size_t index=0;
         for(auto&e:entries) {
-            {std::lock_guard lock(progressLock);current=(upload?L"Uploading ":L"Downloading ")+e.name+L" ("+std::to_wstring(++index)+L"/"+std::to_wstring(entries.size())+L")";}
+            {std::lock_guard lock(progressLock);done=0;total=e.size;rate.reset(GetTickCount64());kbps=0;current=(upload?L"Uploading ":L"Downloading ")+e.name+L" ("+std::to_wstring(++index)+L"/"+std::to_wstring(entries.size())+L")";}
             auto progress=[this](uint64_t d,uint64_t t){done=d;total=t;};
             auto lp=(fs::path(fromLocal)/e.name).wstring(), rp=sftp::join(fromRemote,e.name);
             if(upload)client->upload(lp,rp,approved.contains(e.name),progress);else client->download(rp,lp,approved.contains(e.name),progress);
@@ -240,6 +254,7 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
         switch(msg) {
 #ifdef WOOK_UI_TEST
         case WM_APP+121: return b->busy ? 0 : b->connected ? 1 : -1;
+        case WM_APP+122: {auto text=b->progressText();return lstrcpynW((wchar_t *)lp,text.c_str(),(int)wp)!=nullptr;}
 #endif
         case WM_CREATE: {
             const wchar_t *labels[]={L"",L"Upload →",L"← Download",L"New folder",L"Rename",L"Delete",L"Refresh",L"Cancel"};
@@ -273,7 +288,12 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
             else b->status+=L" Reconnect to continue. An interrupted upload may leave a .wshell-*.part file on the server.";
             b->state();return 0;
         }
-        case WM_TIMER: if(b->busy)InvalidateRect(hwnd,nullptr,FALSE);return 0;
+        case WM_TIMER:
+            if(b->busy){
+                {std::lock_guard lock(b->progressLock);if(!b->current.empty())b->kbps=b->rate.update(GetTickCount64(),b->done.load());}
+                InvalidateRect(hwnd,nullptr,FALSE);
+            }
+            return 0;
         case WM_SIZE:b->layout();return 0;
         case WM_COMMAND:b->action(LOWORD(wp));return 0;
         case WM_SETFOCUS:SetFocus(b->controls[RemoteList]);return 0;
@@ -317,8 +337,7 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
                 RECT label{button.left-ui::px(8),button.bottom+ui::px(3),button.right+ui::px(8),button.bottom+ui::px(23)};
                 ui::label(dc,id==Upload?L"Upload":L"Download",label,ui::TextSize::caption,ui::muted,false,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
             }
-            auto message=b->status;
-            if(b->busy){std::lock_guard lock(b->progressLock);if(!b->current.empty())message=b->current+L" · "+std::to_wstring(b->done.load())+L" / "+std::to_wstring(b->total.load())+L" bytes";}
+            auto message=b->progressText();
             ui::label(dc,message,ui::rect(16,h-62,w-32,52),ui::TextSize::caption,ui::text,false,DT_LEFT|DT_WORDBREAK);
             if(b->busy&&b->total){int length=(int)((w-32)*std::min(1.0,(double)b->done/b->total));ui::fill(dc,ui::rect(16,h-68,length,3),ui::accent);}
             EndPaint(hwnd,&ps);return 0;

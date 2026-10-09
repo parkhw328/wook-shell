@@ -51,6 +51,7 @@ void runUiSmoke(App &app) {
     static int phase = messagesOnly ? 58 : scrollOnly ? 57 : mouseOnly ? 56 : focusOnly ? 33 : 0;
     static int waits = 0;
     static int checks = 0;
+    static bool uploadRateSeen=false, downloadRateSeen=false;
     static std::vector<Tab *> zoomGroup;
     auto require = [&](bool value, const char *message) {
         if (!value) throw std::runtime_error(message);
@@ -60,6 +61,16 @@ void runUiSmoke(App &app) {
         if (app.tabs.empty()) return false;
         for (auto &t : app.tabs) if (!IsWindow(t->terminal)) return false;
         return true;
+    };
+    auto sftpPaneBackground = [&](HWND view) {
+        for(int id : {11,15}) {
+            auto list=GetDlgItem(view,id);
+            require(IsWindowEnabled(list),"SFTP lists must remain scrollable during transfers");
+            RedrawWindow(list,nullptr,nullptr,RDW_INVALIDATE|RDW_ERASE|RDW_UPDATENOW);
+            RECT rect{};GetClientRect(list,&rect);auto dc=GetDC(list);
+            auto colour=GetPixel(dc,ui::px(12),rect.bottom-ui::px(24));ReleaseDC(list,dc);
+            require(colour==ui::bg,"SFTP empty list area must retain the dark background");
+        }
     };
     auto passwordConnection = [&](bool fallback) {
         wchar_t port[32]{}, fingerprint[200]{};
@@ -267,7 +278,7 @@ void runUiSmoke(App &app) {
         } else if (phase == 27 && app.tabs.empty()) {
             auto local=std::filesystem::path(app.directory)/L"sftp-local";
             std::filesystem::create_directory(local);std::filesystem::create_directory(std::filesystem::path(app.directory)/L"sftp-download");
-            {std::ofstream file(local/L"upload-한글.txt",std::ios::binary);file<<"Native SFTP · 한글 🙂\n";}
+            {std::ofstream file(local/L"upload-한글.txt",std::ios::binary);file<<"Native SFTP · 한글 🙂\n"<<std::string(8*1024*1024,'x');}
             {std::ofstream file(local/L"empty.txt");}
             {std::ofstream file(local/L".hidden.txt");}
             {std::ofstream file(local/L"hidden-attribute.txt");}
@@ -308,7 +319,17 @@ void runUiSmoke(App &app) {
             SendMessageW(GetDlgItem(view,1),BM_CLICK,0,0);
             require(!IsWindowEnabled(GetDlgItem(view,1)) && !IsWindowEnabled(GetDlgItem(view,2)), "Both arrows must be disabled during a transfer");
             phase=29;waits=0;
+        } else if ((phase == 29 || phase == 30) && ready() && SendMessageW(app.tabs[0]->terminal,WM_APP+121,0,0)==0) {
+            auto view=app.tabs[0]->terminal;wchar_t text[1024]{};
+            SendMessageW(view,WM_APP+122,1024,(LPARAM)text);
+            auto &seen=phase==29?uploadRateSeen:downloadRateSeen;
+            if(!seen && wcsstr(text,L"KB/s") && wcstod(text,nullptr)>0){
+                sftpPaneBackground(view);
+                require(!IsWindowEnabled(GetDlgItem(view,1))&&!IsWindowEnabled(GetDlgItem(view,2)),"Transfers must stay disabled while lists remain readable");
+                seen=true;captureTestWindow(app.hwnd,phase==29?L"ui-sftp-upload-rate.bmp":L"ui-sftp-download-rate.bmp");
+            }
         } else if (phase == 29 && ready() && SendMessageW(app.tabs[0]->terminal,WM_APP+121,0,0)==1) {
+            require(uploadRateSeen,"Upload must display a positive KB/s rate while transferring");
             auto view=app.tabs[0]->terminal;
             require(ListView_GetItemCount(GetDlgItem(view,15))>=4,"SFTP upload must refresh the remote listing");
             captureTestWindow(app.hwnd,L"ui-sftp.bmp");
@@ -321,6 +342,8 @@ void runUiSmoke(App &app) {
             SendMessageW(GetDlgItem(view,2),BM_CLICK,0,0);
             phase=30;waits=0;
         } else if (phase == 30 && ready() && SendMessageW(app.tabs[0]->terminal,WM_APP+121,0,0)==1) {
+            require(downloadRateSeen,"Download must display a positive KB/s rate while transferring");
+            sftpPaneBackground(app.tabs[0]->terminal);
             require(std::filesystem::exists(std::filesystem::path(app.directory)/L"sftp-download"/L"upload-한글.txt"),"SFTP download must finish on disk");
             app.command(2);phase=31;waits=0;
         } else if (phase == 31 && ready() && SendMessageW(app.tabs.back()->terminal,WM_APP+121,0,0)==1) {

@@ -16,6 +16,12 @@ int wmain() {
         require(wsftp_local_name("한글-🙂.txt"),"UTF-8 safe name rejected");
         sftp::Client client(nullptr,nullptr,L"SFTP fixture",true);
         require(client.initialize()==L"/","home directory");
+        if (GetEnvironmentVariableW(L"WOOK_SFTP_BENCHMARK",nullptr,0)) {
+            auto started=GetTickCount64();
+            client.download(L"/payload.bin",(fs::path(root)/L"benchmark.bin").wstring(),false,[](uint64_t,uint64_t){});
+            std::cout<<"Download milliseconds: "<<GetTickCount64()-started<<'\n';
+            return 0;
+        }
         auto entries=client.list(L"/");require(!entries.empty(),"listing empty");
         client.mkdir(L"/새 폴더");require(client.canonical(L"/새 폴더/..")==L"/","canonical parent");
         auto local=(fs::path(root)/L"payload.bin").wstring();auto downloaded=(fs::path(root)/L"한글-🙂.bin").wstring();
@@ -31,7 +37,7 @@ int wmain() {
         client.remove(L"/empty",false);client.remove(L"/새 폴더/renamed.bin",false);client.remove(L"/새 폴더",true);
         // Kill a blocked transfer, preserving an existing destination and deleting its stage.
         bool cancelled=false;
-        try{client.download(L"/slow.bin",downloaded,true,[&](uint64_t,uint64_t){client.cancel();});}catch(...){cancelled=true;}
+        try{client.download(L"/slow.bin",downloaded,true,[&](uint64_t done,uint64_t){if(done)client.cancel();});}catch(...){cancelled=true;}
         require(cancelled,"cancel did not interrupt transfer");
         for(auto&e:fs::directory_iterator(root))require(!e.path().filename().wstring().starts_with(L".wshell-"),"local stage leaked");
         std::cout<<"PASS: SFTP list, UTF-8, upload/download, empty files, rename, mkdir/delete, overwrite refusal, cancellation and safe names\n";
