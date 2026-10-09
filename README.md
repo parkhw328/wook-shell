@@ -41,6 +41,8 @@ iPad용 네이티브 SSH·SFTP 앱은 별도로 준비 중입니다. 무료 Appl
 
 Windows 1.0.4는 공개 배포 버전입니다. SignPath 신청은 제출했으며, 현재 EXE는 **미서명**입니다. 문제와 개선 요청은 [GitHub Issues](https://github.com/parkhw328/wook-shell/issues)에 남겨주세요.
 
+**블로그용 최신 버전 고정 링크:** [Windows EXE 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wShell.exe) · [Windows ZIP 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wshell-windows-x64.zip). 새 버전을 배포해도 주소는 바뀌지 않습니다. 현재 연결되는 버전과 SHA-256은 [최신 manifest](release/latest/manifest.json)에서 확인할 수 있습니다.
+
 1.0.4에서는 About의 중복 GitHub 프로필을 제거해 Email·Source만 표시하고, 상단 About 왼쪽에 독립 Shortcuts 버튼을 제공합니다. 테마에 맞춘 알림·확인·SSH 보안 경고도 포함합니다. [화면과 변경 내역](docs/releases/1.0.4.md)을 확인하세요.
 
 | 플랫폼 | 최신 배포 버전 | 다운로드 |

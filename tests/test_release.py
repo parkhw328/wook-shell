@@ -106,6 +106,33 @@ class ReleaseTest(unittest.TestCase):
         self.assertIn("| macos-universal | 0.11.0 |", catalog)
         self.assertIn("0.11.0/macos-universal/wshell-0.11.0-macos-universal.zip", catalog)
         self.assertEqual((releases / "0.13.0/manifest.json").read_bytes(), original)
+        latest = releases / "latest"
+        self.assertEqual((latest / "windows-x64/wShell.exe").read_bytes(), b"release fixture")
+        self.assertEqual(release.checksum(latest / "windows-x64/wshell-windows-x64.zip"), artifacts[1]["sha256"])
+        latest_manifest = json.loads((latest / "manifest.json").read_text())
+        self.assertEqual(latest_manifest["version"], "0.13.0")
+        self.assertEqual(latest_manifest["sourceCommit"], "original")
+        # A later published version wins even if VERSION still points to the old one.
+        new = releases / "0.14.0/windows-x64"
+        new.mkdir(parents=True)
+        binary = new / "wShell.exe"
+        binary.write_bytes(b"new release")
+        archive = new / "wshell-0.14.0-windows-x64.zip"
+        with zipfile.ZipFile(archive, "w") as bundle:
+            bundle.writestr("wShell.exe", binary.read_bytes())
+        for item in (binary, archive):
+            digest = hashlib.sha256(item.read_bytes()).hexdigest()
+            item.with_name(item.name + ".sha256").write_text(f"{digest}  {item.name}\n")
+        with patch.object(release, "ROOT", root), patch("builtins.print"):
+            release.index(catalog_only=True)
+            release.index(catalog_only=True)  # latest itself must not become a version.
+        self.assertEqual((latest / "windows-x64/wShell.exe").read_bytes(), b"new release")
+        self.assertEqual(json.loads((latest / "manifest.json").read_text())["version"], "0.14.0")
+        self.assertEqual((releases / "0.13.0/manifest.json").read_bytes(), original)
+        binary.write_bytes(b"corrupt")
+        with patch.object(release, "ROOT", root), self.assertRaisesRegex(ValueError, "Checksum mismatch"):
+            release.index(catalog_only=True)
+        self.assertEqual((latest / "windows-x64/wShell.exe").read_bytes(), b"new release")
 
 
 if __name__ == "__main__":

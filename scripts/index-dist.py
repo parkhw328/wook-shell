@@ -94,6 +94,29 @@ def validation_note(manifest):
     return ""
 
 
+def refresh_latest(release, manifest):
+    """Publish stable Windows URLs from an already verified versioned release."""
+    target = ROOT / "release/latest"
+    entries = []
+    for item in manifest["artifacts"]:
+        if item["platform"] != "windows-x64":
+            continue
+        source = release / item["file"]
+        name = "wShell.exe" if source.suffix == ".exe" else "wshell-windows-x64.zip"
+        destination = target / "windows-x64" / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        data = source.read_bytes()
+        if hashlib.sha256(data).hexdigest() != item["sha256"]:
+            raise ValueError(f"Latest download source changed: {source}")
+        temporary = destination.with_name(name + ".tmp")
+        temporary.write_bytes(data)
+        temporary.replace(destination)
+        destination.with_name(name + ".sha256").write_text(f"{item['sha256']}  {name}\n", encoding="utf-8")
+        entries.append(dict(item, file=f"windows-x64/{name}"))
+    latest_manifest = dict(manifest, artifacts=entries)
+    (target / "manifest.json").write_text(json.dumps(latest_manifest, indent=2) + "\n", encoding="utf-8")
+
+
 def index(catalog_only=False, cross_built=False):
     version = (ROOT / "VERSION").read_text().strip()
     folders = [path for path in (ROOT / "release").iterdir() if path.is_dir() and re.fullmatch(r"\d+\.\d+\.\d+", path.name)]
@@ -133,6 +156,10 @@ def index(catalog_only=False, cross_built=False):
     for path, manifest in pending:
         if not path.exists() or json.loads(path.read_text(encoding="utf-8")) != manifest:
             path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    for path, manifest in pending:
+        if any(item["platform"] == "windows-x64" for item in manifest["artifacts"]):
+            refresh_latest(path.parent, manifest)
+            break
     latest_rows = []
     for platform in ("windows-x64", "macos-universal"):
         if platform not in latest:
@@ -145,6 +172,10 @@ def index(catalog_only=False, cross_built=False):
     catalog = ("# wShell downloads\n\n"
                f"Current Windows release: **{version}**. [Standalone EXE]({version}/windows-x64/wShell.exe) · "
                f"[ZIP]({version}/windows-x64/wshell-{version}-windows-x64.zip)\n\n"
+               "Stable latest Windows links for blogs: "
+               "[EXE](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wShell.exe) · "
+               "[ZIP](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wshell-windows-x64.zip) · "
+               "[Version and SHA-256](latest/manifest.json). These URLs stay the same when a new release is published.\n\n"
                + (f"**Validation status: {current_note}**\n\n" if current_note else "") +
                "## Latest available builds\n\n"
                "| Platform | Version | Download |\n| --- | --- | --- |\n" + "\n".join(latest_rows) + "\n\n"

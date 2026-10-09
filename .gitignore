@@ -11,6 +11,8 @@ build/
 !/release/*/windows-x64/wShell.exe.sha256
 !/release/*/windows-x64/wshell-*-windows-x64.zip
 !/release/*/windows-x64/wshell-*-windows-x64.zip.sha256
+!/release/latest/windows-x64/wshell-windows-x64.zip
+!/release/latest/windows-x64/wshell-windows-x64.zip.sha256
 !/release/*/macos-universal/
 !/release/*/macos-universal/wshell-*-macos-universal.zip
 !/release/*/macos-universal/wshell-*-macos-universal.zip.sha256

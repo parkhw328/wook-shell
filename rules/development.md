@@ -49,6 +49,7 @@
 - 로컬 배포 manifest는 실제 `sourceCommit`과 `sourceDirty: false`를 확인한다. 로컬 빌드에는 `workflow`가 없으며 CI 통과로 표시하지 않는다. 명시적으로 요청받은 CI 배포는 통과한 산출물을 내려받고 `python scripts/index-dist.py --catalog-only`로 검증·목록만 갱신해 원래 소스 커밋과 CI 링크를 보존한다.
 - 실제 키보드·마우스를 사용하는 UI 검사는 잠기지 않은 대화형 Windows 데스크톱에서 실행한다. 포커스 확보 실패 등 환경 문제를 통과로 바꾸거나 검사에서 제외하지 않는다. 미완료 검증은 명확히 기록하며 CI 한도 소진을 빌드 자체의 불가능으로 취급하지 않는다.
 - 이미 공개한 버전의 파일은 덮어쓰지 않는다. 수정 배포에는 `VERSION`을 올린다. `release/README.md`에서 버전별 다운로드를 제공하며, 배포 파일만 변경한 푸시는 빌드를 다시 실행하지 않는다. CI는 현재 `VERSION` 폴더만 산출물로 업로드한다.
+- 블로그용 고정 링크는 `release/latest/windows-x64/wShell.exe`와 `wshell-windows-x64.zip`을 사용한다. `scripts/index-dist.py`가 모든 버전의 무결성을 검증한 뒤 최신 Windows 배포를 복사하고 해시·manifest를 갱신한다. `latest`는 갱신 가능한 별칭이며 버전별 원본과 출처는 보존한다. 기존 배포에 별칭만 추가할 때는 `--catalog-only`로 출처를 유지한다.
 - `release`에는 허용한 배포 파일만 추가한다. `data`, 실제 암호·개인키, 로그·캐시를 포함하지 않는다. Windows ZIP의 유일한 파일은 함께 배포하는 EXE와 바이트가 같아야 한다. 기존 macOS·iPad 산출물 보관은 해당 플랫폼의 새 빌드나 최신 기능 검증을 뜻하지 않는다.
 - 배포 검증 스크립트의 손상 해시·다른 EXE·키 파일 차단과 manifest 보존은 `python -m unittest discover -s tests -p test_release.py`로 검사한다.
 - UI 변경은 생성된 `build/ssh-test-*/standalone/ui-*.bmp` 화면을 확인한다. 암호·실제 서버 정보를 스크린샷에 포함하지 않는다.

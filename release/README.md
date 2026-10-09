@@ -2,6 +2,8 @@
 
 Current Windows release: **1.0.4**. [Standalone EXE](1.0.4/windows-x64/wShell.exe) · [ZIP](1.0.4/windows-x64/wshell-1.0.4-windows-x64.zip)
 
+Stable latest Windows links for blogs: [EXE](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wShell.exe) · [ZIP](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wshell-windows-x64.zip) · [Version and SHA-256](latest/manifest.json). These URLs stay the same when a new release is published.
+
 ## Latest available builds
 
 | Platform | Version | Download |
