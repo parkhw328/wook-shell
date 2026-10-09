@@ -86,7 +86,7 @@ release/
       wshell-0.11.0-macos-universal.zip.sha256
 ```
 
-iPad의 기존 미서명 파일은 `dist/ipad/`에 보관만 하며 새 배포를 제공하지 않습니다.
+iPad의 기존 미서명 파일은 `tests/ipad/`에 보관만 하며 새 배포를 제공하지 않습니다.
 
 | 기능 | Windows | macOS |
 | --- | --- | --- |

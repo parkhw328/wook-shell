@@ -24,7 +24,7 @@ npm --prefix tests/ssh ci --ignore-scripts --omit=optional
 node tests/ssh/ios-integration.cjs
 ```
 
-Alternatively run **iPad personal preview** in GitHub Actions. Outputs are in `dist/ipad/<version>/`; the generated Xcode project is `build/ios/wShell.xcodeproj`. Sources are compiled locally from checksummed archives; no third-party binary SSH framework is downloaded. libssh2 is pinned to a development snapshot (see third-party notices), so this remains a preview.
+Alternatively run **iPad personal preview** in GitHub Actions. Outputs are in `tests/ipad/<version>/`; the generated Xcode project is `build/ios/wShell.xcodeproj`. Sources are compiled locally from checksummed archives; no third-party binary SSH framework is downloaded. libssh2 is pinned to a development snapshot (see third-party notices), so this remains a preview.
 
 CI builds both simulator and arm64 device apps. An isolated loopback server verifies encrypted RSA/SHA-2, Ed25519, password authentication, host rejection, Keychain, Unicode input and exact SFTP bytes. Simulator evidence does not establish real-device installation or physical Korean keyboard behavior.
 

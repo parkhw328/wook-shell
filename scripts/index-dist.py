@@ -121,15 +121,14 @@ def index(catalog_only=False, cross_built=False):
             latest.setdefault(item["platform"], (release.name, path))
             status = f" · {note}" if item["platform"] == "windows-x64" and note else ""
             rows.append(f"| {release.name} | {item['platform']} | [ZIP]({path}) | [SHA-256]({path}.sha256) · [manifest]({release.name}/manifest.json){status} |")
-    ipad_rows = []
-    for path in sorted((ROOT / "dist/ipad").glob("*/*.ipa")):
+    ipad_count = 0
+    for path in sorted((ROOT / "tests/ipad").glob("*/*.ipa")):
         digest = checksum(path)
         verify_archive(path)
         manifest = json.loads((path.parent / "manifest.json").read_text())
         if manifest["sha256"] != digest or manifest["bytes"] != path.stat().st_size:
             raise ValueError(f"iPad manifest mismatch: {path}")
-        relative = "../" + path.relative_to(ROOT).as_posix()
-        ipad_rows.append(f"- iPad {path.parent.name}: [unsigned IPA]({relative}) · [SHA-256]({relative}.sha256) · [manifest](../dist/ipad/{path.parent.name}/manifest.json)")
+        ipad_count += 1
     # Write only after all releases validate. Catalog-only preserves provenance.
     for path, manifest in pending:
         if not path.exists() or json.loads(path.read_text(encoding="utf-8")) != manifest:
@@ -154,14 +153,14 @@ def index(catalog_only=False, cross_built=False):
                "Versioned binaries, checksums and manifests are tracked in Git. Open a file and select **Download raw file** to download it. "
                "Each Windows ZIP contains only wShell.exe. Windows releases are unsigned.\n\n"
                "| Version | Platform | Download | Verification |\n| --- | --- | --- | --- |\n" + "\n".join(rows) +
-               "\n\n## Archived iPad build\n\n" + "\n".join(ipad_rows) +
+               "\n\niPad preview files are archived under [tests/ipad](../tests/ipad/README.md) for future testing, outside the release downloads." +
                "\n\nmacOS and iPad builds are paused. These older artifacts do not include newer Windows changes. "
                "The macOS app is ad-hoc signed, without Developer ID notarization. "
                "The unsigned IPA requires separate Apple-account signing before installation; it is not a directly installable release.\n\n"
                "Manifests record file sizes and SHA-256 values; new builds also record the source commit, plus the CI run when built on Actions. "
                "Historical manifests retain known metadata only. Build tools, caches, passwords and private keys are excluded.\n")
     (ROOT / "release/README.md").write_text(catalog, encoding="utf-8")
-    print(f"Verified and indexed {len(folders)} desktop releases and {len(ipad_rows)} archived iPad builds.")
+    print(f"Verified and indexed {len(folders)} desktop releases; verified {ipad_count} iPad test archives.")
 
 
 if __name__ == "__main__":

@@ -26,9 +26,7 @@ Versioned binaries, checksums and manifests are tracked in Git. Open a file and 
 | 0.9.0 | windows-x64 | [ZIP](0.9.0/windows-x64/wshell-0.9.0-windows-x64.zip) | [SHA-256](0.9.0/windows-x64/wshell-0.9.0-windows-x64.zip.sha256) · [manifest](0.9.0/manifest.json) |
 | 0.8.0 | windows-x64 | [ZIP](0.8.0/windows-x64/wshell-0.8.0-windows-x64.zip) | [SHA-256](0.8.0/windows-x64/wshell-0.8.0-windows-x64.zip.sha256) · [manifest](0.8.0/manifest.json) |
 
-## Archived iPad build
-
-- iPad 0.1.0: [unsigned IPA](../dist/ipad/0.1.0/wshell-ipad-0.1.0-unsigned.ipa) · [SHA-256](../dist/ipad/0.1.0/wshell-ipad-0.1.0-unsigned.ipa.sha256) · [manifest](../dist/ipad/0.1.0/manifest.json)
+iPad preview files are archived under [tests/ipad](../tests/ipad/README.md) for future testing, outside the release downloads.
 
 macOS and iPad builds are paused. These older artifacts do not include newer Windows changes. The macOS app is ad-hoc signed, without Developer ID notarization. The unsigned IPA requires separate Apple-account signing before installation; it is not a directly installable release.
 

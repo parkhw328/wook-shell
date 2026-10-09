@@ -171,7 +171,7 @@ def main():
             run('codesign', '--force', '--sign', '-',
                 BUILD / 'DerivedData/Build/Products/Release-iphonesimulator/wShell.app')
     app = BUILD / 'DerivedData/Build/Products/Release-iphoneos/wShell.app'
-    output = ROOT / 'dist/ipad' / VERSION; output.mkdir(parents=True, exist_ok=True)
+    output = ROOT / 'tests/ipad' / VERSION; output.mkdir(parents=True, exist_ok=True)
     archive = output / f'wshell-ipad-{VERSION}-unsigned.ipa'
     with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as z:
         for p in app.rglob('*'):

@@ -24,7 +24,7 @@
 
 1. 공식 사이트에서 Windows용 Sideloadly와 현재 안내된 Apple 드라이버 필수 구성요소를 준비한다.
 2. iPad를 USB로 연결하고 기기에서 PC를 신뢰한다.
-3. `dist/ipad/0.1.0/wshell-ipad-0.1.0-unsigned.ipa`를 선택한다.
+3. `tests/ipad/0.1.0/wshell-ipad-0.1.0-unsigned.ipa`를 선택한다.
 4. 본인이 도구에 직접 Apple 계정과 인증 코드를 입력해 서명·설치한다. 채팅이나 GitHub에 자격 증명을 제공할 필요가 없다.
 5. 요구되는 경우 iPad의 개발자 모드와 개발자 프로파일 신뢰를 활성화한다.
 6. Sideloadly의 자동 갱신을 켠다. 최초 USB 설치 후 Wi-Fi 사용 시 PC와 iPad를 같은 네트워크에 두고, 갱신 데몬이 실행되는 PC에서 주기적으로 기기에 접근할 수 있게 한다.
@@ -37,7 +37,7 @@
 - 워크플로: [`.github/workflows/ipad.yml`](../.github/workflows/ipad.yml), 표시 이름 **iPad personal preview**
 - 빌드: [`scripts/build-ios.py`](../scripts/build-ios.py), `macos-15`에서 시뮬레이터와 arm64 기기 앱을 빌드
 - 검증: `node tests/ssh/ios-integration.cjs`로 SSH·SFTP·Keychain을 시뮬레이터에서 확인
-- 산출물: Actions의 `wshell-ipad-personal-unsigned` 아티팩트 → `dist/ipad/<version>/`에 IPA와 SHA-256 파일
+- 산출물: Actions의 `wshell-ipad-personal-unsigned` 아티팩트 → `tests/ipad/<version>/`에 IPA와 SHA-256 파일
 
 워크플로는 `CODE_SIGNING_ALLOWED=NO`로 빌드한다. 현재 IPA에는 `embedded.mobileprovision`이 없다. Diawi의 `4001009: missing embedded mobileprovision`은 이 파일이 기기용으로 서명·프로비저닝되지 않았기 때문에 발생한다. Diawi에 업로드하는 작업 자체가 서명을 만들어 주지는 않는다.
 

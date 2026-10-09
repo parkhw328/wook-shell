@@ -16,11 +16,6 @@ build/
 !/release/*/macos-universal/wshell-*-macos-universal.zip.sha256
 /dist/**
 !/dist/README.md
-!/dist/*/
-!/dist/ipad/*/
-!/dist/ipad/*/manifest.json
-!/dist/ipad/*/wshell-ipad-*-unsigned.ipa
-!/dist/ipad/*/wshell-ipad-*-unsigned.ipa.sha256
 data/
 # Local SSH keys supplied for connection troubleshooting; never distribute.
 /resources/
