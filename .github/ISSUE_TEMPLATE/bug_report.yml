@@ -1,0 +1,30 @@
+name: Bug report
+description: Report a problem with wShell
+title: "[Bug] "
+body:
+  - type: input
+    id: version
+    attributes:
+      label: wShell version
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and version
+      placeholder: "Windows 11 x64"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the expected result and what actually happened.
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Additional details
+      description: Optional screenshots or logs. Remove passwords, private keys, server addresses, and other private information before posting. Do not post exploitable security vulnerabilities publicly.
