@@ -3,7 +3,7 @@
 # wShell
 
 **가볍게 열고, 여러 서버를 한 창에서.** Windows x64와 macOS용 네이티브 터미널입니다.
-탭 작업 공간, 공개 Flexoki Dark 팔레트와 JetBrains Mono를 사용합니다. Created by **Hyunwook Park**.
+탭 작업 공간, 공개 Flexoki Dark 팔레트와 JetBrains Mono를 사용합니다.
 
 **현재 작업 범위 (2026-10-08): Windows 로컬 빌드에 집중합니다.** GitHub Actions 포함 사용량 소진으로 push·PR 자동 빌드는 중단하고, CI는 명시적으로 요청할 때만 수동 실행합니다. macOS·iPad 빌드 중단도 유지합니다. [개발 규칙](rules/development.md#현재-작업-범위--windows-집중)
 
