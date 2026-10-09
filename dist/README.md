@@ -1,13 +1,12 @@
 # wShell downloads
 
-Current Windows release: **0.14.0**. [Standalone EXE](0.14.0/windows-x64/wShell.exe) · [ZIP](0.14.0/windows-x64/wshell-0.14.0-windows-x64.zip)
-
-**Validation status: Linux cross-build; static package checks passed. Windows runtime / NGS testing has not been run.**
+Current Windows release: **0.14.1**. [Standalone EXE](0.14.1/windows-x64/wShell.exe) · [ZIP](0.14.1/windows-x64/wshell-0.14.1-windows-x64.zip)
 
 Versioned binaries, checksums and manifests are tracked in Git. Open a file and select **Download raw file** to download it. Each Windows ZIP contains only wShell.exe. Windows releases are unsigned.
 
 | Version | Platform | Download | Verification |
 | --- | --- | --- | --- |
+| 0.14.1 | windows-x64 | [ZIP](0.14.1/windows-x64/wshell-0.14.1-windows-x64.zip) | [SHA-256](0.14.1/windows-x64/wshell-0.14.1-windows-x64.zip.sha256) · [manifest](0.14.1/manifest.json) |
 | 0.14.0 | windows-x64 | [ZIP](0.14.0/windows-x64/wshell-0.14.0-windows-x64.zip) | [SHA-256](0.14.0/windows-x64/wshell-0.14.0-windows-x64.zip.sha256) · [manifest](0.14.0/manifest.json) · Linux cross-build; static package checks passed. Windows runtime / NGS testing has not been run. |
 | 0.13.0 | windows-x64 | [ZIP](0.13.0/windows-x64/wshell-0.13.0-windows-x64.zip) | [SHA-256](0.13.0/windows-x64/wshell-0.13.0-windows-x64.zip.sha256) · [manifest](0.13.0/manifest.json) |
 | 0.12.0 | windows-x64 | [ZIP](0.12.0/windows-x64/wshell-0.12.0-windows-x64.zip) | [SHA-256](0.12.0/windows-x64/wshell-0.12.0-windows-x64.zip.sha256) · [manifest](0.12.0/manifest.json) |
