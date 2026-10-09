@@ -39,7 +39,7 @@ iPad용 네이티브 SSH·SFTP 앱은 별도로 준비 중입니다. 무료 Appl
 
 ### Windows
 
-1. **[`wShell.exe`](dist/0.14.0/windows-x64/wShell.exe) 하나**를 원하는 폴더에 복사합니다. [`wshell-0.14.0-windows-x64.zip`](dist/0.14.0/windows-x64/wshell-0.14.0-windows-x64.zip)에도 이 파일만 들어 있습니다. GitHub 파일 화면의 **Download raw file**로 받습니다.
+1. **[`wShell.exe`](dist/0.14.1/windows-x64/wShell.exe) 하나**를 원하는 폴더에 복사합니다. [`wshell-0.14.1-windows-x64.zip`](dist/0.14.1/windows-x64/wshell-0.14.1-windows-x64.zip)에도 이 파일만 들어 있습니다. GitHub 파일 화면의 **Download raw file**로 받습니다.
 2. 실행합니다. 설치, 관리자 권한, WebView2, .NET, Node.js가 필요하지 않습니다.
 3. `New host`에서 접속 정보를 저장하거나, 빠른 연결 칸에 `user@hostname:22`를 입력합니다.
 4. 처음 접속하는 SSH 서버의 키 지문을 확인한 뒤 신뢰 여부를 선택합니다.
@@ -59,18 +59,18 @@ macOS의 `.app`은 Finder에서 하나의 앱으로 이동하는 번들이며, �
 
 ### 버전별 배포
 
-루트 `VERSION`에서 앱·패키지 버전을 관리합니다. **현재 Windows 배포는 0.14.0**입니다. Linux 교차 빌드·정적 패키지 검사 완료본이며 **Windows/NGS 실기 검증은 미실행**입니다. 실행파일·ZIP·SHA-256·manifest를 Git의 `dist`에 버전별로 보관하며 [전체 다운로드 목록](dist/README.md)에서 이전 버전도 받을 수 있습니다. 새 배포 manifest에는 빌드 소스 커밋을 기록하며, CI에서 빌드한 경우에만 실행 링크를 추가합니다. 기존 0.13.0은 CI 검증 완료본이고 이후 배포는 로컬 빌드·검증을 기본으로 합니다. macOS는 기존 0.11.0, iPad는 기존 unsigned 0.1.0 산출물을 보관하며 새로 빌드하지 않습니다. [0.14.0 변경 내역](docs/releases/0.14.0.md)
+루트 `VERSION`에서 앱·패키지 버전을 관리합니다. **현재 Windows 배포는 0.14.1**입니다. Windows 로컬 빌드이며 검증 범위는 [릴리스 노트](docs/releases/0.14.1.md)에 기록합니다. **NGS 환경 수동 검증은 미실행**입니다. 실행파일·ZIP·SHA-256·manifest를 Git의 `dist`에 버전별로 보관하며 [전체 다운로드 목록](dist/README.md)에서 이전 버전도 받을 수 있습니다. 새 배포 manifest에는 빌드 소스 커밋을 기록하며, CI에서 빌드한 경우에만 실행 링크를 추가합니다. 기존 0.13.0은 CI 검증 완료본이고 이후 배포는 로컬 빌드·검증을 기본으로 합니다. macOS는 기존 0.11.0, iPad는 기존 unsigned 0.1.0 산출물을 보관하며 새로 빌드하지 않습니다. [0.14.1 변경 내역](docs/releases/0.14.1.md)
 
 ```text
 dist/
   README.md
-  0.14.0/
+  0.14.1/
     manifest.json
     windows-x64/
       wShell.exe
       wShell.exe.sha256
-      wshell-0.14.0-windows-x64.zip
-      wshell-0.14.0-windows-x64.zip.sha256
+      wshell-0.14.1-windows-x64.zip
+      wshell-0.14.1-windows-x64.zip.sha256
   0.11.0/
     macos-universal/
       wshell-0.11.0-macos-universal.zip
@@ -154,7 +154,7 @@ macOS의 첫 접속은 비밀번호 공급 전에 서버 키 지문을 별도 �
 연결 설정·세션 설정·호스트 인증기관 관리 창은 wShell의 Flexoki Dark 화면을 사용합니다. 기존 엔진의 설정과 검증 로직을 유지하면서 탐색, 검색, 입력, 버튼과 스크롤을 새로 구성했습니다.
 
 앱의 글꼴은 **JetBrains Mono Regular/Bold**로 통일했습니다. 본문·입력·버튼 11pt, 보조 정보 9pt, 섹션 제목 13pt, 페이지 제목 20pt를 공통으로 적용합니다. Windows 새 터미널의 기본 크기는 **9pt**이며 호스트별로 조절할 수 있습니다. 기존 저장 크기는 유지합니다. macOS 기본 크기는 13pt입니다. Windows의 파일 선택창 등 시스템 대화상자는 OS 설정을 따릅니다.
-버튼·선택·포커스 강조색은 따뜻한 주황색 `#DA702C`입니다. 앱과 설정 화면의 왼쪽 상단에는 `wShell` 텍스트만 표시합니다. 실행파일 아이콘은 단색 주황색 `w`이며, 터미널의 ANSI·True Color 출력은 기존 색상을 유지합니다.
+버튼·선택·포커스 강조색은 따뜻한 주황색 `#DA702C`입니다. 앱과 설정 화면의 왼쪽 상단에는 `wShell` 텍스트만 표시합니다. 실행파일 아이콘은 차콜 배경의 주황색 커맨드 창 안에 `sh`와 커서를 넣은 형태이며, 터미널의 ANSI·True Color 출력은 기존 색상을 유지합니다.
 
 ![wShell connection settings](assets/screenshots/connection-settings.png)
 
