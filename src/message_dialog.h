@@ -8,6 +8,7 @@ int wsMessageBoxA(HWND owner, LPCSTR text, LPCSTR title, UINT flags);
 int wsMessageBoxIndirectW(const MSGBOXPARAMSW *params);
 int wsHostKeyDialog(HWND owner, const char *title, const char *text, const char *details, int changed);
 void wsShowAbout(HWND owner);
+void wsShowShortcuts(HWND owner);
 void wsInitializeMessageDialogs(void);
 #ifdef __cplusplus
 }

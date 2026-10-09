@@ -43,6 +43,8 @@ Windows 1.0.3는 공개 배포 버전입니다. SignPath 신청은 제출했으�
 
 1.0.3에서는 About에 개발자 이메일·GitHub 링크를 추가하고 알림·확인·SSH 보안 경고를 wShell 테마로 통일했습니다. [화면과 변경 내역](docs/releases/1.0.3.md)을 확인하세요.
 
+현재 소스에서는 About의 중복 GitHub 프로필을 제거해 Email·Source만 표시하고, 상단 About 왼쪽에 독립 Shortcuts 버튼을 제공합니다. [About 화면](assets/screenshots/about-contact-links.png) · [상단 버튼](assets/screenshots/shortcuts-toolbar.png) · [단축키 안내](assets/screenshots/shortcuts.png). 이 후속 변경은 기존 1.0.3 다운로드에 포함되지 않습니다.
+
 | 플랫폼 | 최신 배포 버전 | 다운로드 |
 | --- | --- | --- |
 | Windows x64 | 1.0.3 | [EXE 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/1.0.3/windows-x64/wShell.exe) · [ZIP 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/1.0.3/windows-x64/wshell-1.0.3-windows-x64.zip) |

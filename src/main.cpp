@@ -32,7 +32,7 @@ using wook::Profile;
 extern "C" int WINAPI wshellTerminalMain(HINSTANCE, HINSTANCE, LPSTR, int);
 namespace {
 enum { Search = 100, HostList, NewHost, ConnectHost, EditHost, Quick, QuickConnect, Preview,
-       Advanced, Duplicate, Reconnect, SessionSettings, Tools, About, SaveCurrent, HomeNew, HomePreview, LocalCmd, LocalPowerShell, FilesHost, FilesSession, Split, CommandText, SendCommand, SendAll, SyncInput, Targets, NavigationToggle, TabsPrevious, TabsNext, TabsList, ControlEnd };
+       Advanced, Duplicate, Reconnect, SessionSettings, Tools, Shortcuts, About, SaveCurrent, HomeNew, HomePreview, LocalCmd, LocalPowerShell, FilesHost, FilesSession, Split, CommandText, SendCommand, SendAll, SyncInput, Targets, NavigationToggle, TabsPrevious, TabsNext, TabsList, ControlEnd };
 constexpr int sidebarExpanded = 252, sidebarCollapsed = 48, appBarHeight = 48;
 enum class CloseTabs { all, others, right };
 struct Tab {
@@ -341,7 +341,8 @@ void App::layout(bool revealTab) {
     ui::place(control(EditHost), 404, 8, 62, 32);
     ui::place(control(Advanced), 474, 8, 156, 32);
     ui::place(control(Tools), 638, 8, 80, 32);
-    ui::place(control(About), 726, 8, 70, 32);
+    ui::place(control(Shortcuts), 726, 8, 110, 32);
+    ui::place(control(About), 844, 8, 70, 32);
     ui::place(control(Search), 26, 112, sidebarExpanded - 52, 22);
     ui::place(control(HostList), 10, 158, sidebarExpanded - 20, std::max(55, height - 196));
     visible(control(Search), navigationVisible);
@@ -453,8 +454,8 @@ void App::paint(HDC dc) {
     ui::fill(dc, ui::rect(0, 0, width, appBarHeight), ui::panel);
     ui::fill(dc, ui::rect(0, appBarHeight - 1, width, 1), ui::line);
     ui::label(dc, L"wShell", ui::rect(18, 5, 104, 37), ui::TextSize::title, ui::bright, true);
-    if (auto p = selectedHost(); p && width >= 970)
-        ui::label(dc, L"Host: " + p->displayName(), ui::rect(814, 8, width - 830, 32), ui::TextSize::caption, ui::muted);
+    if (auto p = selectedHost(); p && width >= 1090)
+        ui::label(dc, L"Host: " + p->displayName(), ui::rect(932, 8, width - 948, 32), ui::TextSize::caption, ui::muted);
     ui::fill(dc, ui::rect(0, appBarHeight, sidebar, height - appBarHeight), ui::panel);
     ui::fill(dc, ui::rect(sidebar, appBarHeight, 1, height - appBarHeight), ui::line);
     if (navigationVisible) {
@@ -801,6 +802,7 @@ void App::action(int id) {
         if (active >= 0 && !tabs[active]->preview) { Profile p = tabs[active]->profile; if (editHost(hwnd, p, false)) refresh(); }
         break;
     case Tools: toolsMenu(); break;
+    case Shortcuts: wsShowShortcuts(hwnd); break;
     case About: showAbout(hwnd); break;
     }
 }
@@ -980,7 +982,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             addButton(FilesHost, L"SFTP"); addButton(FilesSession, L"Files");
             addButton(QuickConnect, L"Connect →"); addButton(HomeNew, L"+ Add a host"); addButton(HomePreview, L"Color preview →");
             addButton(Advanced, L"Host settings"); addButton(Duplicate, L"Duplicate"); addButton(Reconnect, L"Reconnect");
-            addButton(SessionSettings, L"Settings"); addButton(Tools, L"Tools"); addButton(About, L"About");
+            addButton(SessionSettings, L"Settings"); addButton(Tools, L"Tools"); addButton(Shortcuts, L"Shortcuts"); addButton(About, L"About");
             addButton(LocalCmd, L"Command Prompt"); addButton(LocalPowerShell, L"PowerShell");
             addButton(SaveCurrent, L"Save host…");
             addButton(Split, L"Split");

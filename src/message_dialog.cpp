@@ -9,7 +9,7 @@
 extern "C" int (*wshellMessageBoxIndirect)(const MSGBOXPARAMSW *);
 
 namespace {
-constexpr int bodyId = 1000, detailsId = 1001, emailId = 1010, githubId = 1011, sourceId = 1012;
+constexpr int bodyId = 1000, detailsId = 1001, emailId = 1010, sourceId = 1012;
 struct Choice { int id; const wchar_t *label; };
 struct Message {
     HWND body{};
@@ -30,7 +30,6 @@ struct DpiScope {
 const wchar_t *contactUrl(int id) {
     switch (id) {
     case emailId: return L"mailto:parkhw328@gmail.com";
-    case githubId: return L"https://github.com/parkhw328";
     case sourceId: return L"https://github.com/parkhw328/wook-shell";
     default: return nullptr;
     }
@@ -74,11 +73,10 @@ LRESULT CALLBACK bodyProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR id
 void layout(HWND hwnd, Message &p) {
     RECT r{}; GetClientRect(hwnd, &r);
     int width = MulDiv(r.right, 96, p.dpi), height = MulDiv(r.bottom, 96, p.dpi);
-    int links = p.about ? 138 : 0, footer = height - 76;
+    int links = p.about ? 94 : 0, footer = height - 76;
     ui::place(p.body, 28, 98, width - 76, std::max(30, footer - links - 118));
     if (p.about) {
-        ui::place(GetDlgItem(hwnd, emailId), 28, footer - 134, width - 56, 38);
-        ui::place(GetDlgItem(hwnd, githubId), 28, footer - 90, width - 56, 38);
+        ui::place(GetDlgItem(hwnd, emailId), 28, footer - 90, width - 56, 38);
         ui::place(GetDlgItem(hwnd, sourceId), 28, footer - 46, width - 56, 38);
     }
     int x = width - 28;
@@ -113,13 +111,12 @@ LRESULT CALLBACK messageProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         SendMessageW(p->body, EM_SETLIMITTEXT, 0x7ffffffe, 0);
         SetWindowTextW(p->body, p->text.c_str());
         for (auto choice : p->choices) ui::button(hwnd, choice.label, choice.id);
-        if (!p->details.empty()) ui::button(hwnd, p->about ? L"Shortcuts" : L"More info", detailsId);
+        if (!p->details.empty()) ui::button(hwnd, L"More info", detailsId);
         if (p->params.dwStyle & MB_HELP) ui::button(hwnd, L"Help", IDHELP);
         if (p->about) {
             ui::button(hwnd, L"Email     parkhw328@gmail.com", emailId);
-            ui::button(hwnd, L"GitHub    github.com/parkhw328", githubId);
             ui::button(hwnd, L"Source    github.com/parkhw328/wook-shell", sourceId);
-            for (int id : {emailId, githubId, sourceId}) SetPropW(GetDlgItem(hwnd, id), L"wShell.LinkTarget", (HANDLE)contactUrl(id));
+            for (int id : {emailId, sourceId}) SetPropW(GetDlgItem(hwnd, id), L"wShell.LinkTarget", (HANDLE)contactUrl(id));
         }
         if (!p->cancelId) EnableMenuItem(GetSystemMenu(hwnd, FALSE), SC_CLOSE, MF_BYCOMMAND | MF_GRAYED);
         layout(hwnd, *p); return 0;
@@ -142,7 +139,7 @@ LRESULT CALLBACK messageProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                                           L"Unable to open link", MB_OK | MB_ICONWARNING);
             return 0;
         }
-        if (id == detailsId) { wsMessageBoxW(hwnd, p->details.c_str(), p->about ? L"Keyboard shortcuts" : L"Server key details", MB_OK | MB_ICONINFORMATION); return 0; }
+        if (id == detailsId) { wsMessageBoxW(hwnd, p->details.c_str(), L"Server key details", MB_OK | MB_ICONINFORMATION); return 0; }
         if (id == IDHELP) { help(hwnd, *p); return 0; }
         for (auto choice : p->choices) if (choice.id == id) { p->result = id; p->done = true; }
         return 0;
@@ -220,7 +217,7 @@ int show(HWND owner, Message &p) {
     auto dc = GetDC(owner); auto font = SelectObject(dc, ui::font());
     DrawTextW(dc, p.text.c_str(), (int)p.text.size(), &measured, DT_CALCRECT | DT_WORDBREAK | DT_NOPREFIX);
     SelectObject(dc, font); ReleaseDC(owner, dc);
-    int height = ui::px(p.about ? 336 : 198) + std::clamp((int)measured.bottom + ui::px(8), ui::px(70), ui::px(420));
+    int height = ui::px(p.about ? 292 : 198) + std::clamp((int)measured.bottom + ui::px(8), ui::px(70), ui::px(420));
     height = std::min<int>(height, work.bottom-work.top-ui::px(80));
     RECT size{0,0,width,height};
     AdjustWindowRectExForDpi(&size, WS_CAPTION | WS_SYSMENU, FALSE, WS_EX_DLGMODALFRAME, p.dpi);
@@ -307,9 +304,11 @@ extern "C" void wsShowAbout(HWND owner) {
         L"Created by Hyunwook Park\r\n\r\nPuTTY 0.85 — modified portable build (MIT)\r\n"
         L"Flexoki — Steph Ango (MIT)\r\nJetBrains Mono — SIL OFL 1.1\r\n\r\n"
         L"Full notices: Tools → Open-source licenses.\r\nIndependent project; not affiliated with PuTTY or Termius.";
-    p.details = L"Ctrl+Shift+T  New connection\r\nCtrl+Shift+D  Duplicate tab\r\nCtrl+Tab  Next tab\r\nCtrl+Shift+W  Close tab\r\n"
-        L"Ctrl+Shift+H  Show / hide hosts\r\nCtrl+Shift+P  Search connections\r\nCtrl+Shift+C / V  Copy / paste\r\n"
-        L"Alt+1…9  Switch tabs\r\nF11  Full screen";
     p.choices = {{IDOK,L"Close"}}; p.defaultId = p.cancelId = IDOK; show(owner, p);
+}
+extern "C" void wsShowShortcuts(HWND owner) {
+    wsMessageBoxW(owner, L"Ctrl+Shift+T  New connection\r\nCtrl+Shift+D  Duplicate tab\r\nCtrl+Tab  Next tab\r\nCtrl+Shift+W  Close tab\r\n"
+        L"Ctrl+Shift+H  Show / hide hosts\r\nCtrl+Shift+P  Search connections\r\nCtrl+Shift+C / V  Copy / paste\r\n"
+        L"Alt+1…9  Switch tabs\r\nF11  Full screen", L"Keyboard shortcuts", MB_OK | MB_ICONINFORMATION);
 }
 extern "C" void wsInitializeMessageDialogs(void) { wshellMessageBoxIndirect = wsMessageBoxIndirectW; }

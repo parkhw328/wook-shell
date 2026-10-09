@@ -35,26 +35,43 @@ template<typename Check> void testMessageDialogs(App &app, Check require) {
             require(!wcscmp(font.lfFaceName, L"JetBrains Mono"), "Messages must use the bundled typeface");
         }
     };
-    auto run = [&](std::function<int()> open, std::function<void(HWND)> action, int expected) {
+    auto run = [&](std::function<int()> open, std::function<void(HWND)> action, int expected, HWND expectedFocus = nullptr) {
         messageTestTicks = 0; messageTestError.clear(); messageTestAction = action;
         messageTestTimer = SetTimer(nullptr, 0, 120, driveMessageTest);
         require(messageTestTimer != 0, "Cannot start message test driver");
         int result = open(); KillTimer(nullptr, messageTestTimer); messageTestAction = {};
         if (!messageTestError.empty()) throw std::runtime_error(messageTestError);
         require(result == expected, "Message result must preserve the chosen action");
-        require(IsWindowEnabled(app.hwnd) && GetFocus() == app.control(Search), "Closing a message must restore owner and focus");
+        require(IsWindowEnabled(app.hwnd) && GetFocus() == (expectedFocus ? expectedFocus : app.control(Search)), "Closing a message must restore owner and focus");
     };
     run([&] { wsShowAbout(app.hwnd); return IDOK; }, [&](HWND dialog) {
         inspect(dialog);
         require(ui::value(dialog).find(L"wShell ") == 0, "About must show the current product version");
-        const wchar_t *urls[] = {L"mailto:parkhw328@gmail.com", L"https://github.com/parkhw328", L"https://github.com/parkhw328/wook-shell"};
-        for (int i = 0; i < 3; ++i) {
-            auto target = (const wchar_t *)GetPropW(GetDlgItem(dialog, 1010+i), L"wShell.LinkTarget");
+        const wchar_t *urls[] = {L"mailto:parkhw328@gmail.com", L"https://github.com/parkhw328/wook-shell"};
+        const int links[] = {1010, 1012};
+        for (int i = 0; i < 2; ++i) {
+            auto target = (const wchar_t *)GetPropW(GetDlgItem(dialog, links[i]), L"wShell.LinkTarget");
             require(target && !wcscmp(target, urls[i]), "About links must point to the intended maintainer and repository");
         }
+        require(!GetDlgItem(dialog, 1011) && !GetDlgItem(dialog, 1001), "About must not repeat GitHub or contain the shortcuts button");
         captureTestWindow(dialog, L"ui-about.bmp");
         PostMessageW(GetFocus(), WM_KEYDOWN, VK_ESCAPE, 0);
     }, IDOK);
+    RECT original{}; GetWindowRect(app.hwnd, &original);
+    SetWindowPos(app.hwnd, nullptr, 0, 0, ui::px(980), ui::px(740), SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    RECT shortcut{}, about{}, client{}; GetWindowRect(app.control(Shortcuts), &shortcut); GetWindowRect(app.control(About), &about);
+    GetClientRect(app.hwnd, &client); MapWindowPoints(app.hwnd, nullptr, (POINT *)&client, 2);
+    require(shortcut.right < about.left && shortcut.top == about.top && about.right <= client.right,
+            "Shortcuts must fit immediately left of About at minimum window size");
+    captureTestWindow(app.hwnd, L"ui-shortcuts-toolbar.bmp");
+    run([&] { SendMessageW(app.control(Shortcuts), BM_CLICK, 0, 0); return IDOK; }, [&](HWND dialog) {
+        inspect(dialog);
+        require(ui::value(dialog) == L"Keyboard shortcuts" && ui::value(GetDlgItem(dialog, 1000)).find(L"Ctrl+Shift+T") != std::wstring::npos,
+                "The top-level Shortcuts button must open the keyboard reference");
+        captureTestWindow(dialog, L"ui-shortcuts.bmp"); PostMessageW(GetFocus(), WM_KEYDOWN, VK_ESCAPE, 0);
+    }, IDOK, app.control(Shortcuts));
+    SetWindowPos(app.hwnd, nullptr, 0, 0, original.right-original.left, original.bottom-original.top, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    SetFocus(app.control(Search));
     run([&] { return wsMessageBoxW(app.hwnd, L"The selected file could not be saved.\r\nCheck the destination and try again.\r\n\r\n한글 오류 안내 / C:\\test\\output.txt", L"Unable to save file", MB_OK | MB_ICONERROR); }, [&](HWND dialog) {
         inspect(dialog); require(GetFocus() == GetDlgItem(dialog, IDOK), "OK must be the alert default");
         require(ui::value(GetDlgItem(dialog, 1000)).find(L"한글 오류 안내") != std::wstring::npos, "Message text must preserve Unicode");

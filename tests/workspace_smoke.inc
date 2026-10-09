@@ -65,7 +65,7 @@ template<typename Check> void testBundledFonts(App &app, Check require) {
 }
 template<typename Check> void testWorkspaceChrome(App &app, Check require) {
     auto rectangle = [&](HWND control) { RECT r{}; GetWindowRect(control, &r); MapWindowPoints(nullptr, app.hwnd, (POINT *)&r, 2); return r; };
-    const int actions[] = {NewHost, ConnectHost, FilesHost, EditHost, Advanced, Tools, About};
+    const int actions[] = {NewHost, ConnectHost, FilesHost, EditHost, Advanced, Tools, Shortcuts, About};
     RECT window{}; GetWindowRect(app.hwnd, &window);
     SetWindowPos(app.hwnd, nullptr, 0, 0, ui::px(980), ui::px(740), SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
     int right = 0;
