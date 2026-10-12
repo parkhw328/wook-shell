@@ -1,21 +1,21 @@
 {
-  "version": "1.0.7",
+  "version": "1.0.8",
   "createdBy": "Hyunwook Park",
   "artifacts": [
     {
       "platform": "windows-x64",
       "file": "windows-x64/wShell.exe",
       "bytes": 3980800,
-      "sha256": "e37c43d3718acaa8523b8b438dadb277244bbf1881a01fee16ced220396c726d"
+      "sha256": "32f9cecd88a4cb826fddd6bd67ae116877c22e3a388070f3d35227444d18a969"
     },
     {
       "platform": "windows-x64",
       "file": "windows-x64/wshell-windows-x64.zip",
-      "bytes": 1638779,
-      "sha256": "8df8840a99c5386e936d7b6ce1f707bce6487ed07f2761b4276cfd7b1980264a"
+      "bytes": 1638776,
+      "sha256": "484996ccddd5b9acd1cc8d039ed8789d375ebc3f57cd90ec53850f96ac4635e5"
     }
   ],
-  "sourceCommit": "08928425731cf585b6c7266304527bfe4f325f46",
+  "sourceCommit": "847636f84590a49cbba86665a11434ebbaf60bf3",
   "sourceDirty": false,
   "buildHost": "linux",
   "validation": {

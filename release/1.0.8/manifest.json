@@ -1,0 +1,26 @@
+{
+  "version": "1.0.8",
+  "createdBy": "Hyunwook Park",
+  "artifacts": [
+    {
+      "platform": "windows-x64",
+      "file": "windows-x64/wShell.exe",
+      "bytes": 3980800,
+      "sha256": "32f9cecd88a4cb826fddd6bd67ae116877c22e3a388070f3d35227444d18a969"
+    },
+    {
+      "platform": "windows-x64",
+      "file": "windows-x64/wshell-1.0.8-windows-x64.zip",
+      "bytes": 1638776,
+      "sha256": "484996ccddd5b9acd1cc8d039ed8789d375ebc3f57cd90ec53850f96ac4635e5"
+    }
+  ],
+  "sourceCommit": "847636f84590a49cbba86665a11434ebbaf60bf3",
+  "sourceDirty": false,
+  "buildHost": "linux",
+  "validation": {
+    "staticPackage": "passed",
+    "windowsRuntime": "not-run",
+    "ngs": "not-run"
+  }
+}
