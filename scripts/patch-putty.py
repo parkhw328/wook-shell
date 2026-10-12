@@ -37,10 +37,30 @@ CONF_OPTION(no_mouse_rep,''')
     DEFAULT_BOOL(false),
     SAVE_KEYWORD("WookScrollOnDisp"),
 )''')
+    # Old sessions saved PuTTY's default, which discards Shift on arrows.
+    # A wShell-specific key upgrades that default while preserving an explicit
+    # choice of legacy Ctrl-toggles-app-mode made in the updated settings UI.
+    conf_header = replace(conf_header, '''CONF_OPTION(sharrow_type,
+    VALUE_TYPE(INT),
+    DEFAULT_INT(SHARROW_APPLICATION),
+    SAVE_KEYWORD("ShiftedArrowKeys"),''', '''CONF_OPTION(sharrow_type,
+    VALUE_TYPE(INT),
+    DEFAULT_INT(SHARROW_BITMAP),
+    SAVE_KEYWORD("WookShiftedArrowKeys"),''')
     (SOURCE / "conf.h").write_text(conf_header, encoding="utf-8")
     terminal_header = replace(original("terminal/terminal.h"), "struct terminal_tag {", "struct terminal_tag {\n    void (*wshell_input)(void *, int, int, const void *, int);\n    void *wshell_input_context;")
     (SOURCE / "terminal/terminal.h").write_text(terminal_header, encoding="utf-8")
     terminal = original("terminal/terminal.c")
+    # Modified arrows use CSI even when an application enables DECCKM. The
+    # upstream ordering otherwise discards modifiers (and consumes Alt).
+    # Keep unmodified application arrows, VT52 and the legacy mode unchanged.
+    terminal = replace(terminal, r'''        if (app_flg)
+            p += sprintf(p, "\x1BO%c", xkey);
+        else if (bitmap)
+            p += sprintf(p, "\x1B[1;%d%c", bitmap, xkey);''', r'''        if (bitmap)
+            p += sprintf(p, "\x1B[1;%d%c", bitmap, xkey);
+        else if (app_flg)
+            p += sprintf(p, "\x1BO%c", xkey);''')
     for signature, notify in [
         ("void term_keyinputw(Terminal *term, const wchar_t *widebuf, int len)", "1, 0, widebuf, len"),
         ("void term_keyinput(Terminal *term, int codepage, const void *str, int len)", "2, codepage, str, len"),

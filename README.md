@@ -39,22 +39,22 @@ iPad용 네이티브 SSH·SFTP 앱은 별도로 준비 중입니다. 무료 Appl
 
 ### 최신 버전 다운로드
 
-Windows 1.0.7는 공개 배포 버전입니다. SignPath 신청은 제출했으며, 현재 EXE는 **미서명**입니다. 문제와 개선 요청은 [GitHub Issues](https://github.com/parkhw328/wook-shell/issues)에 남겨주세요.
+Windows 1.0.8는 공개 배포 버전입니다. SignPath 신청은 제출했으며, 현재 EXE는 **미서명**입니다. 문제와 개선 요청은 [GitHub Issues](https://github.com/parkhw328/wook-shell/issues)에 남겨주세요.
 
 **블로그용 최신 버전 고정 링크:** [Windows EXE 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wShell.exe) · [Windows ZIP 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wshell-windows-x64.zip). 새 버전을 배포해도 주소는 바뀌지 않습니다. 현재 연결되는 버전과 SHA-256은 [최신 manifest](release/latest/manifest.json)에서 확인할 수 있습니다.
 
-1.0.7에서는 위 기록을 보다가 Enter 또는 숫자 키패드 Enter를 누르면 최신 화면으로 돌아오도록 수정했습니다. 1.0.6의 SFTP 개선도 포함합니다. Linux 교차 빌드·정적 검사를 통과했으며 Windows 실행 검증은 미실행입니다. [변경 내역](docs/releases/1.0.7.md)을 확인하세요.
+1.0.8에서는 Shift+왼쪽을 포함한 방향키 수정키 정보가 Codex 등 터미널 앱에 전달되도록 수정했습니다. 사용자 환경에서 정상 동작을 확인했으며, Linux 교차 빌드·정적 검사를 통과했습니다. 이번 배포 EXE의 Windows 자동 실행 검증은 미실행입니다. [변경 내역](docs/releases/1.0.8.md)을 확인하세요.
 
 | 플랫폼 | 최신 배포 버전 | 다운로드 |
 | --- | --- | --- |
-| Windows x64 | 1.0.7 | [EXE 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/1.0.7/windows-x64/wShell.exe) · [ZIP 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/1.0.7/windows-x64/wshell-1.0.7-windows-x64.zip) |
+| Windows x64 | 1.0.8 | [EXE 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/1.0.8/windows-x64/wShell.exe) · [ZIP 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/1.0.8/windows-x64/wshell-1.0.8-windows-x64.zip) |
 | macOS Universal (Apple Silicon·Intel) | 0.11.0 | [ZIP 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/0.11.0/macos-universal/wshell-0.11.0-macos-universal.zip) |
 
-배포 파일은 루트 [`release/`](release/README.md)에 보관합니다. macOS는 현재 제공 가능한 최신 기존 빌드이며, Windows의 새 `>_` 아이콘과 이후 기능 변경은 포함하지 않습니다. iPad 배포는 잠정 보류합니다. Windows 검증 결과와 제한 사항은 [1.0.7 릴리스 노트](docs/releases/1.0.7.md)를 확인하세요.
+배포 파일은 루트 [`release/`](release/README.md)에 보관합니다. macOS는 현재 제공 가능한 최신 기존 빌드이며, Windows의 새 `>_` 아이콘과 이후 기능 변경은 포함하지 않습니다. iPad 배포는 잠정 보류합니다. Windows 검증 결과와 제한 사항은 [1.0.8 릴리스 노트](docs/releases/1.0.8.md)를 확인하세요.
 
 ### Windows
 
-1. **[`wShell.exe`](release/1.0.7/windows-x64/wShell.exe) 하나**를 원하는 폴더에 복사합니다. [`wshell-1.0.7-windows-x64.zip`](release/1.0.7/windows-x64/wshell-1.0.7-windows-x64.zip)에도 이 파일만 들어 있습니다. GitHub 파일 화면의 **Download raw file**로 받습니다. 업데이트할 때는 기존 wShell 창을 모두 종료한 뒤 새 EXE를 실행하세요. 기존 창이 남아 있으면 추가 실행이 그 창으로 전달되어 이전 엔진을 계속 사용할 수 있습니다.
+1. **[`wShell.exe`](release/1.0.8/windows-x64/wShell.exe) 하나**를 원하는 폴더에 복사합니다. [`wshell-1.0.8-windows-x64.zip`](release/1.0.8/windows-x64/wshell-1.0.8-windows-x64.zip)에도 이 파일만 들어 있습니다. GitHub 파일 화면의 **Download raw file**로 받습니다. 업데이트할 때는 기존 wShell 창을 모두 종료한 뒤 새 EXE를 실행하세요. 기존 창이 남아 있으면 추가 실행이 그 창으로 전달되어 이전 엔진을 계속 사용할 수 있습니다.
 2. 실행합니다. 설치, 관리자 권한, WebView2, .NET, Node.js가 필요하지 않습니다.
 3. `New host`에서 접속 정보를 저장하거나, 빠른 연결 칸에 `user@hostname:22`를 입력합니다.
 4. 처음 접속하는 SSH 서버의 키 지문을 확인한 뒤 신뢰 여부를 선택합니다.
@@ -74,18 +74,18 @@ macOS의 `.app`은 Finder에서 하나의 앱으로 이동하는 번들이며, �
 
 ### 버전별 배포
 
-루트 `VERSION`에서 앱·패키지 버전을 관리합니다. **현재 Windows 배포는 1.0.7**입니다. Linux에서 Windows 교차 빌드·정적 검사를 수행했으며 검증 범위는 [릴리스 노트](docs/releases/1.0.7.md)에 기록합니다. **NGS 환경 수동 검증은 미실행**입니다. 실행파일·ZIP·SHA-256·manifest를 Git의 `release`에 버전별로 보관하며 [전체 다운로드 목록](release/README.md)에서 이전 버전도 받을 수 있습니다. 새 배포 manifest에는 빌드 소스 커밋을 기록하며, CI에서 빌드한 경우에만 실행 링크를 추가합니다. 기존 0.13.0은 CI 검증 완료본이고 이후 배포는 로컬 빌드·검증을 기본으로 합니다. macOS는 기존 0.11.0, iPad는 기존 unsigned 0.1.0 산출물을 보관하며 새로 빌드하지 않습니다. [1.0.7 변경 내역](docs/releases/1.0.7.md)
+루트 `VERSION`에서 앱·패키지 버전을 관리합니다. **현재 Windows 배포는 1.0.8**입니다. Linux에서 Windows 교차 빌드·정적 검사를 수행했으며 검증 범위는 [릴리스 노트](docs/releases/1.0.8.md)에 기록합니다. **NGS 환경 수동 검증은 미실행**입니다. 실행파일·ZIP·SHA-256·manifest를 Git의 `release`에 버전별로 보관하며 [전체 다운로드 목록](release/README.md)에서 이전 버전도 받을 수 있습니다. 새 배포 manifest에는 빌드 소스 커밋을 기록하며, CI에서 빌드한 경우에만 실행 링크를 추가합니다. 기존 0.13.0은 CI 검증 완료본이고 이후 배포는 로컬 빌드·검증을 기본으로 합니다. macOS는 기존 0.11.0, iPad는 기존 unsigned 0.1.0 산출물을 보관하며 새로 빌드하지 않습니다. [1.0.8 변경 내역](docs/releases/1.0.8.md)
 
 ```text
 release/
   README.md
-  1.0.7/
+  1.0.8/
     manifest.json
     windows-x64/
       wShell.exe
       wShell.exe.sha256
-      wshell-1.0.7-windows-x64.zip
-      wshell-1.0.7-windows-x64.zip.sha256
+      wshell-1.0.8-windows-x64.zip
+      wshell-1.0.8-windows-x64.zip.sha256
   0.11.0/
     macos-universal/
       wshell-0.11.0-macos-universal.zip
@@ -172,6 +172,10 @@ macOS의 첫 접속은 비밀번호 공급 전에 서버 키 지문을 별도 �
 
 ![wShell connection settings](assets/screenshots/connection-settings.png)
 
+## 방향키 수정키 호환성
+
+Windows 1.0.8부터 Shift·Ctrl·Alt+방향키의 수정키 정보를 애플리케이션 커서 모드에서도 유지합니다. [원인·설정 변경·검증 방법](docs/modified-arrow-keys.md)을 확인하세요.
+
 ## 한글 입력 보정
 
 Windows에서는 한글 조합을 별도 팝업 대신 **터미널 커서 자리**에 표시합니다. 터미널과 같은 글꼴·크기·배경을 사용하며, 조합 중인 글자는 주황색 밑줄로 구분합니다. 한글은 두 칸 폭에 맞추고 창 크기·커서 위치를 따라 이동합니다. SSH와 로컬 CMD/PowerShell에 별도 설정 없이 적용됩니다.
@@ -239,7 +243,7 @@ RSA 생성은 Windows CNG, Ed25519와 키 형식 처리는 PuTTY 라이브러리
 
 1.0.2부터 **휠로 위 기록을 읽는 동안 새 출력이 와도 스크롤 위치를 유지**합니다. 맨 아래로 내려가면 새 출력을 계속 따라갑니다. 이전 저장 연결에도 적용됩니다. 항상 최신 출력으로 이동하려면 `Settings → Window & scrollback → Reset scrollback on display activity`를 켜세요. 현재 연결에는 **Apply changes**, 다음 연결의 기본값에는 해당 호스트의 **Host settings**를 사용합니다. 1.0.1에서는 이 항목을 끄면 같은 스크롤 동작을 사용할 수 있습니다.
 
-1.0.7부터는 **위 기록을 보다가 Enter 또는 숫자 키패드 Enter를 누르면 최신 화면으로 돌아갑니다.** `Reset scrollback on keypress`가 꺼진 기존 연결에도 적용하며, 일반 문자 입력과 서버 출력의 기존 스크롤 정책은 유지합니다. 동기 입력 대상에도 같은 동작을 적용합니다. 일반 화면·대체 화면에서 서버 에코 없이 Enter 복귀와 SSH 입력 중복 여부를 검사하는 회귀 테스트를 추가했습니다. Linux 교차 빌드·패키지 정적 검사는 통과했으며 Windows 실행 검증은 미실행입니다. [1.0.7 릴리스 노트](docs/releases/1.0.7.md)에서 검증 범위를 확인하세요.
+1.0.8부터는 **위 기록을 보다가 Enter 또는 숫자 키패드 Enter를 누르면 최신 화면으로 돌아갑니다.** `Reset scrollback on keypress`가 꺼진 기존 연결에도 적용하며, 일반 문자 입력과 서버 출력의 기존 스크롤 정책은 유지합니다. 동기 입력 대상에도 같은 동작을 적용합니다. 일반 화면·대체 화면에서 서버 에코 없이 Enter 복귀와 SSH 입력 중복 여부를 검사하는 회귀 테스트를 추가했습니다. Linux 교차 빌드·패키지 정적 검사는 통과했으며 Windows 실행 검증은 미실행입니다. [1.0.8 릴리스 노트](docs/releases/1.0.8.md)에서 검증 범위를 확인하세요.
 
 `35;68;23M`처럼 숫자가 입력되는 증상은 원격 앱이 켜 둔 마우스 좌표 보고가 셸 입력으로 전달된 경우에 생길 수 있습니다. 복사·붙여넣기 우선 모드에서는 1.0.1부터 좌표 전송을 차단합니다. 1.0.2는 앱 마우스 모드를 사용하는 경우에도 **Shift를 누른 포인터 이동**에 override를 적용하며, 앱이 마우스 보고를 끄지 않고 종료한 상황의 회귀 검증을 추가했습니다. [1.0.2 변경 내역](docs/releases/1.0.2.md)
 
