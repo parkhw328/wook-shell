@@ -2,25 +2,34 @@
 #include "wshell-prompt.h"
 extern bool wookSftp;
 static bool wookSftpReady;
-static void wookSftpStarted(Seat *seat) { (void)seat; wookSftpReady = true; }
-static void wookSftpPump(WinGuiSeat *wgs) {
-    if (!wgs || !wgs->backend || !wookSftpReady || !backend_sendok(wgs->backend) || backend_sendbuffer(wgs->backend) > 262144) return;
-    DWORD available, count; char buffer[65536];
-    HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
-    if (!PeekNamedPipe(input, NULL, 0, NULL, &available, NULL)) { PostQuitMessage(0); return; }
-    if (!available) return;
-    if (!ReadFile(input, buffer, min(available, sizeof(buffer)), &count, NULL) || !count) { PostQuitMessage(0); return; }
-    backend_send(wgs->backend, buffer, count);
+static struct handle *wookSftpInput, *wookSftpStdout;
+static size_t wookSftpInputData(struct handle *h, const void *data, size_t length, int error) {
+    WinGuiSeat *wgs = handle_get_privdata(h);
+    if (error || !length) { PostQuitMessage(error ? 1 : 0); return 0; }
+    backend_send(wgs->backend, data, length);
+    return backend_sendbuffer(wgs->backend);
+}
+static void wookSftpOutputSent(struct handle *h, size_t backlog, int error, bool close) {
+    WinGuiSeat *wgs = handle_get_privdata(h);
+    if (error || close) { PostQuitMessage(error ? 1 : 0); return; }
+    if (wgs->backend) backend_unthrottle(wgs->backend, backlog);
+}
+static void wookSftpSent(Seat *seat, size_t backlog) {
+    (void)seat;
+    if (wookSftpInput) handle_unthrottle(wookSftpInput, backlog);
+}
+static void wookSftpStarted(Seat *seat) {
+    if (!wookSftp || wookSftpReady) return;
+    WinGuiSeat *wgs = container_of(seat, WinGuiSeat, seat);
+    /* PuTTY's pipe workers signal the existing event loop. No timer quota,
+     * and stdout cannot block SSH window updates while stdin is backlogged. */
+    wookSftpStdout = handle_output_new(GetStdHandle(STD_OUTPUT_HANDLE), wookSftpOutputSent, wgs, 0);
+    wookSftpReady = true;
+    wookSftpInput = handle_input_new(GetStdHandle(STD_INPUT_HANDLE), wookSftpInputData, wgs, 0);
 }
 static size_t wookSftpOutput(SeatOutputType type, const void *data, size_t length) {
     if (!wookSftpReady || type != SEAT_OUTPUT_STDOUT) return 0;
-    const char *p = data;
-    while (length) {
-        DWORD count;
-        if (!WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), p, (DWORD)min(length, 65536), &count, NULL) || !count) { PostQuitMessage(1); break; }
-        p += count; length -= count;
-    }
-    return 0;
+    return handle_write(wookSftpStdout, data, length);
 }
 static SeatPromptResult wookSftpPrompt(prompts_t *p) {
     if (p->n_prompts > 16) return SPR_USER_ABORT;

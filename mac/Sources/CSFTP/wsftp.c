@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <ctype.h>
 
-enum { PACKET_LIMIT = 1024 * 1024, CHUNK = 32768, PIPELINE = 16 };
+enum { PACKET_LIMIT = 1024 * 1024, CHUNK = 32768, PIPELINE = 64 };
 typedef struct Packet { unsigned char *data; size_t length, offset, capacity; int valid; } Packet;
 struct WsFtp {
     void *context; WsFtpRead read; WsFtpWrite write;
@@ -206,31 +206,38 @@ static int progressCall(WsFtp *c, WsFtpProgress progress, void *context, uint64_
 }
 int wsftp_upload(WsFtp *c, const char *path, uint64_t size, WsFtpRead input, WsFtpProgress progress, void *context) {
     Handle h; if (!openHandle(c, 3, path, 1, &h)) return 0;
-    uint64_t done = 0;
-    while (done < size) {
-        uint32_t ids[PIPELINE]; int acknowledged[PIPELINE] = {0}, count = 0;
-        for (; count < PIPELINE && done < size; ++count) {
-            unsigned char data[CHUNK]; int length = size - done > CHUNK ? CHUNK : (int)(size - done), used = 0;
+    uint32_t ids[PIPELINE] = {0}, lengths[PIPELINE] = {0};
+    uint64_t sent = 0, done = 0;
+    unsigned pending = 0;
+    int ok = progressCall(c, progress, context, 0, size);
+    while (ok && done < size) {
+        while (pending < PIPELINE && sent < size) {
+            unsigned slot = 0;
+            while (lengths[slot]) ++slot;
+            unsigned char data[CHUNK];
+            int length = size - sent > CHUNK ? CHUNK : (int)(size - sent), used = 0;
             while (used < length) {
                 int n = input(context, data + used, length - used);
-                if (n <= 0 || n > length - used) return fail(c, "Cannot read the local file, or it changed during transfer.");
+                if (n <= 0 || n > length - used) { ok = fail(c, "Cannot read the local file, or it changed during transfer."); break; }
                 used += n;
             }
-            ids[count] = request(c, 6); blob(&c->out, h.data, h.length); put64(&c->out, done); blob(&c->out, data, length);
-            if (!send(c)) return 0;
-            done += length;
+            if (!ok) break;
+            ids[slot] = request(c, 6); blob(&c->out, h.data, h.length); put64(&c->out, sent); blob(&c->out, data, length);
+            if (!(ok = send(c))) break;
+            lengths[slot] = length; sent += length; ++pending;
         }
-        for (int i = 0; i < count; ++i) {
-            uint32_t id; int type = receive(c, &id), slot = -1;
-            if (!type) return 0;
-            for (int j = 0; j < count; ++j) if (ids[j] == id && !acknowledged[j]) slot = j;
-            if (type != 101 || slot < 0) { c->broken = 1; return fail(c, "Unexpected upload acknowledgement."); }
-            acknowledged[slot] = 1;
-            if (!status(c)) return 0;
-        }
-        if (!progressCall(c, progress, context, done, size)) return 0;
+        if (!ok) break;
+        uint32_t id; int type = receive(c, &id), slot = -1;
+        if (!type) { ok = 0; break; }
+        for (unsigned i = 0; i < PIPELINE; ++i) if (lengths[i] && ids[i] == id) slot = (int)i;
+        if (type != 101 || slot < 0) { ok = fail(c, "Unexpected upload acknowledgement."); break; }
+        if (!(ok = status(c))) break;
+        done += lengths[slot]; lengths[slot] = 0; --pending;
+        ok = progressCall(c, progress, context, done, size);
     }
-    return progressCall(c, progress, context, done, size) && closeHandle(c, &h);
+    /* Outstanding replies must never be interpreted as a later operation. */
+    if (!ok) c->broken = 1;
+    return ok && closeHandle(c, &h);
 }
 /* A bounded sliding window keeps reads in flight across RTTs. Completed
  * blocks stay in file order; short replies refill only their missing tail. */

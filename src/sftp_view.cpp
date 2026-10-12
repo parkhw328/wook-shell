@@ -291,7 +291,9 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
         case WM_TIMER:
             if(b->busy){
                 {std::lock_guard lock(b->progressLock);if(!b->current.empty())b->kbps=b->rate.update(GetTickCount64(),b->done.load());}
-                InvalidateRect(hwnd,nullptr,FALSE);
+                RECT r{};GetClientRect(hwnd,&r);
+                r.top=std::max(0L,r.bottom-ui::px(70));
+                InvalidateRect(hwnd,&r,FALSE);
             }
             return 0;
         case WM_SIZE:b->layout();return 0;
@@ -327,7 +329,12 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
         case WM_CTLCOLOREDIT:SetTextColor((HDC)wp,ui::text);SetBkColor((HDC)wp,ui::raised);SetDCBrushColor((HDC)wp,ui::raised);return (LRESULT)GetStockObject(DC_BRUSH);
         case WM_ERASEBKGND:return 1;
         case WM_PAINT: {
-            PAINTSTRUCT ps{};auto dc=BeginPaint(hwnd,&ps);RECT r;GetClientRect(hwnd,&r);ui::fill(dc,r,ui::panel);
+            PAINTSTRUCT ps{};auto target=BeginPaint(hwnd,&ps);RECT r;GetClientRect(hwnd,&r);
+            auto buffer=CreateCompatibleBitmap(target,std::max(1L,r.right),std::max(1L,r.bottom));
+            auto dc=buffer?CreateCompatibleDC(target):nullptr;
+            auto old=dc?SelectObject(dc,buffer):nullptr;
+            if(!dc)dc=target;
+            ui::fill(dc,r,ui::panel);
             int w=MulDiv(r.right,96,ui::dpi),h=MulDiv(r.bottom,96,ui::dpi),span=b->paneWidth;
             RECT path{};GetWindowRect(b->controls[LocalUp],&path);MapWindowPoints(nullptr,hwnd,(POINT *)&path,2);int top=MulDiv(path.top,96,ui::dpi)-30;
             for(int side=0;side<2;++side){auto title=std::wstring(side?L"REMOTE":L"LOCAL")+L"  ·  "+std::to_wstring(ListView_GetItemCount(b->controls[side?RemoteList:LocalList]))+L" items";
@@ -340,6 +347,12 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
             auto message=b->progressText();
             ui::label(dc,message,ui::rect(16,h-62,w-32,52),ui::TextSize::caption,ui::text,false,DT_LEFT|DT_WORDBREAK);
             if(b->busy&&b->total){int length=(int)((w-32)*std::min(1.0,(double)b->done/b->total));ui::fill(dc,ui::rect(16,h-68,length,3),ui::accent);}
+            if(dc!=target){
+                BitBlt(target,ps.rcPaint.left,ps.rcPaint.top,ps.rcPaint.right-ps.rcPaint.left,ps.rcPaint.bottom-ps.rcPaint.top,
+                       dc,ps.rcPaint.left,ps.rcPaint.top,SRCCOPY);
+                SelectObject(dc,old);DeleteDC(dc);
+            }
+            if(buffer)DeleteObject(buffer);
             EndPaint(hwnd,&ps);return 0;
         }
         case WM_DESTROY:KillTimer(hwnd,1);if(b->tooltips)DestroyWindow(b->tooltips);b->stop();return 0;

@@ -140,7 +140,7 @@ static void wookWindowInit(void) {
     wshellLoadFonts();
 }
 static void wookWindowAttach(HWND hwnd) {
-    if (wookSftp) { SetTimer(hwnd, 0x57534654, 10, NULL); return; }
+    if (wookSftp) return;
     if (!wookParent) return;
     WinGuiSeat *wgs = (WinGuiSeat *)GetWindowLongPtrW(hwnd, GWLP_USERDATA);
     wgs->term->wshell_input = wookInputNotify; wgs->term->wshell_input_context = wgs;

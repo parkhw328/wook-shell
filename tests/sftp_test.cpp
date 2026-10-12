@@ -20,6 +20,9 @@ int wmain() {
             auto started=GetTickCount64();
             client.download(L"/payload.bin",(fs::path(root)/L"benchmark.bin").wstring(),false,[](uint64_t,uint64_t){});
             std::cout<<"Download milliseconds: "<<GetTickCount64()-started<<'\n';
+            started=GetTickCount64();
+            client.upload((fs::path(root)/L"benchmark.bin").wstring(),L"/benchmark-upload.bin",false,[](uint64_t,uint64_t){});
+            std::cout<<"Upload milliseconds: "<<GetTickCount64()-started<<'\n';
             return 0;
         }
         auto entries=client.list(L"/");require(!entries.empty(),"listing empty");

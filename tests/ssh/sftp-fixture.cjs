@@ -27,7 +27,7 @@ module.exports = function attachSftp(session, root, events = {}) {
       const reply=()=>{if(stream.destroyed)return;if(!count)stream.status(id,S.EOF);else stream.data(id,data.subarray(0,count));};
       setTimeout(reply,events.readDelay ?? (item.file.endsWith('slow.bin')?35:(id%3)*2)); // Out-of-order replies.
     }));
-    stream.on('WRITE',guard((id,h,offset,data)=>{fs.writeSync(get(h).fd,data,0,data.length,offset);setTimeout(()=>{if(!stream.destroyed)stream.status(id,S.OK);},(id%3)*2);}));
+    stream.on('WRITE',guard((id,h,offset,data)=>{fs.writeSync(get(h).fd,data,0,data.length,offset);setTimeout(()=>{if(!stream.destroyed)stream.status(id,S.OK);},events.writeDelay ?? (id%3)*2);}));
     stream.on('CLOSE',guard((id,h)=>{const item=get(h);if(item.fd!==undefined)fs.closeSync(item.fd);handles.delete(h.toString('hex'));stream.status(id,S.OK);}));
     stream.on('MKDIR',guard((id,name)=>{fs.mkdirSync(resolve(name));stream.status(id,S.OK);}));
     stream.on('REMOVE',guard((id,name)=>{fs.unlinkSync(resolve(name));stream.status(id,S.OK);}));

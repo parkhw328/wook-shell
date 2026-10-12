@@ -305,6 +305,8 @@ macOS는 `~/Library/Application Support/wShell/`의 `settings.json`과 `known_ho
 
 Linux에서 EXE·테스트 EXE 교차 빌드와 정적 패키지 검사를 수행했습니다. **Windows IPC 실행 테스트와 NGS 실기 검증은 아직 수행하지 않은 개발 빌드**입니다. Windows에서는 `scripts/build.ps1`의 CTest에 포함된 `launch-relay` 검사와 `node tests/ssh/launch-integration.cjs`를 실행하세요. 검사 범위는 동시 실행·시작 중 전달·종료 후 재시작·데이터 폴더 분리·Unicode 암호·`putty.exe` 이름·두 SSH 서버의 기존 창 탭 접속입니다. 실제 NGS에서 두 서버를 차례로 클릭하여 창 하나에 탭 두 개가 생기고 각각 로그인되는지도 확인해야 합니다.
 
+SFTP의 1.0.5 이후 깜빡임·전송 병목 수정과 검증 한계는 [SFTP 개발 수정](docs/sftp.md#105-이후-개발-수정-2026-10-12)에 기록합니다. 공개 배포본과 로컬 수정 빌드는 구분합니다.
+
 ### Linux에서 Windows 교차 빌드
 
 Linux x86_64에서도 Windows EXE와 ZIP을 만들 수 있습니다. Python 3.12 이상과 인터넷 연결이 필요하며, 컴파일러 실행에는 `GLIBCXX_3.4.30`을 제공하는 호환 libstdc++가 필요합니다. 현재 Rocky Linux 9 / glibc 2.34 환경에서 아래 호스트 런타임 설정으로 검증했습니다. 아래 명령은 고정 버전·SHA-256으로 검증한 LLVM-MinGW, CMake, Ninja와 PuTTY 소스를 `.tools/`, `.deps/`에 준비합니다. 시스템 전역에 컴파일러를 설치하지 않습니다.
@@ -355,7 +357,7 @@ node tests/ssh/scroll-integration.cjs
 node tests/ssh/scroll-integration.cjs --follow-output
 node tests/ssh/integration.cjs
 node tests/ssh/sftp-integration.cjs
-node tests/ssh/sftp-benchmark.cjs
+node tests/ssh/sftp-benchmark.cjs # 업로드·다운로드 지연 조건 비교 및 바이트 일치
 python -m unittest discover -s tests -p test_release.py
 python scripts/index-dist.py --catalog-only # 배포 해시·manifest 확인과 다운로드 목록 갱신
 git diff --check

@@ -35,7 +35,7 @@ Windows는 단일 EXE 내부 SSH 엔진, macOS는 OS OpenSSH의 SFTP subsystem�
 
 다운로드는 32KB 읽기 요청을 최대 64개(데이터 버퍼 2MB) 유지하고, 앞쪽 데이터가 저장되는 즉시 다음 요청을 보충합니다. 서버가 요청보다 적은 데이터를 보내면 다른 응답을 기다리는 동안 부족한 부분을 다시 요청합니다. 응답 순서가 달라도 파일에는 올바른 순서로 기록합니다. 긴 서버 핸들은 요청 바이트 수에 맞춰 동시 요청 수를 줄입니다.
 
-Windows 로컬 빌드 후 `node tests/ssh/sftp-benchmark.cjs`로 성능 비교를 재현할 수 있습니다. ssh2 테스트 의존성 설치는 README의 검증 절차를 따릅니다. 이 검사는 8MB+3 bytes 파일, 응답 지연 40ms, 최대 응답 크기 32,768/17,003 bytes의 두 조건에서 소요 시간·KB/s를 출력하고 다운로드 내용이 원본과 같은지 확인합니다. 테스트 데이터는 `build/sftp-benchmark-*`에 격리됩니다. 시간 기준 합격/실패는 두지 않으며 실제 서버·네트워크·디스크에 따라 속도는 달라집니다.
+Windows 로컬 빌드 후 `node tests/ssh/sftp-benchmark.cjs`로 성능 비교를 재현할 수 있습니다. ssh2 테스트 의존성 설치는 README의 검증 절차를 따릅니다. 이 검사는 8MB+3 bytes 파일, 응답 지연 40ms, 최대 응답 크기 32,768/17,003 bytes의 두 조건에서 업로드·다운로드 각각의 소요 시간·KB/s를 출력하고 양방향 전송 내용이 원본과 같은지 확인합니다. 테스트 데이터는 `build/sftp-benchmark-*`에 격리됩니다. 시간 기준 합격/실패는 두지 않으며 실제 서버·네트워크·디스크에 따라 속도는 달라집니다.
 
 2026-10-10 Windows 로컬 비교에서 일반 응답은 3,157→1,719ms(2,594.9→4,765.6 KB/s), 짧은 응답은 20,078→1,594ms(408.0→5,139.3 KB/s)였습니다. 동일한 fixture에서 기존 배치 다운로드와 변경 후 코드를 각각 실행한 단일 측정이며 WinSCP 또는 사용자 서버와의 직접 비교는 아닙니다.
 
@@ -45,3 +45,12 @@ Windows 로컬 빌드 후 `node tests/ssh/sftp-benchmark.cjs`로 성능 비교�
 ## Hidden files
 
 `Show hidden files` is **unchecked by default** in each SFTP tab. Check it to show dotfiles/dotfolders (such as `.env`, `.ssh`, `.config`) in both local and remote panes. Windows local files with the Hidden attribute and macOS local files marked hidden are also filtered. Unchecking immediately hides them again and clears selection; files are not deleted. Showing or hiding files does not change permissions or server settings.
+
+## 1.0.5 이후 개발 수정 (2026-10-12)
+
+- 전송 중 100ms 타이머가 전체 SFTP 화면을 무효화하던 경로를 하단 진행 표시 영역으로 제한하고, 부모 화면을 메모리 버퍼에 그린 뒤 복사하여 배경과 글자의 순차 그리기를 줄였습니다. 파일 목록의 기존 이중 버퍼는 유지합니다.
+- Windows SSH 브리지의 10ms 타이머당 최대 64KB 입력 제한을 제거했습니다. PuTTY의 파이프 작업 스레드·이벤트 루프와 송수신 backlog 제어를 사용하며, stdout 쓰기가 SSH 이벤트 처리를 막지 않습니다.
+- 클라이언트 수신 파이프의 `PeekNamedPipe` / `Sleep(5)` 폴링을 overlapped I/O로 교체했습니다. 데이터 도착·프로세스 종료·120초 타임아웃을 기다리며, 취소된 I/O의 완료를 확인한 뒤 버퍼를 반환합니다.
+- 업로드는 16개 요청 단위로 응답을 전부 기다리는 대신 최대 64개(2MiB)의 요청을 유지하고, 각 응답 직후 빈 자리를 보충합니다. 진행률은 서버가 확인한 바이트 기준이며, 실패한 연결은 재사용하지 않습니다.
+
+Linux에서 공통 코덱 회귀 검사 144개, Python 테스트 13개, Windows 교차 빌드와 패키지 정적 검사를 통과했습니다. Windows UI·SSH 실행 검증 및 WinSCP와 같은 서버/파일/네트워크에서의 속도 비교는 아직 수행하지 않았습니다. 위의 기존 1.0.5 실행 검증 결과는 이번 수정의 실행 검증을 뜻하지 않습니다. ASan 검사는 호스트 런타임 라이브러리 부재로 실행하지 못했습니다. 공개 `release/1.0.5`와 `release/latest`는 기존 배포본이며, 수정 빌드는 `build/packages/1.0.5/windows-x64/`에 있습니다.

@@ -17,7 +17,7 @@ struct Entry {
 std::wstring join(const std::wstring &path, const std::wstring &name);
 std::wstring uniqueName();
 class Client {
-    HANDLE process{}, input{}, output{};
+    HANDLE process{}, input{}, output{}, readEvent{};
     std::mutex processLock;
     std::atomic_bool cancelled{};
     WsFtp *codec{};

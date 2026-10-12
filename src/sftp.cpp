@@ -43,8 +43,20 @@ std::wstring join(const std::wstring &path, const std::wstring &name) { return p
 std::wstring uniqueName() { GUID id{}; require(SUCCEEDED(CoCreateGuid(&id)), "Cannot create a unique transfer name."); wchar_t buffer[40]; StringFromGUID2(id, buffer, 40); return L".wshell-" + std::wstring(buffer) + L".part"; }
 Client::Client(HWND owner, HANDLE job, const std::wstring &session, bool saved) {
     SECURITY_ATTRIBUTES sa{sizeof(sa),nullptr,TRUE};
-    Handle inRead, inWrite, outRead, outWrite, error;
-    require(CreatePipe(&inRead.value, &inWrite.value, &sa, 65536) && CreatePipe(&outRead.value, &outWrite.value, &sa, 65536), "Cannot create SFTP pipes.");
+    Handle inRead, inWrite, outRead, outWrite, error, event;
+    require(CreatePipe(&inRead.value, &inWrite.value, &sa, 65536), "Cannot create SFTP input pipe.");
+    // An overlapped read wakes on data, exit or timeout instead of sleeping
+    // after every empty PeekNamedPipe (which throttled fast downloads).
+    auto pipeName = L"\\\\.\\pipe\\wShell-sftp-" + uniqueName();
+    outRead.value = CreateNamedPipeW(pipeName.c_str(), PIPE_ACCESS_INBOUND | FILE_FLAG_OVERLAPPED | FILE_FLAG_FIRST_PIPE_INSTANCE,
+        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS, 1, 65536, 65536, 0, nullptr);
+    require(outRead.value != INVALID_HANDLE_VALUE, "Cannot create SFTP output pipe.");
+    outWrite.value = CreateFileW(pipeName.c_str(), GENERIC_WRITE, 0, &sa, OPEN_EXISTING, 0, nullptr);
+    require(outWrite.value != INVALID_HANDLE_VALUE, "Cannot open SFTP output pipe.");
+    event.value = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    require(event.value != nullptr, "Cannot create SFTP read event.");
+    OVERLAPPED connection{};connection.hEvent=event.value;
+    require(ConnectNamedPipe(outRead.value, &connection) || GetLastError() == ERROR_PIPE_CONNECTED, "Cannot connect SFTP output pipe.");
     require(SetHandleInformation(inWrite.value, HANDLE_FLAG_INHERIT, 0) && SetHandleInformation(outRead.value, HANDLE_FLAG_INHERIT, 0), "Cannot protect SFTP pipes.");
     error.value = CreateFileW(L"NUL", GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, &sa, OPEN_EXISTING, 0, nullptr);
     require(error.value != INVALID_HANDLE_VALUE, "Cannot initialize SFTP diagnostics.");
@@ -71,19 +83,25 @@ Client::Client(HWND owner, HANDLE job, const std::wstring &session, bool saved) 
     codec = wsftp_create(this, read, write);
     if (!codec) { TerminateProcess(child.value, 1); throw std::runtime_error("Cannot allocate SFTP connection."); }
     if (ResumeThread(thread.value) == (DWORD)-1) { TerminateProcess(child.value, 1); wsftp_free(codec); codec = nullptr; throw std::runtime_error("Cannot resume the SFTP connection."); }
-    process = child.release(); input = inWrite.release(); output = outRead.release();
+    process = child.release(); input = inWrite.release(); output = outRead.release(); readEvent = event.release();
 }
-Client::~Client() { cancel(); if (process) CloseHandle(process); if (input) CloseHandle(input); if (output) CloseHandle(output); wsftp_free(codec); }
+Client::~Client() { cancel(); if (process) CloseHandle(process); if (input) CloseHandle(input); if (output) CloseHandle(output); if (readEvent) CloseHandle(readEvent); wsftp_free(codec); }
 void Client::cancel() { cancelled = true; std::lock_guard lock(processLock); if (process) TerminateProcess(process, 0); }
 int Client::read(void *context, void *data, int size) {
-    auto self = (Client *)context; ULONGLONG start = GetTickCount64();
-    while (!self->cancelled) {
-        DWORD available{}, count{};
-        if (!PeekNamedPipe(self->output, nullptr, 0, nullptr, &available, nullptr)) return -1;
-        if (available) return ReadFile(self->output, data, std::min<DWORD>(available, size), &count, nullptr) ? (int)count : -1;
-        if (WaitForSingleObject(self->process, 0) == WAIT_OBJECT_0 || GetTickCount64()-start > 120000) { self->cancel(); return -1; }
-        Sleep(5);
-    }
+    auto self = (Client *)context;
+    if (self->cancelled) return -1;
+    OVERLAPPED operation{};operation.hEvent=self->readEvent;
+    ResetEvent(self->readEvent);
+    DWORD count{};
+    if (ReadFile(self->output, data, size, &count, &operation)) return (int)count;
+    if (GetLastError() != ERROR_IO_PENDING) return -1;
+    HANDLE waits[] = {self->readEvent, self->process};
+    if (WaitForMultipleObjects(2, waits, FALSE, 120000) == WAIT_OBJECT_0)
+        return GetOverlappedResult(self->output, &operation, &count, FALSE) ? (int)count : -1;
+    self->cancel();
+    CancelIoEx(self->output, &operation);
+    // The operation owns our stack and caller buffer until cancellation ends.
+    GetOverlappedResult(self->output, &operation, &count, TRUE);
     return -1;
 }
 int Client::write(void *context, const void *data, int size) {

@@ -147,10 +147,10 @@ CONF_OPTION(no_mouse_rep,''')
                 } else PostMessageW(wookParent, WM_APP + 43, wParam == IDM_DUPSESS ? 2 : 1, (LPARAM)hwnd);
                 break;
             }''')
-    window = replace(window, 'static const SeatVtable win_seat_vt = {', 'static void wookSftpStarted(Seat *seat);\nstatic const SeatVtable win_seat_vt = {')
+    window = replace(window, 'static const SeatVtable win_seat_vt = {', 'static void wookSftpStarted(Seat *seat);\nstatic void wookSftpSent(Seat *seat, size_t backlog);\nstatic const SeatVtable win_seat_vt = {')
+    window = replace(window, '.sent = nullseat_sent,', '.sent = wookSftpSent,')
     window = replace(window, '.notify_session_started = nullseat_notify_session_started,', '.notify_session_started = wookSftpStarted,')
     window = replace(window, '    return term_data(wgs->term, data, len);', '    if (wookSftp) return wookSftpOutput(type, data, len);\n    return term_data(wgs->term, data, len);')
-    window = replace(window, '    if (wookImeMessage(wgs, message, wParam, &lParam)) return 0;', '    if (wookSftp && message == WM_TIMER && wParam == 0x57534654) { wookSftpPump(wgs); return 0; }\n    if (wookImeMessage(wgs, message, wParam, &lParam)) return 0;')
     window = replace(window, '#include "putty.h"', '#include "putty.h"\n#include "wshell-message-dialog.h"')
     window = window.replace("MessageBox(", "wsMessageBoxA(")
     (SOURCE / "windows/window.c").write_text(window, encoding="utf-8")

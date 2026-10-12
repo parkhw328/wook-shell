@@ -25,12 +25,12 @@ struct Mock {
 };
 int checks=0;void require(bool ok,const char*message){if(!ok)throw std::runtime_error(message);++checks;}
 int collect(void*p,const void*b,int n){auto&out=*(std::string*)p;int count=std::min(n,701);out.append((const char*)b,count);return count;}
-unsigned readRequests(const Bytes& bytes){
+unsigned readRequests(const Bytes& bytes, unsigned type=5){
     unsigned count=0;
     for(size_t at=0;at+4<=bytes.size();){
         uint32_t length=0;for(int i=0;i<4;++i)length=(length<<8)|bytes[at+i];
         if(length>bytes.size()-at-4)break;
-        if(bytes[at+4]==5)++count;
+        if(bytes[at+4]==type)++count;
         at+=length+4;
     }
     return count;
@@ -57,6 +57,24 @@ int main(){try{
         require(wsftp_init(m.client),"window init");std::string out;
         require(wsftp_download(m.client,"x",expected.size(),collect,nullptr,&out),"sliding window download");
         require(refilled&&out==expected,"sliding window bytes/order");}
+    {Mock m;m.version();m.handle();m.status(4,0);size_t boundary=m.input.size();m.status(3,0);
+        for(unsigned id=5;id<=67;++id)m.status(id,0);
+        m.status(68,0);bool refilled=false;
+        m.beforeRead=[&](const Mock& wire){if(wire.offset==boundary){refilled=true;require(readRequests(wire.output,6)==65,"upload window must refill after out-of-order acknowledgement");}};
+        require(wsftp_init(m.client),"upload window init");uint64_t acknowledged=0;
+        require(wsftp_upload(m.client,"x",65*32768,[](void*,void*b,int n){memset(b,'x',n);return n;},
+            [](void*p,uint64_t done,uint64_t total){auto&previous=*(uint64_t*)p;require(done>=previous&&done<=total,"upload acknowledged progress");previous=done;return 1;},&acknowledged),"sliding upload");
+        require(refilled&&acknowledged==65*32768,"upload completion");}
+    for(int fault=0;fault<4;++fault){Mock m;m.version();m.handle();
+        if(fault==0)m.status(999,0);
+        if(fault==1)m.status(3,4);
+        if(fault==2){m.status(3,0);m.status(3,0);}
+        require(wsftp_init(m.client),"failed upload init");
+        require(!wsftp_upload(m.client,"x",65536,[](void*,void*b,int n){memset(b,0,n);return n;},
+            fault==3?+[](void*,uint64_t,uint64_t){return 0;}:nullptr,nullptr),"failed upload accepted");
+        if(fault==3)require(readRequests(m.output,6)==0,"upload issued after cancellation");
+        auto sent=m.output.size();WsFtpAttrs attrs{};
+        require(!wsftp_stat(m.client,"x",&attrs)&&m.output.size()==sent,"failed upload connection reused");}
     for(int fault=0;fault<7;++fault){Mock m;m.version();m.handle();
         if(fault==0)m.data(999,"x"); // Unknown request.
         if(fault==1)m.data(3,"");

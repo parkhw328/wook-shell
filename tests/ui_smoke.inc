@@ -63,6 +63,15 @@ void runUiSmoke(App &app) {
         return true;
     };
     auto sftpPaneBackground = [&](HWND view) {
+        if(SendMessageW(view,WM_APP+121,0,0)==0) {
+            RedrawWindow(view,nullptr,nullptr,RDW_INVALIDATE|RDW_ALLCHILDREN|RDW_UPDATENOW);
+            SendMessageW(view,WM_TIMER,1,0);
+            RECT dirty{},client{};GetClientRect(view,&client);
+            require(GetUpdateRect(view,&dirty,FALSE)&&dirty.top>=client.bottom-ui::px(70),
+                    "SFTP progress timer must only invalidate the footer");
+            for(int id : {11,15})require(!GetUpdateRect(GetDlgItem(view,id),nullptr,FALSE),
+                    "SFTP progress must not repaint file lists");
+        }
         for(int id : {11,15}) {
             auto list=GetDlgItem(view,id);
             require(IsWindowEnabled(list),"SFTP lists must remain scrollable during transfers");
