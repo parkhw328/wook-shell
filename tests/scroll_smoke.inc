@@ -18,6 +18,11 @@ template<typename Check> bool testTerminalScroll(App &app, Check require) {
         POINT point{area.right / 2, area.bottom / 2}; ClientToScreen(terminal(), &point);
         SendMessageW(terminal(), WM_MOUSEWHEEL, MAKEWPARAM(0, delta), MAKELPARAM(point.x, point.y));
     };
+    auto enter = [&](bool keypad) {
+        LPARAM flags = 1 | (0x1c << 16) | (keypad ? (1 << 24) : 0);
+        SendMessageW(terminal(), WM_KEYDOWN, VK_RETURN, flags);
+        SendMessageW(terminal(), WM_KEYUP, VK_RETURN, flags | (LPARAM)0xc0000000u);
+    };
     auto request = [&](const wchar_t *name, int next) {
         std::ofstream(file(name)) << "ready\n"; step = next; waits = 0;
     };
@@ -33,6 +38,7 @@ template<typename Check> bool testTerminalScroll(App &app, Check require) {
         auto path = wsPath(L"sessions", wook::utf8(p.name).c_str()); auto store = wsOpen(path, 1); free(path);
         require(store != nullptr, "Cannot create scroll session");
         wsSet(store, "SSHManualHostKeys", wook::utf8(fingerprint).c_str());
+        wsSet(store, "ScrollOnKey", "0"); // Enter must work for existing sessions with this disabled.
         wsSet(store, "ScrollBar", "1"); // Observe position via Win32 instead of a test-only engine hook.
         wsSet(store, "ScrollOnDisp", "1"); // Older saved sessions include the old engine default.
         if (followOutput) wsSet(store, "WookScrollOnDisp", "1");
@@ -66,6 +72,18 @@ template<typename Check> bool testTerminalScroll(App &app, Check require) {
     } else if (step == 6 && std::filesystem::exists(file(L"scroll-tail.ready")) && waits > 3) {
         auto info = scroll();
         require(bottom(info) > previousBottom && info.nPos == bottom(info), "Output must keep following once the user returns to the bottom");
+        wheel(WHEEL_DELTA); step = 10; waits = 0;
+    } else if (step == 10 && waits > 2) {
+        require(scroll().nPos < bottom(scroll()), "Enter fixture must be viewing history");
+        enter(false); step = 11; waits = 0;
+    } else if (step == 11 && waits > 2) {
+        require(scroll().nPos == bottom(scroll()), "Enter must return to live output without a server echo");
+        wheel(WHEEL_DELTA); step = 12; waits = 0;
+    } else if (step == 12 && waits > 2) {
+        require(scroll().nPos < bottom(scroll()), "Keypad Enter fixture must be viewing history");
+        enter(true); step = 13; waits = 0;
+    } else if (step == 13 && waits > 2) {
+        require(scroll().nPos == bottom(scroll()), "Keypad Enter must return to live output");
         request(L"scroll-alternate.request", 7);
     } else if (step == 7 && std::filesystem::exists(file(L"scroll-alternate.ready")) && waits > 3) {
         wheel(WHEEL_DELTA); step = 8; waits = 0;
@@ -77,6 +95,12 @@ template<typename Check> bool testTerminalScroll(App &app, Check require) {
         auto info = scroll();
         require(info.nPos == (followOutput ? bottom(info) : heldPosition), "TUI cursor movement and repaint must respect the chosen scroll policy");
         captureTestWindow(app.hwnd, L"ui-scroll-alternate.bmp");
+        wheel(WHEEL_DELTA); step = 14; waits = 0;
+    } else if (step == 14 && waits > 2) {
+        require(scroll().nPos < bottom(scroll()), "Alternate-screen Enter fixture must be viewing history");
+        enter(false); step = 15; waits = 0;
+    } else if (step == 15 && waits > 2) {
+        require(scroll().nPos == bottom(scroll()), "Enter must return to the live alternate screen");
         app.closeTab(0, true); return true;
     }
     return false;

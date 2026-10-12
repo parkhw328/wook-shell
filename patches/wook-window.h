@@ -62,6 +62,13 @@ static void wookInputNotify(void *context, int kind, int codepage, const void *t
     SendMessageTimeoutW(wookParent, WM_COPYDATA, (WPARAM)wgs->term_hwnd, (LPARAM)&data, SMTO_ABORTIFHUNG, 500, &ignored);
     SecureZeroMemory(packet, sizeof(*packet) + bytes); free(packet);
 }
+/* Submitting Enter returns to live output even when ordinary typing is
+ * configured to preserve history. Only call after key translation succeeds:
+ * workspace shortcuts (for example Ctrl+Shift+Enter) never reach this path. */
+static void wookSendKey(WinGuiSeat *wgs, unsigned key, const void *text, int length) {
+    if (key == VK_RETURN) term_scroll(wgs->term, -1, 0);
+    term_keyinput(wgs->term, -1, text, length);
+}
 static void wookTranslatedKey(WinGuiSeat *wgs, UINT message, WPARAM key, LPARAM flags, const void *text, int length) {
     bool receiving = wookInputReceiving;
     if (!receiving && wookEditingKey((unsigned)key) && (message == WM_KEYDOWN || message == WM_SYSKEYDOWN)) {
@@ -71,7 +78,7 @@ static void wookTranslatedKey(WinGuiSeat *wgs, UINT message, WPARAM key, LPARAM 
             wookInputReceiving = true; /* Do not also mirror the source's encoded escape sequence. */
         }
     }
-    term_keyinput(wgs->term, -1, text, length);
+    wookSendKey(wgs, (unsigned)key, text, length);
     wookInputReceiving = receiving;
 }
 static bool wookInputReceive(WinGuiSeat *wgs, WPARAM sender, LPARAM value) {
@@ -89,7 +96,7 @@ static bool wookInputReceive(WinGuiSeat *wgs, WPARAM sender, LPARAM value) {
         bool receiving = wookInputReceiving; wookInputReceiving = true;
         int length = TranslateKey(wgs, WM_KEYDOWN, input.key, (LPARAM)input.flags, output);
         SetKeyboardState(saved);
-        if (length > 0 || length == -2) term_keyinput(wgs->term, -1, output, length);
+        if (length > 0 || length == -2) wookSendKey(wgs, input.key, output, length);
         wookInputReceiving = receiving;
         return true;
     }

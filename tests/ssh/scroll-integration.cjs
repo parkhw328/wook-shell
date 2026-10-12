@@ -68,9 +68,10 @@ const server = new Server({ hostKeys: [key] }, client => {
     console.log(JSON.stringify({ artifact, followOutput, code, ...result }, null, 2));
     assert.equal(code, 0, 'Scroll test process must exit successfully');
     assert.equal(result.passed, true, JSON.stringify(result));
+    assert.equal((allInput.match(/\r/g) || []).length, 3, 'Each Enter must reach SSH exactly once');
     assert.equal(stage, 'redraw', 'Both normal and alternate screens must be exercised');
     assert.ok(!/\x1b\[<\d+;\d+;\d+[mM]/.test(allInput), 'Local wheel scrolling must not send mouse input over SSH');
-    console.log('Scrollback retention, partial wheel deltas, return to live output and alternate-screen repaint checks passed.');
+    console.log('Scrollback retention, partial wheel deltas, Enter/keypad Enter return to live output and alternate-screen repaint checks passed.');
   } finally {
     clearInterval(timer); for (const client of clients) client.destroy(); server.close();
   }
