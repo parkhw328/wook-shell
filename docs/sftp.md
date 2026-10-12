@@ -46,11 +46,11 @@ Windows 로컬 빌드 후 `node tests/ssh/sftp-benchmark.cjs`로 성능 비교�
 
 `Show hidden files` is **unchecked by default** in each SFTP tab. Check it to show dotfiles/dotfolders (such as `.env`, `.ssh`, `.config`) in both local and remote panes. Windows local files with the Hidden attribute and macOS local files marked hidden are also filtered. Unchecking immediately hides them again and clears selection; files are not deleted. Showing or hiding files does not change permissions or server settings.
 
-## 1.0.5 이후 개발 수정 (2026-10-12)
+## 1.0.6 — 깜빡임·전송 병목 수정 (2026-10-12)
 
 - 전송 중 100ms 타이머가 전체 SFTP 화면을 무효화하던 경로를 하단 진행 표시 영역으로 제한하고, 부모 화면을 메모리 버퍼에 그린 뒤 복사하여 배경과 글자의 순차 그리기를 줄였습니다. 파일 목록의 기존 이중 버퍼는 유지합니다.
 - Windows SSH 브리지의 10ms 타이머당 최대 64KB 입력 제한을 제거했습니다. PuTTY의 파이프 작업 스레드·이벤트 루프와 송수신 backlog 제어를 사용하며, stdout 쓰기가 SSH 이벤트 처리를 막지 않습니다.
 - 클라이언트 수신 파이프의 `PeekNamedPipe` / `Sleep(5)` 폴링을 overlapped I/O로 교체했습니다. 데이터 도착·프로세스 종료·120초 타임아웃을 기다리며, 취소된 I/O의 완료를 확인한 뒤 버퍼를 반환합니다.
 - 업로드는 16개 요청 단위로 응답을 전부 기다리는 대신 최대 64개(2MiB)의 요청을 유지하고, 각 응답 직후 빈 자리를 보충합니다. 진행률은 서버가 확인한 바이트 기준이며, 실패한 연결은 재사용하지 않습니다.
 
-Linux에서 공통 코덱 회귀 검사 144개, Python 테스트 13개, Windows 교차 빌드와 패키지 정적 검사를 통과했습니다. Windows UI·SSH 실행 검증 및 WinSCP와 같은 서버/파일/네트워크에서의 속도 비교는 아직 수행하지 않았습니다. 위의 기존 1.0.5 실행 검증 결과는 이번 수정의 실행 검증을 뜻하지 않습니다. ASan 검사는 호스트 런타임 라이브러리 부재로 실행하지 못했습니다. 공개 `release/1.0.5`와 `release/latest`는 기존 배포본이며, 수정 빌드는 `build/packages/1.0.5/windows-x64/`에 있습니다.
+Linux에서 공통 코덱 회귀 검사 144개, Python 테스트 13개, Windows 교차 빌드와 패키지 정적 검사를 통과했습니다. Windows UI·SSH 실행 검증 및 WinSCP와 같은 서버/파일/네트워크에서의 속도 비교는 아직 수행하지 않았습니다. 위의 기존 1.0.5 실행 검증 결과는 이번 수정의 실행 검증을 뜻하지 않습니다. ASan 검사는 호스트 런타임 라이브러리 부재로 실행하지 못했습니다. 1.0.6 배포 파일은 `release/1.0.6/windows-x64/`에 있으며 `release/latest`도 같은 버전을 가리킵니다. 기존 `release/1.0.5`는 보존합니다. [릴리스 노트](releases/1.0.6.md)

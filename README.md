@@ -39,22 +39,22 @@ iPad용 네이티브 SSH·SFTP 앱은 별도로 준비 중입니다. 무료 Appl
 
 ### 최신 버전 다운로드
 
-Windows 1.0.5는 공개 배포 버전입니다. SignPath 신청은 제출했으며, 현재 EXE는 **미서명**입니다. 문제와 개선 요청은 [GitHub Issues](https://github.com/parkhw328/wook-shell/issues)에 남겨주세요.
+Windows 1.0.6는 공개 배포 버전입니다. SignPath 신청은 제출했으며, 현재 EXE는 **미서명**입니다. 문제와 개선 요청은 [GitHub Issues](https://github.com/parkhw328/wook-shell/issues)에 남겨주세요.
 
 **블로그용 최신 버전 고정 링크:** [Windows EXE 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wShell.exe) · [Windows ZIP 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wshell-windows-x64.zip). 새 버전을 배포해도 주소는 바뀌지 않습니다. 현재 연결되는 버전과 SHA-256은 [최신 manifest](release/latest/manifest.json)에서 확인할 수 있습니다.
 
-1.0.5에서는 SFTP 다운로드 요청 처리를 개선하고 업로드·다운로드 속도를 KB/s로 표시합니다. 전송 중 파일 목록의 빈 영역이 하얗게 표시되던 문제도 수정했습니다. [화면과 변경 내역](docs/releases/1.0.5.md)을 확인하세요.
+1.0.6에서는 SFTP 진행 표시의 전체 화면 재그리기를 줄이고, SSH 파이프 폴링과 업로드 응답 대기의 병목을 제거했습니다. Linux 교차 빌드·정적 검사를 통과했으며 Windows 실행 검증과 WinSCP 대비 속도 실측은 미실행입니다. [변경 내역](docs/releases/1.0.6.md)을 확인하세요.
 
 | 플랫폼 | 최신 배포 버전 | 다운로드 |
 | --- | --- | --- |
-| Windows x64 | 1.0.5 | [EXE 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/1.0.5/windows-x64/wShell.exe) · [ZIP 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/1.0.5/windows-x64/wshell-1.0.5-windows-x64.zip) |
+| Windows x64 | 1.0.6 | [EXE 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/1.0.6/windows-x64/wShell.exe) · [ZIP 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/1.0.6/windows-x64/wshell-1.0.6-windows-x64.zip) |
 | macOS Universal (Apple Silicon·Intel) | 0.11.0 | [ZIP 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/0.11.0/macos-universal/wshell-0.11.0-macos-universal.zip) |
 
-배포 파일은 루트 [`release/`](release/README.md)에 보관합니다. macOS는 현재 제공 가능한 최신 기존 빌드이며, Windows의 새 `>_` 아이콘과 이후 기능 변경은 포함하지 않습니다. iPad 배포는 잠정 보류합니다. Windows 검증 결과와 제한 사항은 [1.0.5 릴리스 노트](docs/releases/1.0.5.md)를 확인하세요.
+배포 파일은 루트 [`release/`](release/README.md)에 보관합니다. macOS는 현재 제공 가능한 최신 기존 빌드이며, Windows의 새 `>_` 아이콘과 이후 기능 변경은 포함하지 않습니다. iPad 배포는 잠정 보류합니다. Windows 검증 결과와 제한 사항은 [1.0.6 릴리스 노트](docs/releases/1.0.6.md)를 확인하세요.
 
 ### Windows
 
-1. **[`wShell.exe`](release/1.0.5/windows-x64/wShell.exe) 하나**를 원하는 폴더에 복사합니다. [`wshell-1.0.5-windows-x64.zip`](release/1.0.5/windows-x64/wshell-1.0.5-windows-x64.zip)에도 이 파일만 들어 있습니다. GitHub 파일 화면의 **Download raw file**로 받습니다. 업데이트할 때는 기존 wShell 창을 모두 종료한 뒤 새 EXE를 실행하세요. 기존 창이 남아 있으면 추가 실행이 그 창으로 전달되어 이전 엔진을 계속 사용할 수 있습니다.
+1. **[`wShell.exe`](release/1.0.6/windows-x64/wShell.exe) 하나**를 원하는 폴더에 복사합니다. [`wshell-1.0.6-windows-x64.zip`](release/1.0.6/windows-x64/wshell-1.0.6-windows-x64.zip)에도 이 파일만 들어 있습니다. GitHub 파일 화면의 **Download raw file**로 받습니다. 업데이트할 때는 기존 wShell 창을 모두 종료한 뒤 새 EXE를 실행하세요. 기존 창이 남아 있으면 추가 실행이 그 창으로 전달되어 이전 엔진을 계속 사용할 수 있습니다.
 2. 실행합니다. 설치, 관리자 권한, WebView2, .NET, Node.js가 필요하지 않습니다.
 3. `New host`에서 접속 정보를 저장하거나, 빠른 연결 칸에 `user@hostname:22`를 입력합니다.
 4. 처음 접속하는 SSH 서버의 키 지문을 확인한 뒤 신뢰 여부를 선택합니다.
@@ -74,18 +74,18 @@ macOS의 `.app`은 Finder에서 하나의 앱으로 이동하는 번들이며, �
 
 ### 버전별 배포
 
-루트 `VERSION`에서 앱·패키지 버전을 관리합니다. **현재 Windows 배포는 1.0.5**입니다. Windows 로컬 빌드이며 검증 범위는 [릴리스 노트](docs/releases/1.0.5.md)에 기록합니다. **NGS 환경 수동 검증은 미실행**입니다. 실행파일·ZIP·SHA-256·manifest를 Git의 `release`에 버전별로 보관하며 [전체 다운로드 목록](release/README.md)에서 이전 버전도 받을 수 있습니다. 새 배포 manifest에는 빌드 소스 커밋을 기록하며, CI에서 빌드한 경우에만 실행 링크를 추가합니다. 기존 0.13.0은 CI 검증 완료본이고 이후 배포는 로컬 빌드·검증을 기본으로 합니다. macOS는 기존 0.11.0, iPad는 기존 unsigned 0.1.0 산출물을 보관하며 새로 빌드하지 않습니다. [1.0.5 변경 내역](docs/releases/1.0.5.md)
+루트 `VERSION`에서 앱·패키지 버전을 관리합니다. **현재 Windows 배포는 1.0.6**입니다. Linux에서 Windows 교차 빌드·정적 검사를 수행했으며 검증 범위는 [릴리스 노트](docs/releases/1.0.6.md)에 기록합니다. **NGS 환경 수동 검증은 미실행**입니다. 실행파일·ZIP·SHA-256·manifest를 Git의 `release`에 버전별로 보관하며 [전체 다운로드 목록](release/README.md)에서 이전 버전도 받을 수 있습니다. 새 배포 manifest에는 빌드 소스 커밋을 기록하며, CI에서 빌드한 경우에만 실행 링크를 추가합니다. 기존 0.13.0은 CI 검증 완료본이고 이후 배포는 로컬 빌드·검증을 기본으로 합니다. macOS는 기존 0.11.0, iPad는 기존 unsigned 0.1.0 산출물을 보관하며 새로 빌드하지 않습니다. [1.0.6 변경 내역](docs/releases/1.0.6.md)
 
 ```text
 release/
   README.md
-  1.0.5/
+  1.0.6/
     manifest.json
     windows-x64/
       wShell.exe
       wShell.exe.sha256
-      wshell-1.0.5-windows-x64.zip
-      wshell-1.0.5-windows-x64.zip.sha256
+      wshell-1.0.6-windows-x64.zip
+      wshell-1.0.6-windows-x64.zip.sha256
   0.11.0/
     macos-universal/
       wshell-0.11.0-macos-universal.zip
@@ -305,7 +305,7 @@ macOS는 `~/Library/Application Support/wShell/`의 `settings.json`과 `known_ho
 
 Linux에서 EXE·테스트 EXE 교차 빌드와 정적 패키지 검사를 수행했습니다. **Windows IPC 실행 테스트와 NGS 실기 검증은 아직 수행하지 않은 개발 빌드**입니다. Windows에서는 `scripts/build.ps1`의 CTest에 포함된 `launch-relay` 검사와 `node tests/ssh/launch-integration.cjs`를 실행하세요. 검사 범위는 동시 실행·시작 중 전달·종료 후 재시작·데이터 폴더 분리·Unicode 암호·`putty.exe` 이름·두 SSH 서버의 기존 창 탭 접속입니다. 실제 NGS에서 두 서버를 차례로 클릭하여 창 하나에 탭 두 개가 생기고 각각 로그인되는지도 확인해야 합니다.
 
-SFTP의 1.0.5 이후 깜빡임·전송 병목 수정과 검증 한계는 [SFTP 개발 수정](docs/sftp.md#105-이후-개발-수정-2026-10-12)에 기록합니다. 공개 배포본과 로컬 수정 빌드는 구분합니다.
+SFTP 1.0.6의 깜빡임·전송 병목 수정과 검증 한계는 [릴리스 노트](docs/releases/1.0.6.md)에 기록합니다.
 
 ### Linux에서 Windows 교차 빌드
 
