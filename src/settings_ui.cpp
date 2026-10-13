@@ -429,7 +429,9 @@ extern "C" void wsSettingsStyleControl(HWND control) {
     auto s = state(control); if (!s) return;
     ui::dpi = s->dpi;
     wchar_t kind[32]{}; GetClassNameW(control, kind, 32);
-    SetWindowTheme(control, L"", L"");
+    if (!wcscmp(kind, L"Edit") || !wcscmp(kind, L"ListBox") || !wcscmp(kind, L"ComboBox"))
+        wsThemeControl(control);
+    else SetWindowTheme(control, L"", L"");
     SendMessageW(control, WM_SETFONT, (WPARAM)ui::font(), TRUE);
     auto style = GetWindowLongPtrW(control, GWL_STYLE);
     if (!wcscmp(kind, L"ComboBox")) {

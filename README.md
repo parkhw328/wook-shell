@@ -39,22 +39,22 @@ iPad용 네이티브 SSH·SFTP 앱은 별도로 준비 중입니다. 무료 Appl
 
 ### 최신 버전 다운로드
 
-Windows 1.0.10은 공개 배포 버전입니다. SignPath 신청은 제출했으며, 현재 EXE는 **미서명**입니다. 문제와 개선 요청은 [GitHub Issues](https://github.com/parkhw328/wook-shell/issues)에 남겨주세요.
+Windows 1.0.11은 공개 배포 버전입니다. SignPath 신청은 제출했으며, 현재 EXE는 **미서명**입니다. 문제와 개선 요청은 [GitHub Issues](https://github.com/parkhw328/wook-shell/issues)에 남겨주세요.
 
 **블로그용 최신 버전 고정 링크:** [Windows EXE 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wShell.exe) · [Windows ZIP 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wshell-windows-x64.zip). 새 버전을 배포해도 주소는 바뀌지 않습니다. 현재 연결되는 버전과 SHA-256은 [최신 manifest](release/latest/manifest.json)에서 확인할 수 있습니다.
 
-1.0.10에서는 SFTP의 OTP·비밀번호 인증창에서 **Enter**로 제출한 뒤 wShell이 뒤로 밀리던 문제를 수정했습니다. 인증창이 닫힐 때 원래 작업 공간으로 포커스가 돌아옵니다. 1.0.9의 어두운 스크롤바와 **F2 이름 변경 · Delete 삭제 · F5 새로고침**도 포함합니다. Linux 교차 빌드·패키지 정적 검사를 통과했으며, 이번 OTP 수정의 Windows 실행 검사는 아직 수행하지 않았습니다. [변경 내역](docs/releases/1.0.10.md)을 확인하세요.
+1.0.11에서는 왼쪽 호스트 네비게이션을 포함해 목록·긴 텍스트·설정 드롭다운·터미널·이벤트 로그의 스크롤바에 공통 어두운 테마를 적용했습니다. 가로·세로 막대와 모서리, 나중에 스크롤이 생기는 경우까지 함께 처리합니다. 1.0.10의 SFTP OTP 포커스 복귀 수정도 포함합니다. Linux 교차 빌드·패키지 정적 검사를 통과했으며, 이번 수정의 Windows 화면·실행 검사는 아직 수행하지 않았습니다. [변경 내역](docs/releases/1.0.11.md)을 확인하세요.
 
 | 플랫폼 | 최신 배포 버전 | 다운로드 |
 | --- | --- | --- |
-| Windows x64 | 1.0.10 | [EXE 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/1.0.10/windows-x64/wShell.exe) · [ZIP 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/1.0.10/windows-x64/wshell-1.0.10-windows-x64.zip) |
+| Windows x64 | 1.0.11 | [EXE 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/1.0.11/windows-x64/wShell.exe) · [ZIP 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/1.0.11/windows-x64/wshell-1.0.11-windows-x64.zip) |
 | macOS Universal (Apple Silicon·Intel) | 0.11.0 | [ZIP 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/0.11.0/macos-universal/wshell-0.11.0-macos-universal.zip) |
 
-배포 파일은 루트 [`release/`](release/README.md)에 보관합니다. macOS는 현재 제공 가능한 최신 기존 빌드이며, Windows의 새 `>_` 아이콘과 이후 기능 변경은 포함하지 않습니다. iPad 배포는 잠정 보류합니다. Windows 검증 결과와 제한 사항은 [1.0.10 릴리스 노트](docs/releases/1.0.10.md)를 확인하세요.
+배포 파일은 루트 [`release/`](release/README.md)에 보관합니다. macOS는 현재 제공 가능한 최신 기존 빌드이며, Windows의 새 `>_` 아이콘과 이후 기능 변경은 포함하지 않습니다. iPad 배포는 잠정 보류합니다. Windows 검증 결과와 제한 사항은 [1.0.11 릴리스 노트](docs/releases/1.0.11.md)를 확인하세요.
 
 ### Windows
 
-1. **[`wShell.exe`](release/1.0.10/windows-x64/wShell.exe) 하나**를 원하는 폴더에 복사합니다. [`wshell-1.0.10-windows-x64.zip`](release/1.0.10/windows-x64/wshell-1.0.10-windows-x64.zip)에도 이 파일만 들어 있습니다. GitHub 파일 화면의 **Download raw file**로 받습니다. 업데이트할 때는 기존 wShell 창을 모두 종료한 뒤 새 EXE를 실행하세요. 기존 창이 남아 있으면 추가 실행이 그 창으로 전달되어 이전 엔진을 계속 사용할 수 있습니다.
+1. **[`wShell.exe`](release/1.0.11/windows-x64/wShell.exe) 하나**를 원하는 폴더에 복사합니다. [`wshell-1.0.11-windows-x64.zip`](release/1.0.11/windows-x64/wshell-1.0.11-windows-x64.zip)에도 이 파일만 들어 있습니다. GitHub 파일 화면의 **Download raw file**로 받습니다. 업데이트할 때는 기존 wShell 창을 모두 종료한 뒤 새 EXE를 실행하세요. 기존 창이 남아 있으면 추가 실행이 그 창으로 전달되어 이전 엔진을 계속 사용할 수 있습니다.
 2. 실행합니다. 설치, 관리자 권한, WebView2, .NET, Node.js가 필요하지 않습니다.
 3. `New host`에서 접속 정보를 저장하거나, 빠른 연결 칸에 `user@hostname:22`를 입력합니다.
 4. 처음 접속하는 SSH 서버의 키 지문을 확인한 뒤 신뢰 여부를 선택합니다.
@@ -74,18 +74,18 @@ macOS의 `.app`은 Finder에서 하나의 앱으로 이동하는 번들이며, �
 
 ### 버전별 배포
 
-루트 `VERSION`에서 앱·패키지 버전을 관리합니다. **현재 Windows 배포는 1.0.10**입니다. Linux에서 Windows 교차 빌드·정적 검사를 수행했으며 Windows 실행 미검증 범위는 [릴리스 노트](docs/releases/1.0.10.md)에 기록합니다. **NGS 환경 수동 검증은 미실행**입니다. 실행파일·ZIP·SHA-256·manifest를 Git의 `release`에 버전별로 보관하며 [전체 다운로드 목록](release/README.md)에서 이전 버전도 받을 수 있습니다. 새 배포 manifest에는 빌드 소스 커밋을 기록하며, CI에서 빌드한 경우에만 실행 링크를 추가합니다. 기존 0.13.0은 CI 검증 완료본이고 이후 배포는 로컬 빌드·검증을 기본으로 합니다. macOS는 기존 0.11.0, iPad는 기존 unsigned 0.1.0 산출물을 보관하며 새로 빌드하지 않습니다. [1.0.10 변경 내역](docs/releases/1.0.10.md)
+루트 `VERSION`에서 앱·패키지 버전을 관리합니다. **현재 Windows 배포는 1.0.11**입니다. Linux에서 Windows 교차 빌드·정적 검사를 수행했으며 Windows 실행 미검증 범위는 [릴리스 노트](docs/releases/1.0.11.md)에 기록합니다. **NGS 환경 수동 검증은 미실행**입니다. 실행파일·ZIP·SHA-256·manifest를 Git의 `release`에 버전별로 보관하며 [전체 다운로드 목록](release/README.md)에서 이전 버전도 받을 수 있습니다. 새 배포 manifest에는 빌드 소스 커밋을 기록하며, CI에서 빌드한 경우에만 실행 링크를 추가합니다. 기존 0.13.0은 CI 검증 완료본이고 이후 배포는 로컬 빌드·검증을 기본으로 합니다. macOS는 기존 0.11.0, iPad는 기존 unsigned 0.1.0 산출물을 보관하며 새로 빌드하지 않습니다. [1.0.11 변경 내역](docs/releases/1.0.11.md)
 
 ```text
 release/
   README.md
-  1.0.10/
+  1.0.11/
     manifest.json
     windows-x64/
       wShell.exe
       wShell.exe.sha256
-      wshell-1.0.10-windows-x64.zip
-      wshell-1.0.10-windows-x64.zip.sha256
+      wshell-1.0.11-windows-x64.zip
+      wshell-1.0.11-windows-x64.zip.sha256
   0.11.0/
     macos-universal/
       wshell-0.11.0-macos-universal.zip
@@ -369,6 +369,7 @@ node tests/ssh/scroll-integration.cjs --follow-output
 node tests/ssh/integration.cjs
 node tests/ssh/sftp-integration.cjs
 node tests/ssh/sftp-auth-integration.cjs # 실제 OTP 입력·Enter/Esc·창 포커스 복귀
+node tests/ssh/scrollbar-theme-integration.cjs # 네비게이션·목록·텍스트·드롭다운 스크롤바 색상/동작
 node tests/ssh/sftp-benchmark.cjs # 업로드·다운로드 지연 조건 비교 및 바이트 일치
 python -m unittest discover -s tests -p test_release.py
 python scripts/index-dist.py --catalog-only # 배포 해시·manifest 확인과 다운로드 목록 갱신
@@ -378,6 +379,8 @@ git diff --check
 분할 포커스만 빠르게 재검증하려면 빌드 후 `node tests/ssh/focus-integration.cjs`를 실행합니다. 전체 UI 통합 테스트에도 같은 검증이 포함됩니다. 이 테스트는 자체 창을 전경으로 가져와 실제 마우스·키보드 입력, 명령창에서의 포커스 복귀, 커서·테두리 깜빡임을 검사합니다. 실행 중에는 테스트 창의 입력이 끝날 때까지 기다려 주세요.
 
 SFTP 인증 포커스 검사는 빌드 후 `node tests/ssh/sftp-auth-integration.cjs`로 실행합니다. 잠기지 않은 Windows 데스크톱에서 격리된 루프백 서버의 다중 OTP 입력·Enter 제출·Esc 취소와 창 전경 복귀를 실제 키보드 입력으로 확인합니다. 다른 테스트 창으로 전환한 뒤 인증창을 닫아도 포커스를 빼앗지 않는지 함께 검사합니다. Linux 교차 빌드는 이 테스트 EXE의 컴파일까지만 수행합니다.
+
+스크롤바 테마 검사는 `node tests/ssh/scrollbar-theme-integration.cjs`로 실행합니다. 실제 왼쪽 호스트 목록에 100개 항목을 넣고, 목록·다중 행 텍스트·파일 목록·드롭다운에 스크롤을 발생시켜 막대와 모서리 픽셀 밝기, 가로·세로 이동, 크기 변경·테마 갱신 후 상태를 확인합니다. 전체 UI 검사에도 포함하며, 설정 드롭다운은 설정 페이지 검사, 별도 엔진의 터미널·이벤트 로그는 `scroll-integration.cjs`에서 확인합니다. Windows 화면이 필요한 검사이며 Linux에서는 실행하지 않습니다.
 
 마우스 회귀 테스트는 격리된 루프백 SSH 서버에서 마우스 보고와 bracketed paste를 켜고 끄며, 터미널 HWND에 보낸 Win32 마우스 메시지와 실제 시스템 클립보드로 복사·한글 붙여넣기·설정 변경을 검증합니다. 기존 클립보드 텍스트는 복원합니다. OS의 실제 입력 대상 선택은 위의 별도 포커스 테스트에서 검증하며, 원격 Codex CLI 자체를 실행하는 테스트는 아닙니다.
 

@@ -1,6 +1,7 @@
 /* Host integration and an optional saved-password provider. SSH crypto is unchanged. */
 #include "wshell-credentials.h"
 #include "wshell-ime.h"
+#include "wshell-theme.h"
 static void wookImeSend(void *context, const wchar_t *text, int length) {
     WinGuiSeat *wgs = context;
     if (wgs->ldisc) term_keyinputw(wgs->term, text, length);
@@ -147,6 +148,7 @@ static void wookWindowInit(void) {
     wshellLoadFonts();
 }
 static void wookWindowAttach(HWND hwnd) {
+    wsThemeScrollbars(hwnd);
     if (wookSftp) return;
     if (!wookParent) return;
     WinGuiSeat *wgs = (WinGuiSeat *)GetWindowLongPtrW(hwnd, GWLP_USERDATA);

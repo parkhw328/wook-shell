@@ -1,4 +1,6 @@
 // Compiled only into ui-smoke-tests.exe, never into the release application.
+#include "scrollbar_theme.hpp"
+#include "scrollbar_theme_smoke.inc"
 #include "focus_smoke.inc"
 #include "mouse_smoke.inc"
 #include "scroll_smoke.inc"
@@ -51,7 +53,8 @@ void runUiSmoke(App &app) {
     static const bool scrollOnly = GetEnvironmentVariableW(L"WOOK_TEST_SCROLL_ONLY", nullptr, 0) != 0;
     static const bool messagesOnly = GetEnvironmentVariableW(L"WOOK_TEST_MESSAGES_ONLY", nullptr, 0) != 0;
     static const bool sftpAuthOnly = GetEnvironmentVariableW(L"WOOK_TEST_SFTP_AUTH_ONLY", nullptr, 0) != 0;
-    static int phase = sftpAuthOnly ? 61 : messagesOnly ? 58 : scrollOnly ? 57 : mouseOnly ? 56 : focusOnly ? 33 : 0;
+    static const bool scrollbarThemeOnly = GetEnvironmentVariableW(L"WOOK_TEST_SCROLLBAR_THEME_ONLY", nullptr, 0) != 0;
+    static int phase = scrollbarThemeOnly ? 62 : sftpAuthOnly ? 61 : messagesOnly ? 58 : scrollOnly ? 57 : mouseOnly ? 56 : focusOnly ? 33 : 0;
     static int waits = 0;
     static int checks = 0;
     static bool uploadRateSeen=false, downloadRateSeen=false;
@@ -109,7 +112,9 @@ void runUiSmoke(App &app) {
       progress << "{\"phase\":" << phase << ",\"waits\":" << waits << ",\"tabs\":" << app.tabs.size() << "}\n"; }
     try {
         if (++waits > 80) throw std::runtime_error("Timed out waiting for hosted terminal windows.");
-        if (phase == 61) {
+        if (phase == 62) {
+            phase = -1; testScrollbarThemes(app, require); phase = 37; waits = 0;
+        } else if (phase == 61) {
             if (testSftpAuthentication(app, require)) { phase = 37; waits = 0; }
         } else if (phase == 58) {
             phase = -1; testMessageDialogs(app, require); phase = 59; waits = 0;
@@ -132,6 +137,7 @@ void runUiSmoke(App &app) {
             app.refresh(); require(app.profiles.size() == 1, "Saved host is missing from the sidebar");
             require(app.profiles[0].fontSize == 9, "New hosts must use the 9pt terminal default");
             testWorkspaceChrome(app, require);
+            testScrollbarThemes(app, require);
             testTabOverflow(app, require);
             showKeyManager(app.hwnd);
             require(std::filesystem::exists(std::filesystem::path(app.directory) / L"ui-key-manager.bmp"), "Native key manager must generate and display a key");

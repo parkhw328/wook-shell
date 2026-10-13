@@ -7,6 +7,7 @@
 #include <map>
 #include <string>
 #include "message_dialog.h"
+#include "theme.h"
 
 namespace ui {
 inline UINT dpi = 96;
@@ -51,13 +52,13 @@ inline void dark(HWND hwnd) {
     DwmSetWindowAttribute(hwnd, 20, &on, sizeof(on));
     COLORREF caption = bg;
     DwmSetWindowAttribute(hwnd, 35, &caption, sizeof(caption));
-    SetWindowTheme(hwnd, L"DarkMode_Explorer", nullptr);
+    wsThemeScrollbars(hwnd);
 }
 inline HWND control(HWND parent, const wchar_t *kind, const wchar_t *caption, int id, DWORD style) {
     HWND hwnd = CreateWindowExW(0, kind, caption, WS_CHILD | WS_VISIBLE | style, 0, 0, 10, 10, parent,
                               (HMENU)(INT_PTR)id, GetModuleHandleW(nullptr), nullptr);
     SendMessageW(hwnd, WM_SETFONT, (WPARAM)font(), TRUE);
-    SetWindowTheme(hwnd, L"DarkMode_CFD", nullptr);
+    wsThemeControl(hwnd);
     return hwnd;
 }
 inline HWND button(HWND parent, const wchar_t *caption, int id) {

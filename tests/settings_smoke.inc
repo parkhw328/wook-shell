@@ -1,4 +1,5 @@
 // Executes against the actual generated controls, only in the UI test binary.
+#include "scrollbar_theme.hpp"
 void runSettingsSmoke(Settings *s) {
     auto check = [&](bool ok, const char *message) { if (!ok) throw std::runtime_error(message); ++s->testChecks; };
     auto visit = [&](const char *path) {
@@ -85,6 +86,14 @@ void runSettingsSmoke(Settings *s) {
                     COMBOBOXINFO combo{sizeof(combo)};
                     if (GetComboBoxInfo(control, &combo) && IsWindowVisible(combo.hwndItem))
                         check(testRepaintPreservesControl(control, combo.hwndItem), "Combo redraw must preserve its editable text");
+                }
+                if (!wcscmp(kind, L"ComboBox") && SendMessageW(control, CB_GETCOUNT, 0, 0) > 20) {
+                    int previous = s->scroll; reveal(s, control);
+                    SendMessageW(control, CB_SHOWDROPDOWN, TRUE, 0);
+                    COMBOBOXINFO combo{sizeof(combo)};
+                    check(GetComboBoxInfo(control, &combo) != FALSE, "Settings combo must expose its popup");
+                    check(testDarkScrollbars(combo.hwndList, check) == 1, "Overflowing settings dropdowns must have dark scrollbars");
+                    SendMessageW(control, CB_SHOWDROPDOWN, FALSE, 0); scrollTo(s, previous);
                 }
             }
             for (const auto &[path, file] : std::vector<std::pair<std::string, std::wstring>>{

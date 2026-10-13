@@ -46,8 +46,24 @@ template<typename Check> bool testTerminalScroll(App &app, Check require) {
         app.connect(p, true); step = 1; waits = 0;
     } else if (step == 1 && IsWindow(terminal()) && std::filesystem::exists(file(L"scroll-screen.ready")) && waits > 3) {
         app.focusActive();
+        require(testDarkScrollbars(terminal(), require) == 1, "Embedded terminal must use a dark native scrollbar");
         auto info = scroll(); previousBottom = bottom(info);
         captureTestWindow(app.hwnd, L"ui-scroll-initial.bmp");
+        SendMessageW(terminal(), WM_SYSCOMMAND, 0x0010, 0); // Actual engine Event Log.
+        struct LogSearch { DWORD pid; HWND dialog{}; } search{app.tabs[0]->pid};
+        EnumWindows([](HWND window, LPARAM data) -> BOOL {
+            auto &search = *reinterpret_cast<LogSearch *>(data);
+            DWORD pid{}; GetWindowThreadProcessId(window, &pid);
+            if (pid == search.pid && IsWindowVisible(window) && ui::value(window).ends_with(L"Event Log")) {
+                search.dialog = window; return FALSE;
+            }
+            return TRUE;
+        }, (LPARAM)&search);
+        require(search.dialog != nullptr, "Terminal event log must open");
+        auto log = FindWindowExW(search.dialog, nullptr, L"ListBox", nullptr);
+        require(log && (testDarkScrollbars(log, require) & 1), "Engine event log must render its scrollbar dark");
+        captureTestWindow(search.dialog, L"ui-scrollbar-event-log.bmp");
+        SendMessageW(search.dialog, WM_CLOSE, 0, 0);
         require(previousBottom > 40 && info.nPos == previousBottom, "Fixture must start at the bottom with enough history");
         wheel(60); step = 2; waits = 0;
     } else if (step == 2 && waits > 2) {
