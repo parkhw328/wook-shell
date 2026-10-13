@@ -34,6 +34,9 @@ LRESULT CALLBACK promptProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 extern "C" int wsPrompt(HWND owner, const char *title, const char *label, int secret, char *value, int capacity) {
     if (capacity < 1) return 0;
     try {
+        owner = GetAncestor(owner, GA_ROOT);
+        DWORD pid{}; auto ownerThread = GetWindowThreadProcessId(owner, &pid);
+        HWND previous = ownerThread == GetCurrentThreadId() ? GetFocus() : nullptr;
         if (owner) { auto dpi = GetDpiForWindow(owner); if (dpi) ui::dpi = dpi; }
         Prompt p; p.label = wook::wide(label); p.initial = wook::wide(value); p.secret = secret != 0;
         WNDCLASSW wc{}; wc.lpfnWndProc = promptProc; wc.hInstance = GetModuleHandleW(nullptr); wc.lpszClassName = L"wShell.TextPrompt"; wc.hCursor = LoadCursorW(nullptr, IDC_ARROW); RegisterClassW(&wc);
@@ -43,7 +46,6 @@ extern "C" int wsPrompt(HWND owner, const char *title, const char *label, int se
             parent.left + (parent.right-parent.left-r.right+r.left)/2, parent.top + (parent.bottom-parent.top-r.bottom+r.top)/2,
             r.right-r.left,r.bottom-r.top,owner,nullptr,wc.hInstance,&p);
         if (!dialog) return 0;
-        DWORD pid{}; GetWindowThreadProcessId(owner, &pid);
         bool disable = pid == GetCurrentProcessId() && IsWindowEnabled(owner);
         if (disable) EnableWindow(owner, FALSE);
         ShowWindow(dialog, SW_SHOW); SetForegroundWindow(dialog); SetFocus(p.edit); SendMessageW(p.edit, EM_SETSEL, 0, -1);
@@ -51,10 +53,11 @@ extern "C" int wsPrompt(HWND owner, const char *title, const char *label, int se
         while (!p.done) {
             int next = GetMessageW(&msg, nullptr, 0, 0);
             if (next <= 0) { if (!next) PostQuitMessage((int)msg.wParam); break; }
-            if (msg.message == WM_KEYDOWN && (msg.wParam == VK_RETURN || msg.wParam == VK_ESCAPE)) {
+            bool ours = msg.hwnd == dialog || IsChild(dialog, msg.hwnd);
+            if (ours && msg.message == WM_KEYDOWN && (msg.wParam == VK_RETURN || msg.wParam == VK_ESCAPE)) {
                 SendMessageW(dialog, WM_COMMAND, msg.wParam == VK_RETURN ? IDOK : IDCANCEL, 0); continue;
             }
-            if (!IsDialogMessageW(dialog, &msg)) { TranslateMessage(&msg); DispatchMessageW(&msg); }
+            if (!ours || !IsDialogMessageW(dialog, &msg)) { TranslateMessage(&msg); DispatchMessageW(&msg); }
         }
         if (p.accepted) {
             auto wide = ui::value(p.edit); auto text = wook::utf8(wide);
@@ -62,9 +65,20 @@ extern "C" int wsPrompt(HWND owner, const char *title, const char *label, int se
             else memcpy(value, text.c_str(), text.size()+1);
             SecureZeroMemory(wide.data(), wide.size()*sizeof(wchar_t)); SecureZeroMemory(text.data(), text.size());
         }
-        SetWindowTextW(p.edit, L""); DestroyWindow(dialog);
+        SetWindowTextW(p.edit, L"");
         SecureZeroMemory(p.initial.data(), p.initial.size()*sizeof(wchar_t));
-        if (disable) { EnableWindow(owner, TRUE); SetActiveWindow(owner); }
+        // Enable the owner before destroying its active dialog, or Windows may
+        // activate an unrelated application. SFTP authentication is hosted by a
+        // separate process: hand foreground ownership back while we still have
+        // it, rather than relying on same-thread SetActiveWindow after teardown.
+        if (disable && IsWindow(owner)) EnableWindow(owner, TRUE);
+        bool restore = GetForegroundWindow() == dialog && IsWindowEnabled(owner) &&
+            IsWindowVisible(owner) && !IsIconic(owner);
+        if (restore) SetForegroundWindow(owner);
+        DestroyWindow(dialog);
+        if (restore && GetForegroundWindow() == owner && IsWindow(previous) &&
+            (previous == owner || IsChild(owner, previous)) && IsWindowEnabled(previous) && IsWindowVisible(previous))
+            SetFocus(previous);
         return p.accepted;
     } catch (...) { return 0; }
 }

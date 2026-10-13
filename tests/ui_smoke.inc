@@ -6,6 +6,7 @@
 #include "workspace_smoke.inc"
 #include "tabs_smoke.inc"
 #include "sftp_shortcuts_smoke.inc"
+#include "sftp_auth_smoke.inc"
 #include "key_import_test.inc"
 template<typename Check> void testNativeKeys(const std::wstring &directory, Check require) {
     using Key = std::unique_ptr<WsKey, decltype(&wsKeyFree)>;
@@ -49,7 +50,8 @@ void runUiSmoke(App &app) {
     static const bool mouseOnly = GetEnvironmentVariableW(L"WOOK_TEST_MOUSE_ONLY", nullptr, 0) != 0;
     static const bool scrollOnly = GetEnvironmentVariableW(L"WOOK_TEST_SCROLL_ONLY", nullptr, 0) != 0;
     static const bool messagesOnly = GetEnvironmentVariableW(L"WOOK_TEST_MESSAGES_ONLY", nullptr, 0) != 0;
-    static int phase = messagesOnly ? 58 : scrollOnly ? 57 : mouseOnly ? 56 : focusOnly ? 33 : 0;
+    static const bool sftpAuthOnly = GetEnvironmentVariableW(L"WOOK_TEST_SFTP_AUTH_ONLY", nullptr, 0) != 0;
+    static int phase = sftpAuthOnly ? 61 : messagesOnly ? 58 : scrollOnly ? 57 : mouseOnly ? 56 : focusOnly ? 33 : 0;
     static int waits = 0;
     static int checks = 0;
     static bool uploadRateSeen=false, downloadRateSeen=false;
@@ -107,7 +109,9 @@ void runUiSmoke(App &app) {
       progress << "{\"phase\":" << phase << ",\"waits\":" << waits << ",\"tabs\":" << app.tabs.size() << "}\n"; }
     try {
         if (++waits > 80) throw std::runtime_error("Timed out waiting for hosted terminal windows.");
-        if (phase == 58) {
+        if (phase == 61) {
+            if (testSftpAuthentication(app, require)) { phase = 37; waits = 0; }
+        } else if (phase == 58) {
             phase = -1; testMessageDialogs(app, require); phase = 59; waits = 0;
         } else if (phase == 59) {
             if (testHostKeyMessages(app, require)) { phase = 37; waits = 0; }
