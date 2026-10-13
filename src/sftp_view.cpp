@@ -273,6 +273,9 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
                 b->controls[base]=ui::button(hwnd,L"↑",base);b->controls[base+1]=ui::button(hwnd,L"Go",base+1);
                 b->controls[base+2]=ui::edit(hwnd,L"Folder path",base+2);SendMessageW(b->controls[base+2],EM_SETLIMITTEXT,32768,0);
                 auto list=b->controls[base+3]=ui::control(hwnd,WC_LISTVIEWW,L"",base+3,LVS_REPORT|LVS_SHOWSELALWAYS|WS_TABSTOP);
+                // The generic CFD theme leaves list-view scrollbars light. Explorer
+                // supplies dark native scrollbars, including their shared corner.
+                SetWindowTheme(list,L"DarkMode_Explorer",nullptr);
                 ListView_SetExtendedListViewStyle(list,LVS_EX_FULLROWSELECT|LVS_EX_DOUBLEBUFFER);
                 ListView_SetBkColor(list,ui::bg);ListView_SetTextBkColor(list,ui::bg);ListView_SetTextColor(list,ui::text);
                 SetWindowSubclass(ListView_GetHeader(list),headerProc,1,0);
