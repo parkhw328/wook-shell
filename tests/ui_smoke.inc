@@ -5,6 +5,7 @@
 #include "message_smoke.inc"
 #include "workspace_smoke.inc"
 #include "tabs_smoke.inc"
+#include "sftp_shortcuts_smoke.inc"
 #include "key_import_test.inc"
 template<typename Check> void testNativeKeys(const std::wstring &directory, Check require) {
     using Key = std::unique_ptr<WsKey, decltype(&wsKeyFree)>;
@@ -309,6 +310,15 @@ void runUiSmoke(App &app) {
                         "Upload and download arrows must be between the local and remote file lists at both window sizes");
                 require(up.top >= left.top && down.bottom <= left.bottom && !IntersectRect(&overlap,&up,&down),
                         "Transfer arrows must fit the list height without overlapping");
+                RECT viewport{};GetWindowRect(view,&viewport);
+                for(int id : {4,5,6}) {
+                    auto button=GetDlgItem(view,id);RECT bounds{};GetWindowRect(button,&bounds);
+                    auto dc=GetDC(button);auto font=SelectObject(dc,(HFONT)SendMessageW(button,WM_GETFONT,0,0));
+                    auto label=ui::value(button);SIZE text{};GetTextExtentPoint32W(dc,label.c_str(),(int)label.size(),&text);
+                    SelectObject(dc,font);ReleaseDC(button,dc);
+                    require(bounds.left>=viewport.left && bounds.right<=viewport.right && bounds.bottom<left.top &&
+                            text.cx+ui::px(16)<=bounds.right-bounds.left,"SFTP shortcut labels must fit their toolbar buttons");
+                }
             }
             SetWindowPos(app.hwnd,nullptr,0,0,original.right-original.left,original.bottom-original.top,SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
             require(!IsWindowEnabled(GetDlgItem(view,1)) && !IsWindowEnabled(GetDlgItem(view,2)),
@@ -322,6 +332,11 @@ void runUiSmoke(App &app) {
             require(ListView_GetItemCount(GetDlgItem(view,15))==4,"Show hidden must reveal remote dotfiles and dotfolders");
             SendMessageW(GetDlgItem(view,16),BM_CLICK,0,0);
             require(ListView_GetItemCount(GetDlgItem(view,11))==2 && ListView_GetItemCount(GetDlgItem(view,15))==2,"Unchecking must filter both panes immediately");
+            phase=60;waits=0;
+        } else if (phase == 60 && ready() && SendMessageW(app.tabs[0]->terminal,WM_APP+121,0,0)==1) {
+            phase=-1;bool complete=testSftpShortcuts(app,require);phase=60;waits=0;
+            if(!complete)return;
+            auto view=app.tabs[0]->terminal;
             ListView_SetItemState(GetDlgItem(view,11),-1,LVIS_SELECTED,LVIS_SELECTED);
             require(IsWindowEnabled(GetDlgItem(view,1)) && !IsWindowEnabled(GetDlgItem(view,2)), "Selecting local files must enable only upload");
             captureTestWindow(app.hwnd,L"ui-sftp-upload.bmp");

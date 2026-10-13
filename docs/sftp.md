@@ -17,6 +17,18 @@ Windows 1.0.5부터 전송 중에도 두 파일 목록의 어두운 배경을 �
 
 **New folder / Rename / Delete**는 주황색 제목으로 표시된 선택한 쪽에 적용됩니다. Delete는 휴지통을 거치지 않습니다. 폴더 삭제는 빈 폴더에만 적용됩니다. Refresh로 외부에서 바뀐 목록을 갱신하세요.
 
+## 단축키 (Windows)
+
+현재 개발 빌드에서 제공하는 기능입니다. 로컬 또는 원격 **파일 목록에 포커스**를 두고 사용합니다. 버튼에도 해당 단축키를 표시하며, 상단 **Shortcuts**에서 다시 확인할 수 있습니다.
+
+| 단축키 | 동작 |
+| --- | --- |
+| `F2` | 키를 누른 목록에서 선택한 파일·폴더 하나의 이름 변경 |
+| `Delete` | 키를 누른 목록의 선택 항목 삭제. 기존 확인창에서 승인해야 삭제됩니다. |
+| `F5` | **Refresh**와 동일하게 로컬·원격 목록을 모두 새로고침 |
+
+`F2`와 `Delete`는 선택 항목이 없으면 동작하지 않습니다. 연결·전송 등 작업 중이거나 연결이 끊긴 상태에서는 세 단축키를 실행하지 않습니다. Ctrl·Shift·Alt와 조합한 키는 이 작업에 연결하지 않으며, 경로 입력칸의 Delete는 텍스트만 편집합니다.
+
 ## 인증과 저장
 
 저장한 호스트의 사용자·포트·개인키·암호와 wShell 호스트 키 확인을 재사용합니다. 새 연결이므로 키 암호나 추가 인증을 다시 요청할 수 있습니다. 저장 비밀번호는 Windows DPAPI / macOS Keychain의 기존 정책을 그대로 따릅니다. **Export / Import에는 암호와 개인키가 포함되지 않습니다.**
@@ -42,6 +54,9 @@ Windows 로컬 빌드 후 `node tests/ssh/sftp-benchmark.cjs`로 성능 비교�
 1.0.5 검증에서 CTest 4개와 SFTP 통합 검사가 통과했습니다. 전체 `integration.cjs`를 단독 실행해 SSH 검사 20개와 UI 검사 446개를 통과했습니다. 업로드·다운로드 중 양쪽 목록의 빈 영역이 실제로 어두운 배경인지, KB/s가 표시되는지, 작업 버튼이 비활성화되는지 검사했습니다. 생성된 화면을 확인했고, UI 왕복 전송 파일 8,388,635 bytes의 내용 일치도 확인했습니다.
 
 `node tests/ssh/sftp-integration.cjs`는 독립 ssh2 루프백 서버에서 UTF-8 이름, 다중 패킷·짧은 읽기·응답 순서 변경, 전송 내용 일치, 폴더 작업, 덮어쓰기 거부와 취소를 확인합니다. `sftp-codec-tests`는 손상된 프레임·잘못된 ID·경로 순회와 확장 협상 외에 요청 보충, 짧은 응답 재요청, 중복 응답, 쓰기 실패, 조기 EOF, 취소 및 속도 계산을 검사합니다. Windows UI 테스트는 실제 SSH 키/저장 암호 연결과 업로드·다운로드 중 KB/s 표시를 검증합니다. macOS UI 테스트도 보존되어 있으나 이번 변경의 빌드·실행 검증은 Windows만 수행합니다. 실제 사용자 서버에는 테스트 파일을 쓰지 않습니다.
+
+SFTP 단축키 회귀 검사는 Windows의 `node tests/ssh/integration.cjs`에 포함됩니다. `tests/sftp_shortcuts_smoke.inc`는 네이티브 목록·입력칸에 키 메시지를 보내 로컬·원격 이름 변경 대상, 삭제 확인의 기본 No·취소, 대화상자 종료 후 포커스, 수정키·선택 없음·작업 중 차단, 경로 텍스트 편집과 F5 양쪽 갱신을 검사합니다. 격리한 로컬·루프백 서버 폴더에 파일을 추가·제거하여 새로고침 결과를 확인하며, 실제 OS 키보드 입력 검사와 구분합니다. 이번 환경에서는 Windows 테스트 EXE의 교차 컴파일만 가능하며 UI 실행·스크린샷 확인은 미실행입니다.
+
 ## Hidden files
 
 `Show hidden files` is **unchecked by default** in each SFTP tab. Check it to show dotfiles/dotfolders (such as `.env`, `.ssh`, `.config`) in both local and remote panes. Windows local files with the Hidden attribute and macOS local files marked hidden are also filtered. Unchecking immediately hides them again and clears selection; files are not deleted. Showing or hiding files does not change permissions or server settings.

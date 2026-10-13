@@ -309,6 +309,8 @@ extern "C" void wsShowAbout(HWND owner) {
 extern "C" void wsShowShortcuts(HWND owner) {
     wsMessageBoxW(owner, L"Ctrl+Shift+T  New connection\r\nCtrl+Shift+D  Duplicate tab\r\nCtrl+Tab  Next tab\r\nCtrl+Shift+W  Close tab\r\n"
         L"Ctrl+Shift+H  Show / hide hosts\r\nCtrl+Shift+P  Search connections\r\nCtrl+Shift+C / V  Copy / paste\r\n"
-        L"Alt+1…9  Switch tabs\r\nF11  Full screen", L"Keyboard shortcuts", MB_OK | MB_ICONINFORMATION);
+        L"Alt+1…9  Switch tabs\r\nF11  Full screen\r\n\r\n"
+        L"SFTP file lists\r\nF2  Rename selected item\r\nDelete  Delete selected items (confirm first)\r\nF5  Refresh both lists",
+        L"Keyboard shortcuts", MB_OK | MB_ICONINFORMATION);
 }
 extern "C" void wsInitializeMessageDialogs(void) { wshellMessageBoxIndirect = wsMessageBoxIndirectW; }

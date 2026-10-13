@@ -69,7 +69,7 @@ struct Browser {
 void Browser::layout() {
     RECT r; GetClientRect(hwnd,&r); int w = MulDiv(r.right,96,ui::dpi), h = MulDiv(r.bottom,96,ui::dpi);
     int x=16,y=14;
-    for (auto [id,width] : {std::pair{NewFolder,120},{Rename,92},{Delete,86},{Refresh,96},{Cancel,90},{ShowHidden,208}}) {
+    for (auto [id,width] : {std::pair{NewFolder,120},{Rename,128},{Delete,136},{Refresh,136},{Cancel,90},{ShowHidden,208}}) {
         if (x+width > w-16) {x=16;y+=44;}
         ui::place(controls[id],x,y,width,34); x+=width+8;
     }
@@ -257,7 +257,7 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
         case WM_APP+122: {auto text=b->progressText();return lstrcpynW((wchar_t *)lp,text.c_str(),(int)wp)!=nullptr;}
 #endif
         case WM_CREATE: {
-            const wchar_t *labels[]={L"",L"Upload →",L"← Download",L"New folder",L"Rename",L"Delete",L"Refresh",L"Cancel"};
+            const wchar_t *labels[]={L"",L"Upload →",L"← Download",L"New folder",L"Rename (F2)",L"Delete (Del)",L"Refresh (F5)",L"Cancel"};
             for(int i=1;i<=7;++i)b->controls[i]=ui::button(hwnd,labels[i],i);
             b->tooltips=CreateWindowExW(WS_EX_TOPMOST,TOOLTIPS_CLASSW,nullptr,WS_POPUP|TTS_ALWAYSTIP|TTS_NOPREFIX,
                 CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,hwnd,nullptr,GetModuleHandleW(nullptr),nullptr);
@@ -320,7 +320,23 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
                 }
                 if(h->code==NM_SETFOCUS||h->code==NM_CLICK){b->remoteFocused=h->idFrom==RemoteList;PostMessageW(GetParent(hwnd),WM_APP+46,(WPARAM)hwnd,0);InvalidateRect(hwnd,nullptr,FALSE);}
                 if(h->code==NM_DBLCLK&&!b->busy){auto e=b->selected(h->idFrom==RemoteList);if(e.size()==1&&e[0].directory())b->navigate(h->idFrom==RemoteList,h->idFrom==RemoteList?sftp::join(b->remote,e[0].name):(fs::path(b->local)/e[0].name).wstring());}
-                if(h->code==LVN_KEYDOWN){auto key=(NMLVKEYDOWN *)lp;if(key->wVKey==VK_F5)b->action(Refresh);}
+                if(h->code==LVN_KEYDOWN) {
+                    auto key=(NMLVKEYDOWN *)lp;
+                    int command=key->wVKey==VK_F2?Rename:key->wVKey==VK_DELETE?Delete:key->wVKey==VK_F5?Refresh:0;
+                    // List-only shortcuts leave path editing and modified keys alone.
+                    // Match button availability, including connection and busy state.
+                    if(command && IsWindowEnabled(b->controls[command]) &&
+                       !(GetKeyState(VK_CONTROL)&0x8000) && !(GetKeyState(VK_SHIFT)&0x8000) && !(GetKeyState(VK_MENU)&0x8000)) {
+                        b->remoteFocused=h->idFrom==RemoteList;
+                        // The rename prompt activates the owner when it closes.
+                        // Restore this pane even when validation raises an error.
+                        struct RestoreFocus {
+                            HWND list;
+                            ~RestoreFocus(){if(IsWindow(list))SetFocus(list);}
+                        } restore{h->hwndFrom};
+                        b->action(command);
+                    }
+                }
             } return 0;
         }
         case WM_DRAWITEM: {

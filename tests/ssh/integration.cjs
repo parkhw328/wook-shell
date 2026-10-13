@@ -149,7 +149,7 @@ function registryDigest() {
   const ui = path.join(standalone, 'wShell.exe');
   fs.copyFileSync(path.join(binaries, 'ui-smoke-tests.exe'), ui);
   assert.deepEqual(fs.readdirSync(standalone), ['wShell.exe'], 'Start from a folder containing only the executable');
-  result = await run(ui, [], '', { WOOK_TEST_PORT: String(port), WOOK_TEST_FINGERPRINT: fingerprint, WOOK_TEST_IMPORT_KEY: importKey, WOOK_TEST_PASSWORD_FILE: passwordFile, WOOK_TEST_RSA_KEY: rsaKey });
+  result = await run(ui, [], '', { WOOK_TEST_PORT: String(port), WOOK_TEST_FINGERPRINT: fingerprint, WOOK_TEST_IMPORT_KEY: importKey, WOOK_TEST_PASSWORD_FILE: passwordFile, WOOK_TEST_RSA_KEY: rsaKey, WOOK_TEST_SFTP_ROOT: sftpRoot });
   assert.ok(fs.existsSync(path.join(standalone, 'ui-smoke-result.json')), 'UI exited without a report; code=' + result.code + '; progress=' + fs.readFileSync(path.join(standalone, 'ui-smoke-progress.json'), 'utf8'));
   const report = JSON.parse(fs.readFileSync(path.join(standalone, 'ui-smoke-result.json'), 'utf8'));
   assert.equal(fs.readdirSync(standalone).filter(n => n.toLowerCase().endsWith('.exe')).length, 1, 'Do not extract helper executables');
