@@ -16,6 +16,7 @@ public:
     LaunchRelay &operator=(const LaunchRelay &) = delete;
     bool forward(const LaunchRequest &request);
     void start(HWND window);
+    void retarget(HWND window);
     std::unique_ptr<LaunchRequest> take();
     void stop();
 };

@@ -3,13 +3,20 @@
 #include "transfer_rate.hpp"
 #include "ui.hpp"
 #include "prompt.h"
+#include "file_drag.hpp"
 #include <filesystem>
 #include <thread>
 #include <memory>
 #include <unordered_set>
+#include <set>
 
 namespace {
 namespace fs = std::filesystem;
+struct WindowsNameLess {
+    bool operator()(const std::wstring &a,const std::wstring &b) const {
+        return CompareStringOrdinal(a.c_str(),(int)a.size(),b.c_str(),(int)b.size(),TRUE)==CSTR_LESS_THAN;
+    }
+};
 constexpr UINT finished = WM_APP + 120;
 enum { Upload = 1, Download, NewFolder, Rename, Delete, Refresh, Cancel, LocalUp, LocalGo, LocalPath, LocalList, RemoteUp, RemoteGo, RemotePath, RemoteList, ShowHidden };
 LRESULT CALLBACK headerProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,UINT_PTR id,DWORD_PTR) {
@@ -25,6 +32,10 @@ LRESULT CALLBACK headerProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,UINT_PTR id,D
 }
 struct Result { std::wstring path, message; std::vector<sftp::Entry> entries; bool ok{}; };
 struct Browser {
+    IDropTarget *dropTargets[2]{};
+    IDataObject *dragData{};
+    bool dragging=false, dragRemote=false;
+    std::vector<sftp::Entry> dragEntries;
     HWND hwnd{}, owner{}, controls[17]{}; HANDLE job{};
     HWND tooltips{};
     int paneWidth{}, gutter = 88;
@@ -65,6 +76,10 @@ struct Browser {
     void action(int id);
     std::vector<sftp::Entry> selected(bool remoteSide);
     void transfer(bool upload);
+    void transferFiles(bool upload, std::vector<sftp::Entry> entries, std::vector<std::wstring> sources = {});
+    bool validateFiles(const std::vector<sftp::Entry> &entries);
+    bool dropFiles(bool remoteSide, IDataObject *data);
+    void beginDrag(bool remoteSide);
 };
 void Browser::layout() {
     RECT r; GetClientRect(hwnd,&r); int w = MulDiv(r.right,96,ui::dpi), h = MulDiv(r.bottom,96,ui::dpi);
@@ -139,14 +154,14 @@ void Browser::state() {
     // action() and the double-click handler already block mutations while busy.
     for(int id=1;id<=RemoteList;++id) EnableWindow(controls[id],
         id==LocalList||id==RemoteList ? true : id==Cancel ? busy :
-        !busy && ((id>=LocalUp&&id<=LocalList) || connected));
-    EnableWindow(controls[ShowHidden],!busy);
+        !busy && !dragging && ((id>=LocalUp&&id<=LocalList) || connected));
+    EnableWindow(controls[ShowHidden],!busy && !dragging);
     transferState();
     InvalidateRect(hwnd,nullptr,TRUE);
 }
 void Browser::transferState() {
-    EnableWindow(controls[Upload], !busy && connected && ListView_GetSelectedCount(controls[LocalList]) > 0);
-    EnableWindow(controls[Download], !busy && connected && ListView_GetSelectedCount(controls[RemoteList]) > 0);
+    EnableWindow(controls[Upload], !busy && !dragging && connected && ListView_GetSelectedCount(controls[LocalList]) > 0);
+    EnableWindow(controls[Download], !busy && !dragging && connected && ListView_GetSelectedCount(controls[RemoteList]) > 0);
 }
 void Browser::start(const std::function<void(Result&)> &operation) {
     if(busy)return;
@@ -184,8 +199,24 @@ std::vector<sftp::Entry> Browser::selected(bool remoteSide) {
     return result;
 }
 void Browser::transfer(bool upload) {
+    transferFiles(upload,selected(!upload));
+}
+bool Browser::validateFiles(const std::vector<sftp::Entry> &entries) {
+    if(std::any_of(entries.begin(),entries.end(),[](const auto &e){return e.directory();})) {
+        wsMessageBoxW(owner,L"폴더는 다운로드하거나 업로드할 수 없습니다.\n폴더를 열어 파일만 선택한 뒤 다시 시도해 주세요.\n\n이번에 선택한 항목은 모두 전송하지 않았습니다.",L"SFTP · 파일만 전송 가능",MB_OK|MB_ICONINFORMATION);
+        return false;
+    }
+    std::set<std::wstring,WindowsNameLess> names;
+    for(const auto &e:entries) {
+        if(!e.regular() || !wsftp_local_name(wook::utf8(e.name).c_str()))
+            throw std::runtime_error("Select regular files with portable filenames. Links are not followed.");
+        if(!names.insert(e.name).second)throw std::runtime_error("These filenames collide on Windows. Transfer them separately.");
+    }
+    return !entries.empty();
+}
+void Browser::transferFiles(bool upload, std::vector<sftp::Entry> entries, std::vector<std::wstring> sources) {
     if(busy || !connected)return;
-    auto entries=selected(!upload); if(entries.empty()) {status=L"Select one or more files in the source pane first.";state();return;}
+    if(!validateFiles(entries))return;
     std::unordered_set<std::wstring> approved;
     std::wstring conflicts;
     for(auto &e:entries) {
@@ -198,20 +229,101 @@ void Browser::transfer(bool upload) {
         if(wsMessageBoxW(owner,text.c_str(),L"Confirm file replacement",MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2)!=IDYES)return;
     }
     auto fromLocal=local,fromRemote=remote;
-    start([this,entries,approved,upload,fromLocal,fromRemote](Result&r){
+    start([this,entries,approved,upload,fromLocal,fromRemote,sources](Result&r){
         size_t index=0;
         for(auto&e:entries) {
             {std::lock_guard lock(progressLock);done=0;total=e.size;rate.reset(GetTickCount64());kbps=0;current=(upload?L"Uploading ":L"Downloading ")+e.name+L" ("+std::to_wstring(++index)+L"/"+std::to_wstring(entries.size())+L")";}
             auto progress=[this](uint64_t d,uint64_t t){done=d;total=t;};
             auto lp=(fs::path(fromLocal)/e.name).wstring(), rp=sftp::join(fromRemote,e.name);
+            if(upload&&!sources.empty())lp=sources[index-1];
             if(upload)client->upload(lp,rp,approved.contains(e.name),progress);else client->download(rp,lp,approved.contains(e.name),progress);
         }
         r.path=fromRemote;r.entries=client->list(r.path);r.message=std::to_wstring(entries.size())+L" file(s) "+(upload?L"uploaded":L"downloaded")+L" successfully.";
     });
 }
+bool Browser::dropFiles(bool remoteSide,IDataObject *data) {
+    if(busy||!connected)return false;
+    try {
+        if(data==dragData) {
+            if(remoteSide==dragRemote)return false;
+            transferFiles(remoteSide,dragEntries); return busy;
+        }
+        if(!remoteSide||!fileDrag::hasPaths(data))return false;
+        auto sources=fileDrag::paths(data);
+        std::vector<sftp::Entry> entries;
+        std::set<std::wstring,WindowsNameLess> names;
+        for(const auto &path:sources) {
+            auto attrs=GetFileAttributesW(path.c_str());
+            if(attrs==INVALID_FILE_ATTRIBUTES)throw std::runtime_error("A dropped file is no longer available.");
+            auto name=fs::path(path).filename().wstring();
+            if(!names.insert(name).second)throw std::runtime_error("Dropped files have duplicate names. Transfer them separately.");
+            uint32_t mode=(attrs&FILE_ATTRIBUTE_REPARSE_POINT)?0120000:(attrs&FILE_ATTRIBUTE_DIRECTORY)?0040000:0100000;
+            entries.push_back({name,mode==0100000?fs::file_size(path):0,mode,0});
+        }
+        transferFiles(true,std::move(entries),std::move(sources));return busy;
+    } catch(const std::exception &e) {ui::error(owner,e);return false;}
+}
+void Browser::beginDrag(bool remoteSide) {
+    if(busy||dragging||!connected||GetPropW(owner,L"wShell.DragActive"))return;
+    if(!SetPropW(owner,L"wShell.DragActive",(HANDLE)1))throw std::runtime_error("Cannot start the file drag.");
+    struct WindowGuard { HWND window;~WindowGuard(){RemovePropW(window,L"wShell.DragActive");} } guard{owner};
+    auto entries=selected(remoteSide);if(!validateFiles(entries))return;
+    struct Staging {
+        fs::path directory;
+        Staging() {
+            directory=fs::temp_directory_path()/(L"wShell-drag-"+sftp::uniqueName());
+            if(!fs::create_directory(directory))throw std::runtime_error("Cannot create temporary download storage.");
+        }
+        ~Staging(){std::error_code error;fs::remove_all(directory,error);}
+    };
+    IDataObject *data=nullptr;
+    if(remoteSide) {
+        std::vector<fileDrag::File> files;
+        for(const auto &e:entries) {
+            if(e.name.size()>=MAX_PATH)throw std::runtime_error("This filename is too long to drag to Explorer. Use Download instead.");
+            files.push_back({e.name,e.size});
+        }
+        auto staging=std::make_shared<Staging>();auto fromRemote=remote;
+        data=fileDrag::remote(files,[this,entries,staging,fromRemote](size_t index,IStream **stream)->HRESULT {
+            auto path=staging->directory/entries[index].name;
+            if(!fs::exists(path)) {
+                if(busy||!connected)return E_UNEXPECTED;
+                // OLE requests contents only when a receiver needs the file. The worker
+                // downloads to disk; the nested loop keeps progress and Cancel responsive.
+                start([this,entries,index,path,fromRemote](Result &r){
+                    {std::lock_guard lock(progressLock);current=L"Downloading "+entries[index].name;rate.reset(GetTickCount64());}
+                    client->download(sftp::join(fromRemote,entries[index].name),path.wstring(),false,
+                        [this](uint64_t d,uint64_t t){done=d;total=t;});
+                    r.path=fromRemote;r.entries=remoteEntries;r.message=L"File prepared for Explorer.";
+                });
+                while(busy) {
+                    MSG msg{};
+                    auto result=GetMessageW(&msg,nullptr,0,0);
+                    if(result<=0) {stop();busy=false;connected=false;if(!result)PostQuitMessage((int)msg.wParam);return E_ABORT;}
+                    TranslateMessage(&msg);DispatchMessageW(&msg);
+                }
+                if(!connected||!fs::exists(path))return E_ABORT;
+            }
+            return fileDrag::openStream(path.wstring(),staging,stream);
+        });
+    } else {
+        std::vector<std::wstring> paths;
+        for(const auto &e:entries)paths.push_back((fs::path(local)/e.name).wstring());
+        data=fileDrag::local(paths);
+    }
+    struct Finish {
+        Browser &b;IDataObject *data;
+        ~Finish(){b.dragData=nullptr;b.dragEntries.clear();b.dragging=false;data->Release();b.state();}
+    } finish{*this,data};
+    dragging=true;dragRemote=remoteSide;dragData=data;dragEntries=std::move(entries);
+    state();
+    auto result=fileDrag::run(data);
+    if(FAILED(result))throw std::runtime_error("Windows could not complete the file drag.");
+}
 void Browser::action(int id) {
-    if(id==ShowHidden && !busy){showHidden=SendMessageW(controls[ShowHidden],BM_GETCHECK,0,0)==BST_CHECKED;fill(false);fill(true);state();return;}
     if(id==Cancel){if(client)client->cancel();status=L"Cancelling transfer…";return;}
+    if(dragging)return;
+    if(id==ShowHidden && !busy){showHidden=SendMessageW(controls[ShowHidden],BM_GETCHECK,0,0)==BST_CHECKED;fill(false);fill(true);state();return;}
     if(busy)return;
     if(id==Upload||id==Download){transfer(id==Upload);return;}
     if(id==LocalGo||id==RemoteGo){navigate(id==RemoteGo,ui::value(controls[id==RemoteGo?RemotePath:LocalPath]));return;}
@@ -247,14 +359,20 @@ void Browser::action(int id) {
     });
 }
 LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
+    ui::DpiScope dpiScope(hwnd);
     auto b=(Browser *)GetWindowLongPtrW(hwnd,GWLP_USERDATA);
     if(msg==WM_NCCREATE){b=((std::unique_ptr<Browser> *)((CREATESTRUCTW *)lp)->lpCreateParams)->release();b->hwnd=hwnd;SetWindowLongPtrW(hwnd,GWLP_USERDATA,(LONG_PTR)b);}
     if(!b)return DefWindowProcW(hwnd,msg,wp,lp);
     try {
         switch(msg) {
+        case WM_APP+62:
+            if(b->owner!=(HWND)wp||GetParent(hwnd)!=(HWND)lp||b->busy||b->dragging)return FALSE;
+            b->owner=(HWND)lp;return TRUE;
 #ifdef WOOK_UI_TEST
         case WM_APP+121: return b->busy ? 0 : b->connected ? 1 : -1;
         case WM_APP+122: {auto text=b->progressText();return lstrcpynW((wchar_t *)lp,text.c_str(),(int)wp)!=nullptr;}
+        case WM_APP+123: return b->dropFiles(wp!=0,(IDataObject *)lp);
+        case WM_APP+124: b->beginDrag(wp!=0);return 0;
 #endif
         case WM_CREATE: {
             const wchar_t *labels[]={L"",L"Upload →",L"← Download",L"New folder",L"Rename (F2)",L"Delete (Del)",L"Refresh (F5)",L"Cancel"};
@@ -277,6 +395,10 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
                 ListView_SetBkColor(list,ui::bg);ListView_SetTextBkColor(list,ui::bg);ListView_SetTextColor(list,ui::text);
                 SetWindowSubclass(ListView_GetHeader(list),headerProc,1,0);
                 for(auto [index,title]:{std::pair{0,L"Name"},{1,L"Bytes"},{2,L"Modified"}}){LVCOLUMNW column{};column.mask=LVCF_TEXT|LVCF_WIDTH;column.pszText=(wchar_t *)title;column.cx=100;ListView_InsertColumn(list,index,&column);}
+                b->dropTargets[side]=fileDrag::target(list,
+                    [b,side](IDataObject *data){return !b->busy&&b->connected&&
+                        (data==b->dragData ? (side!=0)!=b->dragRemote : side&&fileDrag::hasPaths(data));},
+                    [b,side](IDataObject *data){return b->dropFiles(side!=0,data);});
             }
             b->readLocal();SetTimer(hwnd,1,100,nullptr);PostMessageW(hwnd,WM_APP+60,0,0);return 0;
         }
@@ -302,6 +424,7 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
         case WM_NOTIFY: {
             auto h=(NMHDR *)lp;
             if(h->idFrom==LocalList||h->idFrom==RemoteList) {
+                if(h->code==LVN_BEGINDRAG){b->beginDrag(h->idFrom==RemoteList);return 0;}
                 if(h->code==LVN_ITEMCHANGED)b->transferState();
                 if(h->code==NM_CUSTOMDRAW){
                     auto draw=(NMLVCUSTOMDRAW *)lp;
@@ -316,7 +439,7 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
                     }
                 }
                 if(h->code==NM_SETFOCUS||h->code==NM_CLICK){b->remoteFocused=h->idFrom==RemoteList;PostMessageW(GetParent(hwnd),WM_APP+46,(WPARAM)hwnd,0);InvalidateRect(hwnd,nullptr,FALSE);}
-                if(h->code==NM_DBLCLK&&!b->busy){auto e=b->selected(h->idFrom==RemoteList);if(e.size()==1&&e[0].directory())b->navigate(h->idFrom==RemoteList,h->idFrom==RemoteList?sftp::join(b->remote,e[0].name):(fs::path(b->local)/e[0].name).wstring());}
+                if(h->code==NM_DBLCLK&&!b->busy&&!b->dragging){auto e=b->selected(h->idFrom==RemoteList);if(e.size()==1&&e[0].directory())b->navigate(h->idFrom==RemoteList,h->idFrom==RemoteList?sftp::join(b->remote,e[0].name):(fs::path(b->local)/e[0].name).wstring());}
                 if(h->code==LVN_KEYDOWN) {
                     auto key=(NMLVKEYDOWN *)lp;
                     int command=key->wVKey==VK_F2?Rename:key->wVKey==VK_DELETE?Delete:key->wVKey==VK_F5?Refresh:0;
@@ -371,7 +494,9 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
             if(buffer)DeleteObject(buffer);
             EndPaint(hwnd,&ps);return 0;
         }
-        case WM_DESTROY:KillTimer(hwnd,1);if(b->tooltips)DestroyWindow(b->tooltips);b->stop();return 0;
+        case WM_DESTROY:
+            for(int side=0;side<2;++side)if(b->dropTargets[side]){RevokeDragDrop(b->controls[side?RemoteList:LocalList]);b->dropTargets[side]->Release();b->dropTargets[side]=nullptr;}
+            KillTimer(hwnd,1);if(b->tooltips)DestroyWindow(b->tooltips);b->stop();return 0;
         case WM_NCDESTROY:SetWindowLongPtrW(hwnd,GWLP_USERDATA,0);delete b;return DefWindowProcW(hwnd,msg,wp,lp);
         }
     }catch(const std::exception&e){b->status=wook::wide(e.what());b->state();ui::error(b->owner,e);}

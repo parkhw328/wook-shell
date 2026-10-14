@@ -17,7 +17,7 @@ target_compile_options(wook-core PRIVATE -Wall -Wextra)
 add_library(wsftp STATIC mac/Sources/CSFTP/wsftp.c)
 target_include_directories(wsftp PUBLIC mac/Sources/CSFTP/include)
 target_compile_options(wsftp PRIVATE -Wall -Wextra)
-set(workspace_sources src/main.cpp src/theme.cpp src/dialog.cpp src/message_dialog.cpp src/resources.cpp src/key_dialog.cpp src/key_import.cpp src/workspace_dialog.cpp src/settings_ui.cpp src/ime.c src/prompt.cpp src/sftp.cpp src/sftp_view.cpp assets/app.rc
+set(workspace_sources src/main.cpp src/theme.cpp src/dialog.cpp src/message_dialog.cpp src/resources.cpp src/key_dialog.cpp src/key_import.cpp src/workspace_dialog.cpp src/settings_ui.cpp src/ime.c src/prompt.cpp src/sftp.cpp src/sftp_view.cpp src/file_drag.cpp assets/app.rc
     $<TARGET_OBJECTS:wshell-terminal> $<TARGET_OBJECTS:wshell-terminal-be-list>)
 # windres does not emit dependencies for binary RCDATA and nested resource scripts.
 set_property(SOURCE assets/app.rc APPEND PROPERTY OBJECT_DEPENDS
@@ -32,7 +32,7 @@ set_property(SOURCE assets/app.rc APPEND PROPERTY OBJECT_DEPENDS
     "${CMAKE_SOURCE_DIR}/windows/wshell-common.rc2"
     "${CMAKE_SOURCE_DIR}/windows/wshell.ico")
 set(workspace_libraries wook-core wsftp wshell-keys guiterminal guimisc eventloop sshclient otherbackends settings network keygen crypto utils
-    comctl32 dwmapi uxtheme comdlg32 shell32 gdi32 user32 ole32 advapi32 imm32 ws2_32 bcrypt)
+    comctl32 dwmapi uxtheme comdlg32 shell32 gdi32 user32 ole32 uuid shlwapi advapi32 imm32 ws2_32 bcrypt)
 add_executable(WookShell WIN32 ${workspace_sources})
 set_target_properties(WookShell PROPERTIES OUTPUT_NAME wShell)
 target_link_libraries(WookShell PRIVATE ${workspace_libraries})

@@ -240,6 +240,11 @@ void LaunchRelay::start(HWND window) {
     state_->window = window;
     state_->worker = std::thread([this] { state_->serve(); });
 }
+void LaunchRelay::retarget(HWND window) {
+    std::lock_guard lock(state_->mutex);
+    state_->window = window;
+    for (size_t i=0;i<state_->queue.size();++i) PostMessageW(window, launchRelayMessage, 0, 0);
+}
 std::unique_ptr<LaunchRequest> LaunchRelay::take() {
     std::lock_guard lock(state_->mutex);
     if (state_->queue.empty()) return {};

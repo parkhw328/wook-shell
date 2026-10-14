@@ -16,6 +16,8 @@
 #include <windowsx.h>
 #include <shellapi.h>
 #include <commdlg.h>
+#include <shlobj.h>
+#include "file_drag.hpp"
 #include <cstdint>
 #include <memory>
 #include <stdexcept>
@@ -49,6 +51,7 @@ struct Tab {
 };
 struct Hit { RECT rect; int index; bool close; };
 struct App {
+    bool secondary = false;
     wook::LaunchRelay *launchRelay = nullptr;
     HWND hwnd = nullptr, controls[ControlEnd - Search]{}, tooltips = nullptr;
     std::wstring tooltipText;
@@ -76,7 +79,7 @@ struct App {
     wook::TabStrip strip;
     int tabArea = -1, tabCount = -1, tabSelection = -2, wheelDelta = 0;
     POINT dragStart{};
-    unsigned sequence = 0;
+    uint64_t dragId = 0;
     bool fullscreen = false, dragging = false;
     WINDOWPLACEMENT placement{sizeof(placement)};
     RECT plus{}, home{};
@@ -98,6 +101,8 @@ struct App {
     int tabIndex(uint64_t id) const;
     void closeTab(int index, bool confirmed = false);
     void closeTabs(CloseTabs scope, uint64_t anchor = 0);
+    bool moveTab(int index, App &destination);
+    void detachTab(int index, POINT point);
     void command(int code);
     void action(int id);
     void poll();
@@ -117,6 +122,60 @@ struct App {
     void relayInput(HWND source, const COPYDATASTRUCT *data);
     Profile *selectedHost();
 };
+std::vector<App *> workspaces;
+std::vector<std::unique_ptr<App>> detachedWorkspaces;
+LRESULT CALLBACK windowProc(HWND, UINT, WPARAM, LPARAM);
+bool App::moveTab(int index, App &destination) {
+    if (&destination == this || index < 0 || index >= (int)tabs.size()) return false;
+    auto &tab = *tabs[index];
+    if (tab.closing || (!tab.ended && !IsWindow(tab.terminal)) ||
+        GetPropW(hwnd, L"wShell.DragActive") || GetPropW(destination.hwnd, L"wShell.DragActive")) return false;
+    destination.tabs.reserve(destination.tabs.size() + 1);
+    if (IsWindow(tab.terminal)) {
+        SetLastError(0);
+        if (!SetParent(tab.terminal, destination.hwnd) && GetLastError())
+            throw std::runtime_error("Cannot move the terminal to the other window.");
+        // Both terminal engines and SFTP views refresh their routing owner.
+        DWORD_PTR result = 0;
+        if (!SendMessageTimeoutW(tab.terminal, WM_APP + 62, (WPARAM)hwnd,
+                (LPARAM)destination.hwnd, SMTO_ABORTIFHUNG, 2000, &result) || !result) {
+            SetParent(tab.terminal, hwnd);
+            SendMessageTimeoutW(tab.terminal, WM_APP + 62, (WPARAM)destination.hwnd,
+                (LPARAM)hwnd, SMTO_ABORTIFHUNG, 2000, &result);
+            throw std::runtime_error("The session is busy. Please try moving the tab again.");
+        }
+    }
+    auto resetRouting = [](App &window) {
+        window.routingPanes.clear(); window.excludedPanes.clear(); window.panes.clear();
+        window.keyboardPane = nullptr; window.paneZoom = false;
+        SendMessageW(window.control(SyncInput), BM_SETCHECK, BST_UNCHECKED, 0);
+        SendMessageW(window.control(SendAll), BM_SETCHECK, BST_UNCHECKED, 0);
+    };
+    resetRouting(*this); resetRouting(destination);
+    destination.tabs.push_back(std::move(tabs[index])); tabs.erase(tabs.begin() + index);
+    if (active > index) --active;
+    active = std::min(active, (int)tabs.size() - 1);
+    if (tabs.size() < 2) splitCount = 1;
+    select(active);
+    destination.select((int)destination.tabs.size() - 1);
+    ShowWindow(destination.hwnd, SW_RESTORE); SetForegroundWindow(destination.hwnd); destination.focusActive();
+    if (tabs.empty() && secondary) DestroyWindow(hwnd);
+    return true;
+}
+void App::detachTab(int index, POINT point) {
+    if (index < 0 || index >= (int)tabs.size() || tabs[index]->closing ||
+        (!tabs[index]->ended && !IsWindow(tabs[index]->terminal))) return;
+    auto next = std::make_unique<App>(); next->secondary = true; next->job = job;
+    next->directory = directory; next->navigationVisible = navigationVisible; next->sidebar = sidebar;
+    RECT rect{}; GetWindowRect(hwnd, &rect);
+    auto window = CreateWindowExW(0, L"WookShellMain", L"wShell", WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
+        point.x - ui::px(100), point.y - ui::px(20), rect.right - rect.left, rect.bottom - rect.top,
+        nullptr, nullptr, GetModuleHandleW(nullptr), next.get());
+    if (!window) throw std::runtime_error("Cannot create the detached window.");
+    auto target = next.get(); detachedWorkspaces.push_back(std::move(next));
+    try { if (!moveTab(index, *target)) DestroyWindow(window); }
+    catch (...) { DestroyWindow(window); throw; }
+}
 #ifdef WOOK_UI_TEST
 void runUiSmoke(App &app);
 #endif
@@ -131,6 +190,7 @@ void App::focusActive() {
     refreshPaneFocus();
 }
 void App::refreshPaneFocus() {
+    ui::DpiScope dpiScope(hwnd);
     HWND focused = nullptr;
     GUITHREADINFO info{sizeof(info)};
     if (active >= 0 && GetForegroundWindow() == hwnd && GetGUIThreadInfo(0, &info) &&
@@ -308,6 +368,7 @@ Profile *App::selectedHost() {
     return i >= 0 && (size_t)i < filtered.size() ? &profiles[filtered[i]] : nullptr;
 }
 void App::layout(bool revealTab) {
+    ui::DpiScope dpiScope(hwnd);
     RECT client; GetClientRect(hwnd, &client);
     width = MulDiv(client.right, 96, ui::dpi); height = MulDiv(client.bottom, 96, ui::dpi);
     int available = width - sidebar - 163 - 118;
@@ -414,6 +475,7 @@ void App::layout(bool revealTab) {
     InvalidateRect(hwnd, nullptr, TRUE);
 }
 void App::select(int index) {
+    ui::DpiScope dpiScope(hwnd);
     int next = std::clamp(index, -1, (int)tabs.size() - 1);
     if (next >= 0 && splitCount > 1 && std::find(panes.begin(), panes.end(), tabs[next].get()) == panes.end()) {
         paneZoom = false;
@@ -580,7 +642,7 @@ void App::connect(const Profile &requested, bool saved, bool preview, bool advan
     wchar_t self[32768]; GetModuleFileNameW(nullptr, self, 32768);
     std::wstring engine = self;
     auto tab = std::make_unique<Tab>(); tab->profile = profile; tab->preview = preview; tab->transient = !saved;
-    tab->storageName = saved ? profile.name : L"__wook_" + std::to_wstring(GetCurrentProcessId()) + L"_" + std::to_wstring(++sequence);
+    tab->storageName = saved ? profile.name : L"__wook_" + std::to_wstring(GetCurrentProcessId()) + L"_" + std::to_wstring(tab->id);
     if (!saved) {
         wchar_t *path = wsPath(L"sessions", wook::utf8(tab->storageName).c_str());
         WsStore *store = wsOpen(path, true); free(path);
@@ -665,6 +727,7 @@ void App::closeTabs(CloseTabs scope, uint64_t anchor) {
     for (auto it = targets.rbegin(); it != targets.rend(); ++it) closeTab(tabIndex(*it), true);
 }
 void App::closeTab(int index, bool confirmed) {
+    if (GetPropW(hwnd, L"wShell.DragActive")) return;
     if (index < 0 || index >= (int)tabs.size()) return;
     auto id = tabs[index]->id;
     if (!confirmed && !tabs[index]->ended && !tabs[index]->preview && !tabs[index]->closing &&
@@ -705,6 +768,7 @@ void App::poll() {
     refreshPaneFocus();
 }
 void App::command(int code) {
+    if (GetPropW(hwnd,L"wShell.DragActive")) return;
     if (code >= 30 && code <= 33) { movePane(code - 30); return; }
     if (code >= 20 && code < 29) { select(code - 21); return; }
     switch (code) {
@@ -752,6 +816,7 @@ void App::command(int code) {
     }
 }
 void App::action(int id) {
+    if (GetPropW(hwnd,L"wShell.DragActive")) return;
     if (id == SendCommand) { sendCommand(); return; }
     if (id == SendAll || id == SyncInput) {
         inputStatus(); layout();
@@ -911,6 +976,7 @@ void App::tabMenu(int index, POINT point) {
     AppendMenuW(menu, MF_STRING | (tabs.size() > 1 ? 0 : MF_GRAYED), 11, L"Close other tabs");
     AppendMenuW(menu, MF_STRING | (index + 1 < (int)tabs.size() ? 0 : MF_GRAYED), 12, L"Close tabs to the right");
     AppendMenuW(menu, MF_STRING, 10, L"Close all tabs");
+    AppendMenuW(menu, MF_STRING, 13, L"Move to new window");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING | (index > 0 ? 0 : MF_GRAYED), 4, L"Move left");
     AppendMenuW(menu, MF_STRING | (index + 1 < (int)tabs.size() ? 0 : MF_GRAYED), 5, L"Move right");
@@ -922,6 +988,7 @@ void App::tabMenu(int index, POINT point) {
     int choice = TrackPopupMenu(menu, TPM_RETURNCMD, point.x, point.y, 0, hwnd, nullptr); DestroyMenu(menu);
     index = tabIndex(anchor);
     if (!choice || index < 0) return;
+    if (choice == 13) { detachTab(index, point); return; }
     if (choice == 10) { closeTabs(CloseTabs::all); return; }
     if (choice == 11 || choice == 12) { closeTabs(choice == 11 ? CloseTabs::others : CloseTabs::right, anchor); return; }
     select(index);
@@ -959,11 +1026,13 @@ LRESULT CALLBACK scrollButtonProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UIN
     return result;
 }
 LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    ui::DpiScope dpiScope(hwnd);
     auto *app = (App *)GetWindowLongPtrW(hwnd, GWLP_USERDATA);
     try {
         if (msg == WM_CREATE) {
             app = (App *)((CREATESTRUCTW *)lp)->lpCreateParams; app->hwnd = hwnd;
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, (LONG_PTR)app);
+            workspaces.push_back(app);
             ui::dpi = GetDpiForWindow(hwnd); ui::dark(hwnd);
             auto addButton = [&](int id, const wchar_t *text) { app->controls[id - Search] = ui::button(hwnd, text, id); };
             app->controls[Search - Search] = ui::edit(hwnd, L"Name, alias, address…", Search);
@@ -1116,7 +1185,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             for (auto it=app->hits.rbegin();it!=app->hits.rend();++it) if (PtInRect(&it->rect,p)) {
                 int index=it->index; bool close=it->close;
                 if (close) app->closeTab(index);
-                else { app->dragTab=index; app->dragStart=p; app->dragging=false; SetCapture(hwnd); app->select(index); }
+                else { app->dragTab=index; app->dragId=app->tabs[index]->id; app->dragStart=p; app->dragging=false; SetCapture(hwnd); app->select(index); }
                 break;
             }
             return 0;
@@ -1127,12 +1196,33 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_APP + 48: case WM_APP + 49:
             return app->wheelTabs(msg == WM_APP + 48 ? WM_MOUSEWHEEL : WM_MOUSEHWHEEL, wp, lp);
         case WM_MOUSEMOVE:
-            if (app->dragTab>=0 && abs(GET_X_LPARAM(lp)-app->dragStart.x)>ui::px(8)) app->dragging=true;
+            if (app->dragTab>=0 && (abs(GET_X_LPARAM(lp)-app->dragStart.x)>GetSystemMetrics(SM_CXDRAG) ||
+                abs(GET_Y_LPARAM(lp)-app->dragStart.y)>GetSystemMetrics(SM_CYDRAG))) app->dragging=true;
+            if (app->dragging) SetCursor(LoadCursorW(nullptr, IDC_SIZEALL));
             return 0;
+        case WM_CAPTURECHANGED: case WM_CANCELMODE:
+            app->dragTab=-1; app->dragging=false;
+            if (msg==WM_CANCELMODE && GetCapture()==hwnd) ReleaseCapture();
+            return 0;
+        case WM_KEYDOWN:
+            if (wp==VK_ESCAPE && app->dragTab>=0) { ReleaseCapture(); return 0; }
+            break;
         case WM_LBUTTONUP: {
-            int from=app->dragTab; app->dragTab=-1; ReleaseCapture();
-            if (from>=0 && from<(int)app->tabs.size() && app->dragging) {
+            int from=app->dragTab>=0 ? app->tabIndex(app->dragId) : -1;
+            bool dragging=app->dragging; app->dragTab=-1; app->dragging=false; ReleaseCapture();
+            if (from>=0 && from<(int)app->tabs.size() && dragging) {
                 POINT p{GET_X_LPARAM(lp),GET_Y_LPARAM(lp)};
+                POINT screen=p; ClientToScreen(hwnd,&screen);
+                auto target=GetAncestor(WindowFromPoint(screen),GA_ROOT);
+                for (auto other:workspaces) if (other!=app && other->hwnd==target && IsWindowEnabled(target)) {
+                    POINT local=screen; ScreenToClient(target,&local);
+                    auto dpi=GetDpiForWindow(target);
+                    if (local.x>=MulDiv(other->sidebar,(int)dpi,96) &&
+                        local.y>=MulDiv(appBarHeight,(int)dpi,96) && local.y<MulDiv(appBarHeight+52,(int)dpi,96)) app->moveTab(from,*other);
+                    return 0;
+                }
+                RECT bounds{}; GetWindowRect(hwnd,&bounds);
+                if (!PtInRect(&bounds,screen)) { app->detachTab(from,screen); return 0; }
                 for (auto hit:app->hits) if (!hit.close && PtInRect(&hit.rect,p) && hit.index!=from) {
                     auto item=std::move(app->tabs[from]); app->tabs.erase(app->tabs.begin()+from);
                     app->tabs.insert(app->tabs.begin()+hit.index,std::move(item)); app->select(hit.index); break;
@@ -1148,7 +1238,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_TIMER:
             app->poll();
 #ifdef WOOK_UI_TEST
-            runUiSmoke(*app);
+            if (!app->secondary && !GetPropW(hwnd,L"wShell.DragActive")) runUiSmoke(*app);
 #endif
             return 0;
         case WM_APP + 42: {
@@ -1198,8 +1288,9 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             app->focusActive();
             break;
         case WM_CLOSE: {
+            if (GetPropW(hwnd,L"wShell.DragActive")) return 0;
             bool live=false; for (auto &tab:app->tabs) if (!tab->ended && !tab->preview) live=true;
-            if (live && wsMessageBoxW(hwnd,L"Close wShell and disconnect all active sessions?",L"Close workspace",MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2)!=IDYES) return 0;
+            if (live && wsMessageBoxW(hwnd,L"Close this window and disconnect its active sessions?",L"Close workspace",MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2)!=IDYES) return 0;
             for (auto &tab:app->tabs) if (IsWindow(tab->terminal)) PostMessageW(tab->terminal,WM_CLOSE,0,0);
             DestroyWindow(hwnd); return 0;
         }
@@ -1215,8 +1306,14 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             return 0;
         }
         case WM_DESTROY:
-            if (app->launchRelay) app->launchRelay->stop();
-            KillTimer(hwnd,1); PostQuitMessage(0); return 0;
+            std::erase(workspaces,app);
+            if (app->launchRelay) {
+                if (workspaces.empty()) app->launchRelay->stop();
+                else { workspaces.front()->launchRelay=app->launchRelay; app->launchRelay->retarget(workspaces.front()->hwnd); }
+                app->launchRelay=nullptr;
+            }
+            if (app->tooltips) DestroyWindow(app->tooltips);
+            KillTimer(hwnd,1); if (workspaces.empty()) PostQuitMessage(0); return 0;
         }
     } catch (const std::exception &e) { ui::error(hwnd,e); }
     return DefWindowProcW(hwnd,msg,wp,lp);
@@ -1252,6 +1349,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
             auto arguments = wook::utf8(std::wstring(command));
             return wshellTerminalMain(instance, nullptr, arguments.data(), show);
         }
+        struct OleScope {
+            HRESULT result = OleInitialize(nullptr);
+            ~OleScope() { if (SUCCEEDED(result)) OleUninitialize(); }
+        } ole;
+        if (FAILED(ole.result)) throw std::runtime_error("Cannot initialize file drag and drop.");
         auto launch = wook::parseLaunchCommand(GetCommandLineW());
         if (launch.mode == wook::LaunchRequest::Mode::help) {
             wsMessageBoxW(nullptr, wook::launchHelp, L"wShell · Launch arguments", MB_OK | MB_ICONINFORMATION); return 0;
@@ -1301,9 +1403,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
         } else SetFocus(app.control(Quick));
         MSG msg;
         while (GetMessageW(&msg,nullptr,0,0)>0) {
+            auto root = GetAncestor(msg.hwnd, GA_ROOT);
+            App *current = nullptr;
+            for (auto candidate : workspaces) if (candidate->hwnd == root) current = candidate;
+            if (!current) { TranslateMessage(&msg); DispatchMessageW(&msg); continue; }
+            ui::DpiScope dpiScope(current->hwnd);
             bool consumed=false;
             if (msg.message == WM_MOUSEWHEEL || msg.message == WM_MOUSEHWHEEL)
-                consumed = app.wheelTabs(msg.message, msg.wParam, msg.lParam);
+                consumed = current->wheelTabs(msg.message, msg.wParam, msg.lParam);
             if (msg.message==WM_KEYDOWN || msg.message==WM_SYSKEYDOWN) {
                 bool ctrl=GetKeyState(VK_CONTROL)&0x8000, shift=GetKeyState(VK_SHIFT)&0x8000, alt=GetKeyState(VK_MENU)&0x8000;
                 int command=0;
@@ -1323,15 +1430,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
                 else if (alt && msg.wParam>='1' && msg.wParam<='9') command=20+(int)(msg.wParam-'1');
                 else if (msg.wParam==VK_F11) command=8;
                 if (command) {
-                    try { app.command(command); } catch (const std::exception &e) { ui::error(hwnd,e); }
+                    try { current->command(command); } catch (const std::exception &e) { ui::error(current->hwnd,e); }
                     consumed=true;
                 }
             }
-            if (!consumed && !IsDialogMessageW(hwnd,&msg)) { TranslateMessage(&msg); DispatchMessageW(&msg); }
+            if (!consumed && !IsDialogMessageW(current->hwnd,&msg)) { TranslateMessage(&msg); DispatchMessageW(&msg); }
         }
-        for (auto &tab:app.tabs) if (tab->process) WaitForSingleObject(tab->process,200);
+        std::vector<App *> all{&app};
+        for (auto &window : detachedWorkspaces) all.push_back(window.get());
+        for (auto window : all) for (auto &tab:window->tabs) if (tab->process) WaitForSingleObject(tab->process,200);
         CloseHandle(app.job);
-        for (auto &tab:app.tabs) if (tab->transient) {
+        for (auto window : all) for (auto &tab:window->tabs) if (tab->transient) {
             wchar_t *path=wsPath(L"sessions",wook::utf8(tab->storageName).c_str()); wsRemove(path); free(path);
         }
         for (auto &[key,font]:ui::fonts) DeleteObject(font);

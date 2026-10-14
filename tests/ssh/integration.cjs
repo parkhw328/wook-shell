@@ -59,7 +59,9 @@ const server = new Server({ hostKeys: [key] }, client => {
     events.authenticated.push(true);
     client.on('session', accept => {
       const session = accept();
-      require('./sftp-fixture.cjs')(session,sftpRoot);
+      // Keep transfers observable across the GUI's 350 ms sampling interval,
+      // even when the loopback server and filesystem complete requests quickly.
+      require('./sftp-fixture.cjs')(session,sftpRoot,{readDelay:100,writeDelay:100});
       session.on('pty', (accept, reject, info) => { events.terminalTypes.push(info.term); accept(); });
       session.on('env', (accept, reject, info) => { events.environment.push(info); if (accept) accept(); });
       session.on('window-change', (accept) => { ++events.resizes; signal('pty-resize'); if (accept) accept(); });

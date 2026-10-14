@@ -83,6 +83,16 @@ int wmain(int argc, wchar_t **argv) {
             check(rejected, "Full queue rejects explicitly");
             for (int i = 0; i < 16; ++i) check(owner.take() != nullptr, "Drain accepted requests");
             check(!owner.take(), "Rejected request not queued");
+            HWND detached=CreateWindowExW(0,L"STATIC",L"detached fixture",0,0,0,0,0,HWND_MESSAGE,nullptr,nullptr,nullptr);
+            check(detached!=nullptr,"Create detached notification window");
+            Process pending;pending.start(exe,L"--activate");pending.wait();
+            owner.retarget(detached);DestroyWindow(window);window=nullptr;
+            MSG notification{};
+            check(PeekMessageW(&notification,detached,wook::launchRelayMessage,wook::launchRelayMessage,PM_REMOVE),"Queued requests follow the surviving window");
+            check(owner.take()!=nullptr,"Pending request survives original window closure");
+            Process afterClose;afterClose.start(exe,L"--activate");afterClose.wait();
+            check(PeekMessageW(&notification,detached,wook::launchRelayMessage,wook::launchRelayMessage,PM_REMOVE)&&owner.take()!=nullptr,"New launches reach the surviving detached window");
+            DestroyWindow(detached);
             auto before = GetTickCount64(); owner.stop();
             check(GetTickCount64() - before < 2000, "Pending accept is cancelled on shutdown");
         }

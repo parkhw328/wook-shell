@@ -36,6 +36,14 @@ static bool wookImeMessage(WinGuiSeat *wgs, UINT message, WPARAM wParam, LPARAM 
     return false;
 }
 static HWND wookParent = NULL;
+static LRESULT wookReparent(HWND hwnd, WPARAM previous, LPARAM next) {
+    DWORD oldPid = 0, newPid = 0;
+    GetWindowThreadProcessId(wookParent, &oldPid);
+    GetWindowThreadProcessId((HWND)next, &newPid);
+    if (wookParent != (HWND)previous || !oldPid || oldPid != newPid || GetParent(hwnd) != (HWND)next) return FALSE;
+    wookParent = (HWND)next;
+    return TRUE;
+}
 static bool wookWindowHasFocus(HWND hwnd) {
     // Hosted terminals are child windows; the foreground HWND is the workspace.
     return wookParent ? GetForegroundWindow() == wookParent && GetFocus() == hwnd :

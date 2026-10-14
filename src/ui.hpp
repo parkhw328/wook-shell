@@ -11,6 +11,11 @@
 
 namespace ui {
 inline UINT dpi = 96;
+struct DpiScope {
+    UINT previous = dpi;
+    explicit DpiScope(HWND window) { if (auto value = GetDpiForWindow(window)) dpi = value; }
+    ~DpiScope() { dpi = previous; }
+};
 inline int px(int value) { return MulDiv(value, (int)dpi, 96); }
 inline constexpr COLORREF bg = RGB(16, 15, 15), panel = RGB(28, 27, 26), raised = RGB(40, 39, 38);
 inline constexpr COLORREF line = RGB(52, 51, 49), text = RGB(206, 205, 195), muted = RGB(135, 133, 128);
