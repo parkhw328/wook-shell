@@ -1,0 +1,43 @@
+{
+  "version": "1.1.0",
+  "createdBy": "Hyunwook Park",
+  "artifacts": [
+    {
+      "platform": "windows-x64",
+      "file": "windows-x64/wShell.exe",
+      "bytes": 3575296,
+      "sha256": "77eeae7fe03d135aef53ab945b530905cd9dc1cf102808b523c697be7b5eaca7"
+    },
+    {
+      "platform": "windows-x64",
+      "file": "windows-x64/wshell-1.1.0-windows-x64.zip",
+      "bytes": 1621811,
+      "sha256": "64d42b2519d5fa4344462533f62668eb71152e7359beb428aaa264dde31f5495"
+    }
+  ],
+  "sourceCommit": "1c3a3bc655b76037a0ab1b6089a0847e2443bfb6",
+  "sourceDirty": false,
+  "buildHost": "windows",
+  "validation": {
+    "staticPackage": "passed",
+    "coreTests": {
+      "status": "passed",
+      "count": 4
+    },
+    "dragIntegration": {
+      "status": "passed",
+      "checks": 32
+    },
+    "sftpIntegration": "passed",
+    "pythonTests": {
+      "passed": 12,
+      "skipped": 1
+    },
+    "windowsRuntime": "partial",
+    "fullUiRegression": "incomplete: phase 34 native mouse target obscured by another application",
+    "explorerMouseDrop": "not-run",
+    "crossWindowDropHitTesting": "not-run",
+    "mixedMonitorDpi": "not-run",
+    "ngs": "not-run"
+  }
+}
