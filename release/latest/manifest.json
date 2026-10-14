@@ -1,21 +1,21 @@
 {
-  "version": "1.1.0",
+  "version": "1.1.1",
   "createdBy": "Hyunwook Park",
   "artifacts": [
     {
       "platform": "windows-x64",
       "file": "windows-x64/wShell.exe",
-      "bytes": 3575296,
-      "sha256": "77eeae7fe03d135aef53ab945b530905cd9dc1cf102808b523c697be7b5eaca7"
+      "bytes": 3576320,
+      "sha256": "be7444359e89b9380cfb7a9176de7505a0b446a5cd50a570da2c920e0fbaf041"
     },
     {
       "platform": "windows-x64",
       "file": "windows-x64/wshell-windows-x64.zip",
-      "bytes": 1621811,
-      "sha256": "64d42b2519d5fa4344462533f62668eb71152e7359beb428aaa264dde31f5495"
+      "bytes": 1622253,
+      "sha256": "8bd74ec999cf5edb2986989f2d73192fb721418fd757e191c0842110f00b230a"
     }
   ],
-  "sourceCommit": "1c3a3bc655b76037a0ab1b6089a0847e2443bfb6",
+  "sourceCommit": "0d9d126442c9a10fba60113619ac85812ce7a22a",
   "sourceDirty": false,
   "buildHost": "windows",
   "validation": {
@@ -26,7 +26,7 @@
     },
     "dragIntegration": {
       "status": "passed",
-      "checks": 32
+      "checks": 47
     },
     "sftpIntegration": "passed",
     "pythonTests": {
@@ -34,7 +34,7 @@
       "skipped": 1
     },
     "windowsRuntime": "partial",
-    "fullUiRegression": "incomplete: phase 34 native mouse target obscured by another application",
+    "fullUiRegression": "not-run for 1.1.1; 1.1.0 incomplete due to native mouse target obscured by another application",
     "explorerMouseDrop": "not-run",
     "crossWindowDropHitTesting": "not-run",
     "mixedMonitorDpi": "not-run",
