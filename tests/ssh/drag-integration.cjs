@@ -8,6 +8,7 @@ const root=path.resolve(__dirname,'../..'),artifact=path.join(root,'build','drag
 const local=path.join(artifact,'local'),remote=path.join(artifact,'remote'),download=path.join(artifact,'download');
 for(const dir of [local,remote,download])fs.mkdirSync(dir,{recursive:true});
 fs.mkdirSync(path.join(remote,'projects'));
+for(const dir of [remote,download])fs.writeFileSync(path.join(dir,'delete-me.txt'),'delete shortcut fixture');
 const payload=crypto.randomBytes(1200003);fs.writeFileSync(path.join(local,'upload-한글.bin'),payload);
 const key=crypto.generateKeyPairSync('rsa',{modulusLength:2048}).privateKey.export({type:'pkcs1',format:'pem'});
 const pin='SHA256:'+crypto.createHash('sha256').update(utils.parseKey(key).getPublicSSH()).digest('base64').replace(/=+$/,'');
@@ -26,5 +27,6 @@ const clients=new Set();const server=new Server({hostKeys:[key]},client=>{
   for(const file of [path.join(remote,'upload-한글.bin'),path.join(remote,'export.bin'),path.join(download,'export.bin'),path.join(download,'upload-한글.bin')])
     assert.deepEqual(fs.readFileSync(file),payload,'upload and both download paths preserve exact bytes');
   assert.equal(fs.existsSync(path.join(download,'projects')),false);
+  for(const dir of [remote,download])assert.equal(fs.existsSync(path.join(dir,'delete-me.txt')),false);
   console.log('PASS: live session detach/reattach, SFTP drops, virtual-file stream, Unicode, folder alert and byte equality');
 })().catch(e=>{console.error(e);process.exitCode=1;}).finally(()=>{for(const c of clients)c.end();server.close();});

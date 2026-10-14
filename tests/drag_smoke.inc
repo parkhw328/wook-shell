@@ -93,6 +93,39 @@ void runDragSmoke(App &app) {
             fileDrag::probe=[&](IDataObject *data)->HRESULT {require(SendMessageW(view,WM_APP+123,1,(LPARAM)data)!=0,"Local-to-remote pane drop must start upload");return DRAGDROP_S_DROP;};
             SendMessageW(view,WM_APP+124,0,0);fileDrag::probe={};phase=6;
         } else if(phase==6&&ready()){
+            static int deletePane=0;
+            if(deletePane<2){
+                int listId=deletePane==0?11:15;
+                auto fixture=(deletePane==0?output:std::filesystem::path(app.directory)/L"remote")/L"delete-me.txt";
+                selectFile(listId,L"delete-me.txt");
+                auto confirm=[&](UINT key){
+                    static UINT answer;static bool seen,defaultNo;answer=key;seen=false;defaultNo=false;
+                    SetPropW(app.hwnd,L"wShell.DragActive",(HANDLE)1);
+                    auto timer=SetTimer(nullptr,0,80,[](HWND,UINT,UINT_PTR,DWORD){
+                        EnumThreadWindows(GetCurrentThreadId(),[](HWND window,LPARAM)->BOOL {
+                            wchar_t title[128]{};GetWindowTextW(window,title,128);
+                            if(!seen&&std::wstring(title)==L"Delete selected items"){
+                                seen=true;defaultNo=GetFocus()==GetDlgItem(window,IDNO);
+                                // A held Y must not approve deletion; the fresh answer follows it.
+                                PostMessageW(window,WM_KEYDOWN,'Y',1LL<<30);
+                                PostMessageW(window,WM_KEYDOWN,answer,1);
+                            }return TRUE;
+                        },0);
+                    });
+                    auto list=GetDlgItem(view,listId);SetFocus(list);
+                    NMLVKEYDOWN keydown{};keydown.hdr={list,(UINT_PTR)listId,LVN_KEYDOWN};keydown.wVKey=VK_DELETE;
+                    SendMessageW(view,WM_NOTIFY,listId,(LPARAM)&keydown);
+                    KillTimer(nullptr,timer);RemovePropW(app.hwnd,L"wShell.DragActive");
+                    require(seen&&defaultNo,"Delete must open a confirmation with No focused");
+                };
+                for(UINT key:{UINT('N'),UINT(VK_ESCAPE),UINT(VK_RETURN)}){
+                    confirm(key);require(std::filesystem::exists(fixture)&&ready(),"N, Escape and default Enter must preserve the selected file");
+                }
+                confirm('Y');++deletePane;return;
+            }
+            require(!std::filesystem::exists(output/L"delete-me.txt")&&
+                !std::filesystem::exists(std::filesystem::path(app.directory)/L"remote"/L"delete-me.txt"),
+                "Y must delete both local and remote selected files");
             selectFile(15,L"export.bin");
             fileDrag::probe=[&](IDataObject *)->HRESULT {return DRAGDROP_S_CANCEL;};
             SendMessageW(view,WM_APP+124,1,0);fileDrag::probe={};

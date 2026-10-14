@@ -18,7 +18,7 @@ struct Message {
     MSGBOXPARAMSW params{};
     UINT dpi = 96;
     int result = 0, defaultId = IDOK, cancelId = IDCANCEL;
-    bool done = false, about = false, hostKey = false;
+    bool done = false, about = false, hostKey = false, yesNoShortcuts = false;
     int wheel = 0, dragY = 0, dragTop = 0;
     bool dragging = false;
 };
@@ -237,6 +237,11 @@ int show(HWND owner, Message &p) {
         int next = GetMessageW(&msg, nullptr, 0, 0);
         if (next <= 0) { quit = next == 0; break; }
         bool ours = msg.hwnd == dialog || IsChild(dialog, msg.hwnd);
+        if (ours && p.yesNoShortcuts && msg.message == WM_KEYDOWN &&
+            (msg.wParam == 'Y' || msg.wParam == 'N') && !(msg.lParam & (1LL << 30)) &&
+            !(GetKeyState(VK_CONTROL) & 0x8000) && !(GetKeyState(VK_MENU) & 0x8000)) {
+            SendMessageW(dialog, WM_COMMAND, msg.wParam == 'Y' ? IDYES : IDNO, 0); continue;
+        }
         if (ours && msg.message == WM_KEYDOWN && msg.wParam == VK_ESCAPE) {
             SendMessageW(dialog, WM_CLOSE, 0, 0); continue;
         }
@@ -282,6 +287,14 @@ extern "C" int wsMessageBoxIndirectW(const MSGBOXPARAMSW *params) {
         return show(params->hwndOwner, p);
     } catch (...) { return MessageBoxIndirectW(params); }
 }
+extern "C" int wsSftpDeleteDialog(HWND owner, LPCWSTR text) {
+    try {
+        Message p; p.title = L"Delete selected items"; p.text = text;
+        p.params.dwStyle = MB_ICONWARNING; p.yesNoShortcuts = true;
+        p.choices = {{IDYES,L"Yes (Y)"},{IDNO,L"No (N)"}};
+        p.defaultId = p.cancelId = IDNO; return show(owner, p);
+    } catch (...) { return IDNO; }
+}
 extern "C" int wsMessageBoxW(HWND owner, LPCWSTR text, LPCWSTR title, UINT flags) {
     MSGBOXPARAMSW params{sizeof(params)}; params.hwndOwner = owner; params.lpszText = text;
     params.lpszCaption = title; params.dwStyle = flags; return wsMessageBoxIndirectW(&params);
@@ -310,7 +323,7 @@ extern "C" void wsShowShortcuts(HWND owner) {
     wsMessageBoxW(owner, L"Ctrl+Shift+T  New connection\r\nCtrl+Shift+D  Duplicate tab\r\nCtrl+Tab  Next tab\r\nCtrl+Shift+W  Close tab\r\n"
         L"Ctrl+Shift+H  Show / hide hosts\r\nCtrl+Shift+P  Search connections\r\nCtrl+Shift+C / V  Copy / paste\r\n"
         L"Alt+1…9  Switch tabs\r\nF11  Full screen\r\n\r\n"
-        L"SFTP file lists\r\nF2  Rename selected item\r\nDelete  Delete selected items (confirm first)\r\nF5  Refresh both lists",
+        L"SFTP file lists\r\nF2  Rename selected item\r\nDelete  Delete selected items (confirm first)\r\nY / N  Confirm / cancel deletion\r\nEsc  Cancel deletion\r\nF5  Refresh both lists",
         L"Keyboard shortcuts", MB_OK | MB_ICONINFORMATION);
 }
 extern "C" void wsInitializeMessageDialogs(void) { wshellMessageBoxIndirect = wsMessageBoxIndirectW; }

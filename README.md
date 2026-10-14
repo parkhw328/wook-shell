@@ -50,22 +50,22 @@ iPad용 네이티브 SSH·SFTP 앱은 별도로 준비 중입니다. 무료 Appl
 
 ### 최신 버전 다운로드
 
-Windows 1.1.0은 공개 배포 버전입니다. SignPath 신청은 제출했으며, 현재 EXE는 **미서명**입니다. 문제와 개선 요청은 [GitHub Issues](https://github.com/parkhw328/wook-shell/issues)에 남겨주세요.
+Windows 1.1.1은 공개 배포 버전입니다. SignPath 신청은 제출했으며, 현재 EXE는 **미서명**입니다. 문제와 개선 요청은 [GitHub Issues](https://github.com/parkhw328/wook-shell/issues)에 남겨주세요.
 
 **블로그용 최신 버전 고정 링크:** [Windows EXE 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wShell.exe) · [Windows ZIP 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wshell-windows-x64.zip). 새 버전을 배포해도 주소는 바뀌지 않습니다. 현재 연결되는 버전과 SHA-256은 [최신 manifest](release/latest/manifest.json)에서 확인할 수 있습니다.
 
-1.1.0에서는 연결을 유지하는 탭 분리·다시 합치기와 SFTP 파일 드래그앤드롭을 추가했습니다. 폴더가 포함된 드래그는 안내 후 전송하지 않습니다. Windows 로컬 빌드와 기능별 자동 검증을 수행했으며, 전체 UI 회귀 검사는 다른 앱의 화면 가림으로 일부 미완료입니다. 실제 탐색기 드롭·다중 모니터 배율·NGS는 수동 확인이 필요합니다. [변경 내역](docs/releases/1.1.0.md)을 확인하세요.
+1.1.1에서는 SFTP 삭제 확인창에 `Y` 승인과 `N`/`Esc` 취소 단축키를 추가했습니다. 기본 선택은 No입니다. 1.1.0의 탭 분리와 파일 드래그앤드롭도 포함합니다. Windows 로컬 빌드와 기능별 자동 검증을 수행했으며, 전체 UI 회귀 및 실제 탐색기 드롭·다중 모니터 배율·NGS 검증에는 제한이 있습니다. [변경 내역](docs/releases/1.1.1.md)을 확인하세요.
 
 | 플랫폼 | 최신 배포 버전 | 다운로드 |
 | --- | --- | --- |
-| Windows x64 | 1.1.0 | [EXE 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/1.1.0/windows-x64/wShell.exe) · [ZIP 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/1.1.0/windows-x64/wshell-1.1.0-windows-x64.zip) |
+| Windows x64 | 1.1.1 | [EXE 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/1.1.1/windows-x64/wShell.exe) · [ZIP 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/1.1.1/windows-x64/wshell-1.1.1-windows-x64.zip) |
 | macOS Universal (Apple Silicon·Intel) | 0.11.0 | [ZIP 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/0.11.0/macos-universal/wshell-0.11.0-macos-universal.zip) |
 
-배포 파일은 루트 [`release/`](release/README.md)에 보관합니다. macOS는 현재 제공 가능한 최신 기존 빌드이며, Windows의 새 `>_` 아이콘과 이후 기능 변경은 포함하지 않습니다. iPad 배포는 잠정 보류합니다. Windows 검증 결과와 제한 사항은 [1.1.0 릴리스 노트](docs/releases/1.1.0.md)를 확인하세요.
+배포 파일은 루트 [`release/`](release/README.md)에 보관합니다. macOS는 현재 제공 가능한 최신 기존 빌드이며, Windows의 새 `>_` 아이콘과 이후 기능 변경은 포함하지 않습니다. iPad 배포는 잠정 보류합니다. Windows 검증 결과와 제한 사항은 [1.1.1 릴리스 노트](docs/releases/1.1.1.md)를 확인하세요.
 
 ### Windows
 
-1. **[`wShell.exe`](release/1.1.0/windows-x64/wShell.exe) 하나**를 원하는 폴더에 복사합니다. [`wshell-1.1.0-windows-x64.zip`](release/1.1.0/windows-x64/wshell-1.1.0-windows-x64.zip)에도 이 파일만 들어 있습니다. GitHub 파일 화면의 **Download raw file**로 받습니다. 업데이트할 때는 기존 wShell 창을 모두 종료한 뒤 새 EXE를 실행하세요. 기존 창이 남아 있으면 추가 실행이 그 창으로 전달되어 이전 엔진을 계속 사용할 수 있습니다.
+1. **[`wShell.exe`](release/1.1.1/windows-x64/wShell.exe) 하나**를 원하는 폴더에 복사합니다. [`wshell-1.1.1-windows-x64.zip`](release/1.1.1/windows-x64/wshell-1.1.1-windows-x64.zip)에도 이 파일만 들어 있습니다. GitHub 파일 화면의 **Download raw file**로 받습니다. 업데이트할 때는 기존 wShell 창을 모두 종료한 뒤 새 EXE를 실행하세요. 기존 창이 남아 있으면 추가 실행이 그 창으로 전달되어 이전 엔진을 계속 사용할 수 있습니다.
 2. 실행합니다. 설치, 관리자 권한, WebView2, .NET, Node.js가 필요하지 않습니다.
 3. `New host`에서 접속 정보를 저장하거나, 빠른 연결 칸에 `user@hostname:22`를 입력합니다.
 4. 처음 접속하는 SSH 서버의 키 지문을 확인한 뒤 신뢰 여부를 선택합니다.
@@ -85,18 +85,18 @@ macOS의 `.app`은 Finder에서 하나의 앱으로 이동하는 번들이며, �
 
 ### 버전별 배포
 
-루트 `VERSION`에서 앱·패키지 버전을 관리합니다. **현재 Windows 배포는 1.1.0**입니다. Windows에서 로컬 빌드·핵심 테스트·드래그 및 SFTP 통합 검증을 수행했으며 미완료 검증 범위는 [릴리스 노트](docs/releases/1.1.0.md)에 기록합니다. **NGS 환경 수동 검증은 미실행**입니다. 실행파일·ZIP·SHA-256·manifest를 Git의 `release`에 버전별로 보관하며 [전체 다운로드 목록](release/README.md)에서 이전 버전도 받을 수 있습니다. 새 배포 manifest에는 빌드 소스 커밋을 기록하며, CI에서 빌드한 경우에만 실행 링크를 추가합니다. 기존 0.13.0은 CI 검증 완료본이고 이후 배포는 로컬 빌드·검증을 기본으로 합니다. macOS는 기존 0.11.0, iPad는 기존 unsigned 0.1.0 산출물을 보관하며 새로 빌드하지 않습니다. [1.1.0 변경 내역](docs/releases/1.1.0.md)
+루트 `VERSION`에서 앱·패키지 버전을 관리합니다. **현재 Windows 배포는 1.1.1**입니다. Windows에서 로컬 빌드·핵심 테스트·드래그 및 SFTP 통합 검증을 수행했으며 미완료 검증 범위는 [릴리스 노트](docs/releases/1.1.1.md)에 기록합니다. **NGS 환경 수동 검증은 미실행**입니다. 실행파일·ZIP·SHA-256·manifest를 Git의 `release`에 버전별로 보관하며 [전체 다운로드 목록](release/README.md)에서 이전 버전도 받을 수 있습니다. 새 배포 manifest에는 빌드 소스 커밋을 기록하며, CI에서 빌드한 경우에만 실행 링크를 추가합니다. 기존 0.13.0은 CI 검증 완료본이고 이후 배포는 로컬 빌드·검증을 기본으로 합니다. macOS는 기존 0.11.0, iPad는 기존 unsigned 0.1.0 산출물을 보관하며 새로 빌드하지 않습니다. [1.1.1 변경 내역](docs/releases/1.1.1.md)
 
 ```text
 release/
   README.md
-  1.1.0/
+  1.1.1/
     manifest.json
     windows-x64/
       wShell.exe
       wShell.exe.sha256
-      wshell-1.1.0-windows-x64.zip
-      wshell-1.1.0-windows-x64.zip.sha256
+      wshell-1.1.1-windows-x64.zip
+      wshell-1.1.1-windows-x64.zip.sha256
   0.11.0/
     macos-universal/
       wshell-0.11.0-macos-universal.zip
@@ -275,6 +275,7 @@ RSA 생성은 Windows CNG, Ed25519와 키 형식 처리는 PuTTY 라이브러리
 | `F11` | 전체 화면 |
 | `F2` (Windows SFTP 목록) | 선택한 파일·폴더 이름 변경 |
 | `Delete` (Windows SFTP 목록) | 선택 항목 삭제, 확인창 표시 |
+| `Y` / `N` / `Esc` (SFTP 삭제 확인창) | 삭제 승인 / 취소 / 취소, 기본 선택은 No |
 | `F5` (Windows SFTP 목록) | 로컬·원격 목록 새로고침 |
 
 Windows 1.0.9부터 SFTP 파일 목록에 포커스가 있을 때 위 단축키를 사용할 수 있습니다. 연결·전송 작업 중에는 차단되며, 경로 입력칸에서는 기존 텍스트 편집 동작을 유지합니다. [SFTP 단축키 안내](docs/sftp.md#단축키-windows)

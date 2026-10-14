@@ -341,7 +341,7 @@ void Browser::action(int id) {
         if(!wsftp_local_name(text))throw std::runtime_error("Enter a single portable filename, without path separators or reserved characters.");name=wook::wide(text);
     } else {
         auto question=L"Permanently delete "+std::to_wstring(entries.size())+L" selected item(s) from the "+(remoteSide?L"remote":L"local")+L" pane?\n\nOnly files, links and empty folders are removed. This does not use the Recycle Bin.";
-        if(wsMessageBoxW(owner,question.c_str(),L"Delete selected items",MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2)!=IDYES)return;
+        if(wsSftpDeleteDialog(owner,question.c_str())!=IDYES)return;
     }
     auto localPath=local, remotePath=remote;
     start([this,id,entries,name,remoteSide,localPath,remotePath](Result&r){
