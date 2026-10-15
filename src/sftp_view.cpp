@@ -19,6 +19,22 @@ struct WindowsNameLess {
 };
 constexpr UINT finished = WM_APP + 120;
 enum { Upload = 1, Download, NewFolder, Rename, Delete, Refresh, Cancel, LocalUp, LocalGo, LocalPath, LocalList, RemoteUp, RemoteGo, RemotePath, RemoteList, ShowHidden };
+// Each path edit owns its Enter action; dialog default buttons must not choose
+// the other pane. Dispatch through the same command/availability as a Go click.
+LRESULT CALLBACK pathProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,UINT_PTR id,DWORD_PTR command) {
+    if(msg==WM_NCDESTROY){RemoveWindowSubclass(hwnd,pathProc,id);return DefSubclassProc(hwnd,msg,wp,lp);}
+    if(msg==WM_GETDLGCODE && wp==VK_RETURN)
+        return DefSubclassProc(hwnd,msg,wp,lp)|DLGC_WANTMESSAGE;
+    if(msg==WM_KEYDOWN && wp==VK_RETURN) {
+        auto parent=GetParent(hwnd), button=GetDlgItem(parent,(int)command);
+        if(GetFocus()==hwnd && IsWindowEnabled(hwnd) && IsWindowEnabled(button) && !(lp&(1LL<<30)) &&
+           !(GetKeyState(VK_CONTROL)&0x8000) && !(GetKeyState(VK_SHIFT)&0x8000) && !(GetKeyState(VK_MENU)&0x8000))
+            SendMessageW(parent,WM_COMMAND,MAKEWPARAM(command,BN_CLICKED),(LPARAM)button);
+        return 0;
+    }
+    if(msg==WM_CHAR && wp==L'\r')return 0;
+    return DefSubclassProc(hwnd,msg,wp,lp);
+}
 LRESULT CALLBACK headerProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,UINT_PTR id,DWORD_PTR) {
     if(msg==WM_NCDESTROY){RemoveWindowSubclass(hwnd,headerProc,id);return DefSubclassProc(hwnd,msg,wp,lp);}
     if(msg==WM_ERASEBKGND)return 1;
@@ -397,6 +413,7 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
                 int base=side?RemoteUp:LocalUp;
                 b->controls[base]=ui::button(hwnd,L"↑",base);b->controls[base+1]=ui::button(hwnd,L"Go",base+1);
                 b->controls[base+2]=ui::edit(hwnd,L"Folder path",base+2);SendMessageW(b->controls[base+2],EM_SETLIMITTEXT,32768,0);
+                SetWindowSubclass(b->controls[base+2],pathProc,1,base+1);
                 auto list=b->controls[base+3]=ui::control(hwnd,WC_LISTVIEWW,L"",base+3,LVS_REPORT|LVS_SHOWSELALWAYS|WS_TABSTOP);
                 ListView_SetExtendedListViewStyle(list,LVS_EX_FULLROWSELECT|LVS_EX_DOUBLEBUFFER);
                 ListView_SetBkColor(list,ui::bg);ListView_SetTextBkColor(list,ui::bg);ListView_SetTextColor(list,ui::text);

@@ -30,11 +30,11 @@ Windows는 설치 없이 `wShell.exe` 하나로 실행합니다. Flexoki Dark �
 
 | 플랫폼 | 배포 버전 | 다운로드 및 상태 |
 | --- | --- | --- |
-| Windows x64 | 1.2.1 | [EXE](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wShell.exe) · [ZIP](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wshell-windows-x64.zip) · Linux 교차 빌드 · Windows 실행 미검증 |
+| Windows x64 | 1.2.2 | [EXE](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wShell.exe) · [ZIP](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wshell-windows-x64.zip) · Linux 교차 빌드 · Windows 실행 미검증 |
 | macOS Universal | 0.11.0 | [ZIP](release/0.11.0/macos-universal/wshell-0.11.0-macos-universal.zip) · 기존 배포 유지, 새 빌드 중단 |
 | iPad | 미리보기 보류 | [기존 테스트 파일 및 안내](tests/ipad/README.md) |
 
-Windows 고정 다운로드 주소는 새 배포에도 유지됩니다. 버전·SHA-256은 [최신 manifest](release/latest/manifest.json), 변경 내역과 검증 한계는 [1.2.1 릴리스 노트](docs/releases/1.2.1.md)에서 확인할 수 있습니다.
+Windows 고정 다운로드 주소는 새 배포에도 유지됩니다. 버전·SHA-256은 [최신 manifest](release/latest/manifest.json), 변경 내역과 검증 한계는 [1.2.2 릴리스 노트](docs/releases/1.2.2.md)에서 확인할 수 있습니다.
 
 ### Windows
 
@@ -88,7 +88,7 @@ macOS 13 이상에서 ZIP을 풀고 `wShell.app`을 실행합니다. Apple Silic
 
 ## 지원 플랫폼
 
-| 항목 | Windows 1.2.1 | macOS 0.11.0 |
+| 항목 | Windows 1.2.2 | macOS 0.11.0 |
 | --- | --- | --- |
 | SSH·탭·SFTP·분할·공통 입력 | 지원 | 지원 |
 | 로컬 셸 | CMD / PowerShell | 시스템 로그인 셸 |

@@ -12,6 +12,8 @@ const remote = path.join(artifact, 'remote');
 fs.mkdirSync(remote, { recursive: true });
 for (const name of ['denied-open.bin', 'denied-read.bin']) fs.writeFileSync(path.join(remote, name), Buffer.alloc(65536, 42));
 for (const name of ['allowed.txt', 'after-reconnect.txt']) fs.writeFileSync(path.join(remote, name), 'Permission recovery · 한글\n');
+fs.mkdirSync(path.join(remote, 'remote-folder'));
+fs.writeFileSync(path.join(remote, 'remote-folder', 'remote-marker.txt'), 'remote');
 const executable = path.join(artifact, 'wShell.exe');
 fs.copyFileSync(path.join(root, 'build/native/ui-smoke-tests.exe'), executable);
 const hostKey = utils.generateKeyPairSync('ed25519').private;

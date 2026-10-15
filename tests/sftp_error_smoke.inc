@@ -1,3 +1,48 @@
+// Exercise Enter through the workspace dialog routing, not a Go command.
+template<typename Check> bool testSftpPathEnter(App &app, HWND view, Check require) {
+    static int step=0;
+    auto directory=std::filesystem::path(app.directory)/L"downloads";
+    auto local=GetDlgItem(view,10), remote=GetDlgItem(view,14);
+    auto enter=[&](HWND edit, bool repeat=false) {
+        if(IsWindowEnabled(edit))SetFocus(edit);
+        MSG message{};message.hwnd=edit;message.message=WM_KEYDOWN;message.wParam=VK_RETURN;
+        message.lParam=1|(repeat?(1LL<<30):0);
+        require(SendMessageW(edit,WM_GETDLGCODE,VK_RETURN,(LPARAM)&message)&DLGC_WANTMESSAGE,
+                "Path edit must claim Enter from dialog navigation");
+        if(!IsDialogMessageW(app.hwnd,&message))DispatchMessageW(&message);
+        SendMessageW(edit,WM_CHAR,L'\r',1);
+    };
+    if(step==0) {
+        auto nested=directory/L"로컬 폴더";std::filesystem::create_directory(nested);
+        {std::ofstream file(nested/L"local-marker.txt");file<<"local";}
+        SetWindowTextW(remote,L"/not-submitted");SetWindowTextW(local,nested.c_str());
+        enter(local);
+        require(ListView_GetItemCount(GetDlgItem(view,11))==1 && ui::value(remote)==L"/not-submitted",
+                "Local Enter must navigate only the left pane");
+        require(GetFocus()==local,"Local Enter must preserve path focus");
+        SetWindowTextW(local,directory.c_str());enter(local,true);
+        require(ListView_GetItemCount(GetDlgItem(view,11))==1,"Held Enter must not repeatedly navigate");
+        SetWindowTextW(local,nested.c_str());SetWindowTextW(remote,L"/remote-folder");enter(remote);
+        require(SendMessageW(view,WM_APP+121,0,0)==0,"Remote Enter must start remote navigation");
+        SetWindowTextW(local,directory.c_str());enter(local);
+        require(ListView_GetItemCount(GetDlgItem(view,11))==1,"Busy Enter must not navigate the local pane");
+        SetWindowTextW(local,nested.c_str());++step;return false;
+    }
+    if(step==1) {
+        require(ui::value(remote)==L"/remote-folder" && ListView_GetItemCount(GetDlgItem(view,15))==1,
+                "Remote Enter must display the requested remote folder");
+        require(ListView_GetItemCount(GetDlgItem(view,11))==1,"Remote Enter must preserve the local listing");
+        SetWindowTextW(remote,L"/");enter(remote);++step;return false;
+    }
+    require(ui::value(remote)==L"/","Remote Enter must return to root");
+    SetWindowTextW(local,directory.c_str());enter(local);
+    require(ListView_GetItemCount(GetDlgItem(view,11))==1,"Local Enter must return to downloads");
+    std::filesystem::remove_all(directory/L"로컬 폴더");
+    // Refresh the local list after removing our isolated fixture.
+    enter(local);require(ListView_GetItemCount(GetDlgItem(view,11))==0,"Local Enter must refresh the listing");
+    return true;
+}
+
 // Independent loopback server rejects OPEN and READ with SSH_FX_PERMISSION_DENIED.
 // Timer-driven UI checks must complete without blocking or reopening the tab.
 template<typename Check> bool testSftpErrors(App &app, Check require) {
@@ -40,6 +85,7 @@ template<typename Check> bool testSftpErrors(App &app, Check require) {
     };
     if (step == 1) {
         require(state == 1, "SFTP fixture must connect"); originalView = view;
+        if(!testSftpPathEnter(app,view,require))return false;
         SetWindowTextW(GetDlgItem(view, 10), directory.c_str()); SendMessageW(view, WM_COMMAND, 9, 0);
         download(L"denied-open.bin"); ++step;
     } else if (step == 2) {
