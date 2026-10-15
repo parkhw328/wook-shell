@@ -84,6 +84,7 @@ const server = new Server({ hostKeys: [key] }, client => {
     const timeout = setTimeout(() => child.kill(), 60000);
     const code = await new Promise((resolve, reject) => { child.on('error', reject); child.on('close', resolve); }).finally(() => clearTimeout(timeout));
     const result = JSON.parse(fs.readFileSync(path.join(artifact, 'ui-smoke-result.json'), 'utf8'));
+    fs.writeFileSync(path.join(artifact, 'scroll-input.json'), JSON.stringify(allInput));
     console.log(JSON.stringify({ artifact, followOutput, blockMouse, noMouse, code, ...result }, null, 2));
     assert.equal(code, 0, 'Scroll test process must exit successfully');
     assert.equal(result.passed, true, JSON.stringify(result));

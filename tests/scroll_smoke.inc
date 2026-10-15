@@ -2,6 +2,7 @@
 // Wheel messages exercise the engine, not native OS pointer routing.
 template<typename Check> bool testTerminalScroll(App &app, Check require) {
     static int step = 0, waits = 0, heldPosition = 0, previousBottom = 0;
+    static RECT firstCell{};
     static const bool followOutput = GetEnvironmentVariableW(L"WOOK_TEST_FOLLOW_OUTPUT", nullptr, 0) != 0;
     static const bool localWheel = GetEnvironmentVariableW(L"WOOK_TEST_LOCAL_WHEEL", nullptr, 0) != 0;
     static const bool blockMouse = GetEnvironmentVariableW(L"WOOK_TEST_BLOCK_MOUSE", nullptr, 0) != 0;
@@ -51,6 +52,14 @@ template<typename Check> bool testTerminalScroll(App &app, Check require) {
         app.focusActive();
         require(testDarkScrollbars(terminal(), require) == 1, "Embedded terminal must use a dark native scrollbar");
         auto info = scroll(); previousBottom = bottom(info);
+        GUITHREADINFO thread{sizeof(thread)};
+        require(GetGUIThreadInfo(GetWindowThreadProcessId(terminal(), nullptr), &thread), "Find terminal character-cell geometry");
+        require(thread.hwndCaret == terminal(), "Character-cell geometry must belong to the test terminal");
+        firstCell = thread.rcCaret;
+        require(firstCell.right > firstCell.left && firstCell.bottom > firstCell.top, "Terminal must expose valid character-cell geometry");
+        // Initial output ends at column one of the last row. Capture the grid
+        // origin now: an unfocused terminal may keep a stale OS caret later.
+        OffsetRect(&firstCell, 0, -(int)(info.nPage - 1) * (firstCell.bottom - firstCell.top));
         captureTestWindow(app.hwnd, L"ui-scroll-initial.bmp");
         SendMessageW(terminal(), WM_SYSCOMMAND, 0x0010, 0); // Actual engine Event Log.
         struct LogSearch { DWORD pid; HWND dialog{}; } search{app.tabs[0]->pid};
@@ -131,10 +140,8 @@ template<typename Check> bool testTerminalScroll(App &app, Check require) {
     } else if (step == 17 && std::filesystem::exists(file(L"scroll-app-up.ready")) && waits > 3) {
         require(scroll().nPos == bottom(scroll()), "Application wheel must not move terminal scrollback");
         captureTestWindow(app.hwnd, L"ui-scroll-app-history.bmp");
-        GUITHREADINFO thread{sizeof(thread)};
-        require(GetGUIThreadInfo(GetWindowThreadProcessId(terminal(), nullptr), &thread), "Find application button cell geometry");
-        auto cell=thread.rcCaret;
-        auto point=MAKELPARAM(cell.left+(cell.right-cell.left)*4,cell.top+(cell.bottom-cell.top)/2);
+        auto cell=firstCell;
+        auto point=MAKELPARAM(cell.left+(cell.right-cell.left)*4+(cell.right-cell.left)/2,cell.top+(cell.bottom-cell.top)/2);
         SendMessageW(terminal(),WM_LBUTTONDOWN,MK_LBUTTON,point);
         SendMessageW(terminal(),WM_LBUTTONUP,0,point);
         step=22; waits=0;

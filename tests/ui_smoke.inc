@@ -129,6 +129,7 @@ void runUiSmoke(App &app) {
         } else if (phase == 59) {
             if (testHostKeyMessages(app, require)) { phase = 37; waits = 0; }
         } else if (phase == 57) {
+            waits = 0; // The scroll fixture owns a timeout for each SSH transition.
             if (testTerminalScroll(app, require)) { phase = 37; waits = 0; }
         } else if (phase == 56) {
             if (testTerminalMouse(app, require)) { phase = 37; waits = 0; }
