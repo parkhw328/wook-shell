@@ -209,7 +209,7 @@ RSA 생성은 Windows CNG, Ed25519와 키 형식 처리는 PuTTY 라이브러리
 
 `Settings → Selection & clipboard → Prefer mouse copy and paste`에서 현재 연결의 동작을 바꾸고 **Apply changes**로 즉시 적용할 수 있습니다. 다음 연결에도 유지하려면 해당 호스트의 **Host settings**에서 같은 항목을 저장하세요.
 
-- **켜짐 (기본):** 드래그·우클릭은 시스템 클립보드를 사용하고, 휠은 터미널 기록을 스크롤합니다. 원격 앱의 마우스 클릭·드래그·휠 조작은 전달하지 않습니다.
+- **켜짐 (기본):** 드래그·우클릭은 시스템 클립보드를 사용하고, 일반 화면의 휠은 터미널 기록을 스크롤합니다. 개발 빌드에서는 Codex 같은 전체 화면 앱이 대체 화면에서 마우스 보고를 요청하면 최신 화면의 휠을 앱에 전달해 이전 대화를 탐색합니다. `Shift+휠`은 터미널 기록을 스크롤하며, 기록을 보는 동안에도 휠은 로컬 스크롤을 유지합니다. 클릭·드래그·포인터 이동은 앱에 전달하지 않고, 명시적인 `Disable xterm-style mouse reporting` 설정은 계속 존중합니다.
 - **꺼짐:** 원격 앱의 마우스 기능을 허용하고 기존 선택·버튼·클립보드 설정을 따릅니다. 앱이 마우스를 사용하는 동안에는 `Shift+드래그`·`Shift+우클릭`으로 복사·붙여넣기를 할 수 있습니다. `Shift overrides application's use of mouse`가 켜져 있어야 하며, 별도의 `Terminal → Features → Disable xterm-style mouse reporting`이 켜져 있으면 앱 마우스 입력은 계속 차단됩니다. [PuTTY 마우스 설정 설명](https://the.earth.li/~sgtatham/putty/0.85/htmldoc/Chapter4.html#config-mouseoverride)
 
 `Ctrl+Shift+V`로 붙여넣기도 가능합니다. 단일 터미널과 분할 터미널에 같은 설정을 적용합니다. [설정 화면](../assets/screenshots/mouse-settings.png)

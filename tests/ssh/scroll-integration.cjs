@@ -7,6 +7,8 @@ const { spawn } = require('node:child_process');
 const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..');
 const followOutput = process.argv.includes('--follow-output');
+const blockMouse = process.argv.includes('--block-mouse');
+const noMouse = process.argv.includes('--no-mouse');
 const artifact = path.join(root, 'build', `scroll-test-${Date.now()}`);
 fs.mkdirSync(artifact);
 const executable = path.join(artifact, 'wShell.exe');
@@ -33,6 +35,13 @@ const server = new Server({ hostKeys: [key] }, client => {
       stream.on('data', bytes => {
         received += bytes.toString('utf8');
         allInput += bytes.toString('utf8');
+        for (const [button, name] of [[64, 'up'], [65, 'down']]) {
+          if (new RegExp(`\\x1b\\[<${button};\\d+;\\d+M`).test(received) &&
+              !fs.existsSync(path.join(artifact, `scroll-app-${name}.ready`))) {
+            stream.write('\x1b[H\x1b[2K' + (name === 'up' ? 'Earlier conversation restored by application wheel' : 'Latest conversation'));
+            fs.writeFileSync(path.join(artifact, `scroll-app-${name}.ready`), 'ready\n');
+          }
+        }
         if (!acknowledged && /\x1b\[\d+;\d+R/.test(received)) {
           acknowledged = true;
           fs.writeFileSync(path.join(artifact, `scroll-${stage}.ready`), 'ready\n');
@@ -41,8 +50,9 @@ const server = new Server({ hostKeys: [key] }, client => {
       const stages = [
         ['output', () => lines(8) + '\x1b[1G\x1b[2KWorking...'],
         ['tail', () => '\r\n' + lines(8)],
-        ['alternate', () => '\x1b[?1049h\x1b[2J\x1b[HAlternate screen running'],
+        ['alternate', () => (noMouse ? '\x1b[?1003l' : '') + '\x1b[?1049h\x1b[2J\x1b[HAlternate screen running'],
         ['redraw', () => '\x1b[2;1H\x1b[2KProgress update\x1b[4;2H\x1b[?25l\x1b[?25h'],
+        ['normal', () => '\x1b[?1049l'], // Deliberately leave mouse reporting enabled.
       ];
       let next = 0;
       timer = setInterval(() => {
@@ -60,17 +70,22 @@ const server = new Server({ hostKeys: [key] }, client => {
   try {
     const environment = { ...process.env, WOOK_TEST_SCROLL_ONLY: '1', WOOK_TEST_PORT: String(server.address().port), WOOK_TEST_FINGERPRINT: fingerprint };
     delete environment.WOOK_TEST_FOLLOW_OUTPUT;
+    delete environment.WOOK_TEST_LOCAL_WHEEL;
+    delete environment.WOOK_TEST_BLOCK_MOUSE;
+    if (blockMouse || noMouse) environment.WOOK_TEST_LOCAL_WHEEL = '1';
+    if (blockMouse) environment.WOOK_TEST_BLOCK_MOUSE = '1';
     if (followOutput) environment.WOOK_TEST_FOLLOW_OUTPUT = '1';
     const child = spawn(executable, [], { cwd: artifact, windowsHide: true, stdio: 'ignore', env: environment });
     const timeout = setTimeout(() => child.kill(), 60000);
     const code = await new Promise((resolve, reject) => { child.on('error', reject); child.on('close', resolve); }).finally(() => clearTimeout(timeout));
     const result = JSON.parse(fs.readFileSync(path.join(artifact, 'ui-smoke-result.json'), 'utf8'));
-    console.log(JSON.stringify({ artifact, followOutput, code, ...result }, null, 2));
+    console.log(JSON.stringify({ artifact, followOutput, blockMouse, noMouse, code, ...result }, null, 2));
     assert.equal(code, 0, 'Scroll test process must exit successfully');
     assert.equal(result.passed, true, JSON.stringify(result));
     assert.equal((allInput.match(/\r/g) || []).length, 3, 'Each Enter must reach SSH exactly once');
-    assert.equal(stage, 'redraw', 'Both normal and alternate screens must be exercised');
-    assert.ok(!/\x1b\[<\d+;\d+;\d+[mM]/.test(allInput), 'Local wheel scrolling must not send mouse input over SSH');
+    assert.equal(stage, 'normal', 'Both normal and alternate screens and return must be exercised');
+    const reports = [...allInput.matchAll(/\x1b\[<(\d+);\d+;\d+([mM])/g)].map(m => [Number(m[1]), m[2]]);
+    assert.deepEqual(reports, blockMouse || noMouse ? [] : [[64, 'M'], [65, 'M']], 'Only permitted live alternate-screen wheel up/down must reach the app, once each');
     console.log('Scrollback retention, partial wheel deltas, Enter/keypad Enter return to live output and alternate-screen repaint checks passed.');
   } finally {
     clearInterval(timer); for (const client of clients) client.destroy(); server.close();

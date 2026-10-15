@@ -67,8 +67,11 @@ node tests/ssh/launch-integration.cjs
 node tests/ssh/key-import-integration.cjs
 node tests/ssh/mouse-integration.cjs
 node tests/ssh/mouse-integration.cjs --application-mouse
+node tests/ssh/mouse-integration.cjs --alternate-screen
 node tests/ssh/scroll-integration.cjs
 node tests/ssh/scroll-integration.cjs --follow-output
+node tests/ssh/scroll-integration.cjs --block-mouse
+node tests/ssh/scroll-integration.cjs --no-mouse
 node tests/ssh/integration.cjs
 node tests/ssh/sftp-integration.cjs
 node tests/ssh/sftp-error-integration.cjs # 권한 오류 후 조작·재시도·F5 재연결

@@ -8,6 +8,7 @@ const assert = require('node:assert/strict');
 const { StringDecoder } = require('node:string_decoder');
 const root = path.resolve(__dirname, '../..');
 const applicationMouse = process.argv.includes('--application-mouse');
+const alternateScreen = process.argv.includes('--alternate-screen');
 const artifact = path.join(root, 'build', `mouse-test-${Date.now()}`);
 fs.mkdirSync(artifact);
 const executable = path.join(artifact, 'wShell.exe');
@@ -32,6 +33,7 @@ const server = new Server({ hostKeys: [key] }, client => {
       const stream = accept(), decoder = new StringDecoder('utf8');
       stream.on('error', () => {});
       const screen = () => stream.write('\x1b[2J\x1b[HCOPY-MOUSE\x1b[H\x1b[6n');
+      if (alternateScreen) stream.write('\x1b[?1049h');
       screen();
       stream.on('data', bytes => {
         received += decoder.write(bytes);
@@ -87,7 +89,7 @@ const server = new Server({ hostKeys: [key] }, client => {
     const code = await new Promise((resolve, reject) => { child.on('error', reject); child.on('close', resolve); }).finally(() => clearTimeout(timeout));
     const result = JSON.parse(fs.readFileSync(path.join(artifact, 'ui-smoke-result.json'), 'utf8'));
     fs.writeFileSync(path.join(artifact, 'hover-reports.json'), JSON.stringify(hoverReports, null, 2));
-    console.log(JSON.stringify({ artifact, applicationMouse, code, ...result }, null, 2));
+    console.log(JSON.stringify({ artifact, applicationMouse, alternateScreen, code, ...result }, null, 2));
     assert.equal(code, 0, 'Mouse test process must exit successfully');
     assert.equal(result.passed, true, JSON.stringify(result));
     const reporting = JSON.parse(fs.readFileSync(path.join(artifact, 'reporting-input.json'), 'utf8'));

@@ -3,6 +3,8 @@
 template<typename Check> bool testTerminalScroll(App &app, Check require) {
     static int step = 0, waits = 0, heldPosition = 0, previousBottom = 0;
     static const bool followOutput = GetEnvironmentVariableW(L"WOOK_TEST_FOLLOW_OUTPUT", nullptr, 0) != 0;
+    static const bool localWheel = GetEnvironmentVariableW(L"WOOK_TEST_LOCAL_WHEEL", nullptr, 0) != 0;
+    static const bool blockMouse = GetEnvironmentVariableW(L"WOOK_TEST_BLOCK_MOUSE", nullptr, 0) != 0;
     auto file = [&](const wchar_t *name) { return std::filesystem::path(app.directory) / name; };
     auto terminal = [&] { return app.tabs[0]->terminal; };
     auto scroll = [&] {
@@ -13,10 +15,10 @@ template<typename Check> bool testTerminalScroll(App &app, Check require) {
         return info;
     };
     auto bottom = [](const SCROLLINFO &info) { return info.nMax - (int)info.nPage + 1; };
-    auto wheel = [&](int delta) {
+    auto wheel = [&](int delta, bool shift = false) {
         RECT area{}; GetClientRect(terminal(), &area);
         POINT point{area.right / 2, area.bottom / 2}; ClientToScreen(terminal(), &point);
-        SendMessageW(terminal(), WM_MOUSEWHEEL, MAKEWPARAM(0, delta), MAKELPARAM(point.x, point.y));
+        SendMessageW(terminal(), WM_MOUSEWHEEL, MAKEWPARAM(shift ? MK_SHIFT : 0, delta), MAKELPARAM(point.x, point.y));
     };
     auto enter = [&](bool keypad) {
         LPARAM flags = 1 | (0x1c << 16) | (keypad ? (1 << 24) : 0);
@@ -41,6 +43,7 @@ template<typename Check> bool testTerminalScroll(App &app, Check require) {
         wsSet(store, "ScrollOnKey", "0"); // Enter must work for existing sessions with this disabled.
         wsSet(store, "ScrollBar", "1"); // Observe position via Win32 instead of a test-only engine hook.
         wsSet(store, "ScrollOnDisp", "1"); // Older saved sessions include the old engine default.
+        if (blockMouse) wsSet(store, "NoMouseReporting", "1");
         if (followOutput) wsSet(store, "WookScrollOnDisp", "1");
         require(wsSave(store), "Cannot save scroll fixture"); wsClose(store);
         app.connect(p, true); step = 1; waits = 0;
@@ -102,21 +105,40 @@ template<typename Check> bool testTerminalScroll(App &app, Check require) {
         require(scroll().nPos == bottom(scroll()), "Keypad Enter must return to live output");
         request(L"scroll-alternate.request", 7);
     } else if (step == 7 && std::filesystem::exists(file(L"scroll-alternate.ready")) && waits > 3) {
-        wheel(WHEEL_DELTA); step = 8; waits = 0;
+        wheel(WHEEL_DELTA, true); step = 8; waits = 0;
     } else if (step == 8 && waits > 2) {
         auto info = scroll(); heldPosition = info.nPos;
-        require(heldPosition < bottom(info), "Wheel must also reach history from the alternate screen");
+        require(heldPosition < bottom(info), "Shift-wheel must reach terminal history from the alternate screen");
         request(L"scroll-redraw.request", 9);
     } else if (step == 9 && std::filesystem::exists(file(L"scroll-redraw.ready")) && waits > 3) {
         auto info = scroll();
         require(info.nPos == (followOutput ? bottom(info) : heldPosition), "TUI cursor movement and repaint must respect the chosen scroll policy");
         captureTestWindow(app.hwnd, L"ui-scroll-alternate.bmp");
-        wheel(WHEEL_DELTA); step = 14; waits = 0;
+        wheel(WHEEL_DELTA, true); step = 14; waits = 0;
     } else if (step == 14 && waits > 2) {
         require(scroll().nPos < bottom(scroll()), "Alternate-screen Enter fixture must be viewing history");
         enter(false); step = 15; waits = 0;
     } else if (step == 15 && waits > 2) {
         require(scroll().nPos == bottom(scroll()), "Enter must return to the live alternate screen");
+        wheel(localWheel ? WHEEL_DELTA : 60); step = localWheel ? 21 : 16; waits = 0;
+    } else if (step == 21 && waits > 3) {
+        require(scroll().nPos < bottom(scroll()), "Without permitted app reporting the alternate-screen wheel must remain local");
+        SendMessageW(terminal(), WM_VSCROLL, SB_BOTTOM, 0);
+        request(L"scroll-normal.request", 19);
+    } else if (step == 16 && waits > 2) {
+        require(!std::filesystem::exists(file(L"scroll-app-up.ready")), "Partial wheel must not reach the application yet");
+        wheel(60); step = 17; waits = 0;
+    } else if (step == 17 && std::filesystem::exists(file(L"scroll-app-up.ready")) && waits > 3) {
+        require(scroll().nPos == bottom(scroll()), "Application wheel must not move terminal scrollback");
+        captureTestWindow(app.hwnd, L"ui-scroll-app-history.bmp");
+        wheel(-WHEEL_DELTA); step = 18; waits = 0;
+    } else if (step == 18 && std::filesystem::exists(file(L"scroll-app-down.ready")) && waits > 3) {
+        require(scroll().nPos == bottom(scroll()), "Application wheel down must stay on the live screen");
+        request(L"scroll-normal.request", 19);
+    } else if (step == 19 && std::filesystem::exists(file(L"scroll-normal.ready")) && waits > 3) {
+        wheel(WHEEL_DELTA); step = 20; waits = 0;
+    } else if (step == 20 && waits > 3) {
+        require(scroll().nPos < bottom(scroll()), "Returning to normal screen must restore local wheel despite stale mouse mode");
         app.closeTab(0, true); return true;
     }
     return false;
