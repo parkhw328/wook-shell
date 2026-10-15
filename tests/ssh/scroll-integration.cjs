@@ -38,9 +38,14 @@ const server = new Server({ hostKeys: [key] }, client => {
         for (const [button, name] of [[64, 'up'], [65, 'down']]) {
           if (new RegExp(`\\x1b\\[<${button};\\d+;\\d+M`).test(received) &&
               !fs.existsSync(path.join(artifact, `scroll-app-${name}.ready`))) {
-            stream.write('\x1b[H\x1b[2K' + (name === 'up' ? 'Earlier conversation restored by application wheel' : 'Latest conversation'));
+            stream.write('\x1b[H\x1b[2K' + (name === 'up' ? 'Back to bottom' : 'Latest conversation') + '\x1b[H');
             fs.writeFileSync(path.join(artifact, `scroll-app-${name}.ready`), 'ready\n');
           }
+        }
+        if (/\x1b\[<0;5;1M/.test(received) && /\x1b\[<0;5;1m/.test(received) &&
+            !fs.existsSync(path.join(artifact, 'scroll-app-bottom.ready'))) {
+          stream.write('\x1b[H\x1b[2KLatest conversation restored by button click\x1b[H');
+          fs.writeFileSync(path.join(artifact, 'scroll-app-bottom.ready'), 'ready\n');
         }
         if (!acknowledged && /\x1b\[\d+;\d+R/.test(received)) {
           acknowledged = true;
@@ -85,7 +90,7 @@ const server = new Server({ hostKeys: [key] }, client => {
     assert.equal((allInput.match(/\r/g) || []).length, 3, 'Each Enter must reach SSH exactly once');
     assert.equal(stage, 'normal', 'Both normal and alternate screens and return must be exercised');
     const reports = [...allInput.matchAll(/\x1b\[<(\d+);\d+;\d+([mM])/g)].map(m => [Number(m[1]), m[2]]);
-    assert.deepEqual(reports, blockMouse || noMouse ? [] : [[64, 'M'], [65, 'M']], 'Only permitted live alternate-screen wheel up/down must reach the app, once each');
+    assert.deepEqual(reports, blockMouse || noMouse ? [] : [[64, 'M'], [0, 'M'], [0, 'm'], [65, 'M']], 'Application wheel and button press/release must arrive exactly once');
     console.log('Scrollback retention, partial wheel deltas, Enter/keypad Enter return to live output and alternate-screen repaint checks passed.');
   } finally {
     clearInterval(timer); for (const client of clients) client.destroy(); server.close();

@@ -19,7 +19,7 @@ template<typename Check> bool testSftpPathEnter(App &app, HWND view, Check requi
         enter(local);
         require(ListView_GetItemCount(GetDlgItem(view,11))==1 && ui::value(remote)==L"/not-submitted",
                 "Local Enter must navigate only the left pane");
-        require(GetFocus()==local,"Local Enter must preserve path focus");
+        require(GetFocus()==GetDlgItem(view,11),"Successful Local Enter must move focus from the path caret to its file list");
         SetWindowTextW(local,directory.c_str());enter(local,true);
         require(ListView_GetItemCount(GetDlgItem(view,11))==1,"Held Enter must not repeatedly navigate");
         SetWindowTextW(local,nested.c_str());SetWindowTextW(remote,L"/remote-folder");enter(remote);
@@ -32,6 +32,23 @@ template<typename Check> bool testSftpPathEnter(App &app, HWND view, Check requi
         require(ui::value(remote)==L"/remote-folder" && ListView_GetItemCount(GetDlgItem(view,15))==1,
                 "Remote Enter must display the requested remote folder");
         require(ListView_GetItemCount(GetDlgItem(view,11))==1,"Remote Enter must preserve the local listing");
+        require(GetFocus()==GetDlgItem(view,15),("Successful Remote Enter must focus its file list; focus id="+
+                std::to_string(GetDlgCtrlID(GetFocus()))+", visible="+std::to_string(IsWindowVisible(view))).c_str());
+        captureTestWindow(app.hwnd,L"ui-sftp-path-focus.bmp");
+        SetWindowTextW(remote,L"/missing-navigation-folder");enter(remote);step=2;return false;
+    }
+    if(step==2) {
+        require(GetFocus()==remote && ui::value(remote)==L"/missing-navigation-folder",
+                "Failed Remote Enter must retain the path and focus for correction");
+        SetWindowTextW(remote,L"/");enter(remote);++step;return false;
+    }
+    if(step==3) {
+        require(ui::value(remote)==L"/","Remote Enter must return to root");
+        SetWindowTextW(remote,L"/remote-folder");enter(remote);
+        SetFocus(GetDlgItem(view,11));++step;return false;
+    }
+    if(step==4) {
+        require(GetFocus()==GetDlgItem(view,11),"Remote completion must not steal focus after the user switches panes");
         SetWindowTextW(remote,L"/");enter(remote);++step;return false;
     }
     require(ui::value(remote)==L"/","Remote Enter must return to root");

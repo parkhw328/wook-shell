@@ -131,6 +131,16 @@ template<typename Check> bool testTerminalScroll(App &app, Check require) {
     } else if (step == 17 && std::filesystem::exists(file(L"scroll-app-up.ready")) && waits > 3) {
         require(scroll().nPos == bottom(scroll()), "Application wheel must not move terminal scrollback");
         captureTestWindow(app.hwnd, L"ui-scroll-app-history.bmp");
+        GUITHREADINFO thread{sizeof(thread)};
+        require(GetGUIThreadInfo(GetWindowThreadProcessId(terminal(), nullptr), &thread), "Find application button cell geometry");
+        auto cell=thread.rcCaret;
+        auto point=MAKELPARAM(cell.left+(cell.right-cell.left)*4,cell.top+(cell.bottom-cell.top)/2);
+        SendMessageW(terminal(),WM_LBUTTONDOWN,MK_LBUTTON,point);
+        SendMessageW(terminal(),WM_LBUTTONUP,0,point);
+        step=22; waits=0;
+    } else if (step == 22 && std::filesystem::exists(file(L"scroll-app-bottom.ready")) && waits > 3) {
+        require(scroll().nPos == bottom(scroll()), "Clicking Back to bottom must stay in the application");
+        captureTestWindow(app.hwnd,L"ui-scroll-app-bottom.bmp");
         wheel(-WHEEL_DELTA); step = 18; waits = 0;
     } else if (step == 18 && std::filesystem::exists(file(L"scroll-app-down.ready")) && waits > 3) {
         require(scroll().nPos == bottom(scroll()), "Application wheel down must stay on the live screen");

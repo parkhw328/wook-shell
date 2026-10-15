@@ -83,6 +83,8 @@ const server = new Server({ hostKeys: [key] }, client => {
       ...process.env, WOOK_TEST_MOUSE_ONLY: '1', WOOK_TEST_PORT: String(server.address().port), WOOK_TEST_FINGERPRINT: fingerprint,
     };
     delete environment.WOOK_TEST_APP_MOUSE;
+    delete environment.WOOK_TEST_ALT_MOUSE;
+    if (alternateScreen) environment.WOOK_TEST_ALT_MOUSE = '1';
     if (applicationMouse) environment.WOOK_TEST_APP_MOUSE = '1';
     const child = spawn(executable, [], { cwd: artifact, windowsHide: true, stdio: 'ignore', env: environment });
     const timeout = setTimeout(() => child.kill(), 60000);
@@ -93,7 +95,7 @@ const server = new Server({ hostKeys: [key] }, client => {
     assert.equal(code, 0, 'Mouse test process must exit successfully');
     assert.equal(result.passed, true, JSON.stringify(result));
     const reporting = JSON.parse(fs.readFileSync(path.join(artifact, 'reporting-input.json'), 'utf8'));
-    if (applicationMouse) {
+    if (applicationMouse || alternateScreen) {
       assert.ok(!reporting.includes('raw-paste-sentinel'), 'Opting out must deliver unmodified right clicks to the application');
       assert.match(reporting, /\x1b\[<0;\d+;\d+M/, 'Opting out must deliver left clicks');
       assert.match(reporting, /\x1b\[<2;\d+;\d+M/, 'Opting out must deliver right clicks');
@@ -105,7 +107,7 @@ const server = new Server({ hostKeys: [key] }, client => {
     const settings = JSON.parse(fs.readFileSync(path.join(artifact, 'settings-live-1.json'), 'utf8'));
     assert.equal(settings.passed, true, JSON.stringify(settings));
     const toggled = JSON.parse(fs.readFileSync(path.join(artifact, 'toggled-input.json'), 'utf8'));
-    if (applicationMouse) {
+    if (applicationMouse && !alternateScreen) {
       assert.ok(!/\x1b\[<\d+;\d+;\d+[mM]/.test(toggled), 'Enabling clipboard priority live must stop application mouse events');
       assert.equal(toggled.split('\x1b[200~toggled-paste-한글\x1b[201~').length - 1, 1, 'Enabling priority live must paste once');
     } else {
@@ -115,7 +117,7 @@ const server = new Server({ hostKeys: [key] }, client => {
     }
     const restored = JSON.parse(fs.readFileSync(path.join(artifact, 'restored-input.json'), 'utf8'));
     assert.ok(restored.includes('restored-paste-한글') && !restored.includes('\x1b[200~'), 'Plain paste resumes after mode reset');
-    assert.equal(hoverReports.active.length, applicationMouse ? 10 : 0, 'Only explicit application mouse mode sends passive movement');
+    assert.equal(hoverReports.active.length, applicationMouse || alternateScreen ? 10 : 0, 'Requested alternate-screen or explicit application mouse mode sends passive movement');
     assert.deepEqual(hoverReports.shift, [], 'Shift must suppress passive movement as well as clicks');
     assert.deepEqual(hoverReports.restored, [], 'No movement reports after normal TUI cleanup');
     assert.equal(hoverReports.abandoned.length, applicationMouse ? 0 : 10, 'Reproduce stale reporting only when application mouse mode is allowed');

@@ -13,6 +13,9 @@ static void restoreMouseTestClipboard(HWND owner) {
 template<typename Check> bool testTerminalMouse(App &app, Check require) {
     static int step = 0, waits = 0;
     static const bool applicationMouse = GetEnvironmentVariableW(L"WOOK_TEST_APP_MOUSE", nullptr, 0) != 0;
+    static const bool alternateScreen = GetEnvironmentVariableW(L"WOOK_TEST_ALT_MOUSE", nullptr, 0) != 0;
+    const bool activeMouse = applicationMouse || alternateScreen;
+    const bool toggledMouse = !applicationMouse || alternateScreen;
     static RECT cell{};
     auto file = [&](const wchar_t *name) { return std::filesystem::path(app.directory) / name; };
     auto clipboard = [&] {
@@ -109,10 +112,10 @@ template<typename Check> bool testTerminalMouse(App &app, Check require) {
         hover(true, L"hover-shift");
         setClipboard(L"raw-selection-sentinel"); drag(false); ++step; waits = 0;
     } else if (step == 5) {
-        require(clipboard() == (applicationMouse ? L"raw-selection-sentinel" : L"COPY-MOUSE"),
+        require(clipboard() == (activeMouse ? L"raw-selection-sentinel" : L"COPY-MOUSE"),
                 "Mouse policy must choose between application input and local drag-copy");
-        setClipboard(applicationMouse ? L"raw-paste-sentinel" : L"preferred-paste-한글"); paste(false); ++step; waits = 0;
-    } else if (step == 6 && std::filesystem::exists(file(applicationMouse ? L"mouse-raw-clicks.ready" : L"mouse-preferred-paste.ready"))) {
+        setClipboard(activeMouse ? L"raw-paste-sentinel" : L"preferred-paste-한글"); paste(false); ++step; waits = 0;
+    } else if (step == 6 && std::filesystem::exists(file(activeMouse ? L"mouse-raw-clicks.ready" : L"mouse-preferred-paste.ready"))) {
         drag(true); ++step; waits = 0;
     } else if (step == 7) {
         require(clipboard() == L"COPY-MOUSE", "Shift-drag must auto-copy while application mouse reporting is active");
@@ -124,10 +127,10 @@ template<typename Check> bool testTerminalMouse(App &app, Check require) {
                std::filesystem::exists(file(L"settings-live-1.json")) && waits > 3) {
         setClipboard(L"toggled-selection-sentinel"); drag(false); ++step; waits = 0;
     } else if (step == 13) {
-        require(clipboard() == (applicationMouse ? L"COPY-MOUSE" : L"toggled-selection-sentinel"),
+        require(clipboard() == (toggledMouse ? L"toggled-selection-sentinel" : L"COPY-MOUSE"),
                 "Applying mouse preference must change drag handling in the connected terminal");
-        setClipboard(applicationMouse ? L"toggled-paste-한글" : L"toggled-paste-sentinel"); paste(false); ++step; waits = 0;
-    } else if (step == 14 && std::filesystem::exists(file(applicationMouse ? L"mouse-toggled-paste.ready" : L"mouse-toggled-raw.ready"))) {
+        setClipboard(toggledMouse ? L"toggled-paste-sentinel" : L"toggled-paste-한글"); paste(false); ++step; waits = 0;
+    } else if (step == 14 && std::filesystem::exists(file(toggledMouse ? L"mouse-toggled-raw.ready" : L"mouse-toggled-paste.ready"))) {
         std::ofstream(file(L"mouse-disable.request")) << "disable\n"; step = 9; waits = 0;
     } else if (step == 9 && std::filesystem::exists(file(L"mouse-restored.ready"))) {
         setClipboard(L"restored-selection-sentinel"); drag(false); ++step; waits = 0;

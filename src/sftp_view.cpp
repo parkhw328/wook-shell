@@ -54,6 +54,7 @@ struct Browser {
     std::vector<sftp::Entry> dragEntries;
     HWND hwnd{}, owner{}, controls[17]{}; HANDLE job{};
     HWND tooltips{};
+    HWND navigationEdit{}, navigationFocus{}, navigationForeground{};
     int paneWidth{}, gutter = 88;
     bool transferLabels = true;
     std::wstring session, local, remote, status = L"Connecting to SFTP…", current;
@@ -205,12 +206,18 @@ void Browser::navigate(bool remoteSide,std::wstring path) {
     if(busy)return;
     if(remoteSide) {
         if(!connected)return;
+        navigationEdit=GetFocus()==controls[RemotePath]?controls[RemotePath]:nullptr;
+        navigationForeground=GetForegroundWindow();
         start([this,path](Result&r){r.path=client->canonical(path);r.entries=client->list(r.path);r.message=L"Ready · Files transfer individually; browse folders to transfer their contents.";});
+        // Disabling the edit while busy can clear keyboard focus. Remember that
+        // state so completion can restore it without overriding a later click.
+        navigationFocus=GetFocus();
     } else {
         auto next=fs::weakly_canonical(path).wstring();
         if(!fs::is_directory(next))throw std::runtime_error("Choose an existing local folder.");
         auto old=local; local=next;
         try{readLocal();}catch(...){local=old;throw;}
+        if(GetFocus()==controls[LocalPath])SetFocus(controls[LocalList]);
     }
 }
 std::vector<sftp::Entry> Browser::selected(bool remoteSide) {
@@ -432,7 +439,12 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
             b->status=r->message;
             if(r->ok){b->remote=r->path;b->remoteEntries=std::move(r->entries);b->fill(true);b->readLocal();}
             else if(!r->connected)b->status+=L" Use Refresh (F5) to reconnect. An interrupted upload may leave a .wshell-*.part file on the server.";
-            b->state();return 0;
+            b->state();
+            if(b->navigationEdit && GetFocus()==b->navigationFocus &&
+               GetForegroundWindow()==b->navigationForeground && IsWindowVisible(b->hwnd))
+                SetFocus(r->ok?b->controls[RemoteList]:b->navigationEdit);
+            b->navigationEdit=b->navigationFocus=b->navigationForeground=nullptr;
+            return 0;
         }
         case WM_TIMER:
             if(b->busy){

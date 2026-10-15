@@ -50,7 +50,7 @@ CONF_OPTION(no_mouse_rep,''')
     (SOURCE / "conf.h").write_text(conf_header, encoding="utf-8")
     terminal_header = replace(original("terminal/terminal.h"), "struct terminal_tag {", "struct terminal_tag {\n    void (*wshell_input)(void *, int, int, const void *, int);\n    void *wshell_input_context;")
     terminal_header = replace(terminal_header, "void term_release_line(termline *line);",
-                              "void term_release_line(termline *line);\n\nbool wshellApplicationWheel(Terminal *term);")
+                              "void term_release_line(termline *line);\n\nbool wshellApplicationMouse(Terminal *term);")
     (SOURCE / "terminal/terminal.h").write_text(terminal_header, encoding="utf-8")
     terminal = original("terminal/terminal.c")
     # Modified arrows use CSI even when an application enables DECCKM. The
@@ -68,13 +68,12 @@ CONF_OPTION(no_mouse_rep,''')
         ("void term_keyinput(Terminal *term, int codepage, const void *str, int len)", "2, codepage, str, len"),
         ("void term_do_paste(Terminal *term, const wchar_t *data, size_t len)", "3, 0, data, (int)len")]:
         terminal = replace(terminal, signature + "\n{", signature + "\n{\n    if (term->wshell_input) term->wshell_input(term->wshell_input_context, " + notify + ");")
-    # Keep the application's requested protocol, but retain local clipboard
-    # buttons and pointer motion. Only wheels on the live alternate screen
-    # reach the application; the upstream encoder handles every wire format.
+    # Route live alternate-screen input through the upstream mouse encoder.
+    # Shift retains local clipboard input, as does normal-screen stale reporting.
     terminal = replace(terminal,
                        "    bool want_raw = (term->xterm_mouse != 0 && !term->xterm_mouse_forbidden);",
                        "    bool want_raw = (term->xterm_mouse != 0 && !term->xterm_mouse_forbidden &&\n                     !conf_get_bool(term->conf, CONF_wshell_mouse_clipboard));")
-    terminal = replace(terminal, "void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,", '''bool wshellApplicationWheel(Terminal *term)
+    terminal = replace(terminal, "void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,", '''bool wshellApplicationMouse(Terminal *term)
 {
     return conf_get_bool(term->conf, CONF_wshell_mouse_clipboard) &&
         term->alt_which != 0 && term->disptop == 0 &&
@@ -84,13 +83,13 @@ CONF_OPTION(no_mouse_rep,''')
 void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,''')
     terminal = replace(terminal, "                      !term->no_mouse_rep &&", '''                      !term->no_mouse_rep &&
                       (!conf_get_bool(term->conf, CONF_wshell_mouse_clipboard) ||
-                       (wshellApplicationWheel(term) && !shift &&
-                        (braw == MBT_WHEEL_UP || braw == MBT_WHEEL_DOWN ||
-                         braw == MBT_WHEEL_LEFT || braw == MBT_WHEEL_RIGHT))) &&''')
+                       (wshellApplicationMouse(term) && !shift)) &&''')
     (SOURCE / "terminal/terminal.c").write_text(terminal, encoding="utf-8")
     window = original("windows/window.c")
+    window = replace(window, "    if (wgs->send_raw_mouse &&\n        !(shift",
+                     "    if ((wgs->send_raw_mouse || (wshellApplicationMouse(wgs->term) && !shift)) &&\n        !(shift")
     window = replace(window, "                if (wgs->send_raw_mouse &&", '''                if ((wgs->send_raw_mouse ||
-                     (wshellApplicationWheel(wgs->term) && !shift_pressed)) &&''')
+                     (wshellApplicationMouse(wgs->term) && !shift_pressed)) &&''')
     window = replace(window, "    if (conf_get_bool(conf, CONF_mouseautocopy)) {",
                      "    if (conf_get_bool(conf, CONF_wshell_mouse_clipboard) || conf_get_bool(conf, CONF_mouseautocopy)) {")
     window = replace(window, "    switch (conf_get_int(conf, CONF_mousepaste)) {",
@@ -302,8 +301,8 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,''')
     config = replace(config, '''    ctrl_checkbox(s, "Shift overrides application's use of mouse", 'p',''', '''    ctrl_checkbox(s, "Prefer mouse copy and paste", NO_SHORTCUT,
                   HELPCTX(selection_shiftdrag), conf_checkbox_handler,
                   I(CONF_wshell_mouse_clipboard));
-    ctrl_text(s, "When enabled, dragging copies to the system clipboard and right-click pastes. "
-              "The wheel scrolls terminal history. Turn this off to use an application's mouse controls.",
+    ctrl_text(s, "Normal screens use drag-copy, right-click paste and history scrolling. "
+              "Full-screen apps can use mouse controls; hold Shift to copy, paste or scroll terminal history.",
               HELPCTX(selection_shiftdrag));
     ctrl_checkbox(s, "Shift overrides application's use of mouse", 'p',''')
     config = replace(config, '''        if (!midsession) {
