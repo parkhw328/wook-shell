@@ -11,7 +11,7 @@
 
 ## 공통 개발 원칙
 
-- 기존 루트 `AGENTS.md`는 유지하며, 갱신되는 개발 규칙은 이 폴더에 기록한다.
+- 루트 `AGENTS.md`는 작업 시작점과 규칙 색인으로 최신 상태를 유지한다. 상세 개발 정책은 이 문서, 기능별 정책은 해당 `rules/` 문서에서 관리한다.
 - C++20과 Win32 API를 사용한다. C/C++ 들여쓰기는 공백 4칸, 타입은 PascalCase, 함수와 변수는 camelCase다.
 - 소스는 `src/`, 테스트는 `tests/`, 빌드 자동화는 `scripts/`, 패치는 `patches/`, 재배포 자산은 `assets/`와 `licenses/`에 둔다.
 - PuTTY 코어의 암호화와 터미널 해석은 재구현하지 않는다. 변경은 저장소, 창 통합, 설정 화면과 자격 증명 공급 경계에 한정한다.
@@ -33,7 +33,7 @@
 
 - Linux x86_64 교차 빌드: `python3 scripts/build-windows-linux.py --bootstrap`, 이후 `python3 scripts/build-windows-linux.py`. 도구는 `.tools/`, 중간 빌드는 `build/windows-linux/`, 작업 중 EXE·ZIP·해시는 `build/packages/<VERSION>/windows-x64/`에 둔다. 배포 요청 시 소스를 커밋하고 `python3 scripts/build-windows-linux.py --dist`로 새 버전을 `release/<VERSION>/windows-x64/`에 모은다.
 - Linux에서는 PE·ZIP·내장 리소스를 정적으로 검증하고 Windows 테스트 EXE를 컴파일한다. Windows 실행·SSH·UI·IME·DPAPI 회귀 검증은 실행하지 않으며 통과로 표시하지 않는다. Windows와 Linux 빌드는 같은 checkout에서 동시에 실행하지 않는다. 2026-10-08 사용자 요청에 따라 Windows 실기 검증 전의 교차 빌드도 `release/`에서 제공하되, manifest와 다운로드 안내에 Linux 정적 검사 통과·Windows/NGS 실행 미검증을 명시한다. 이는 이전의 실기 검증 전 배포 금지 규칙을 대체한다.
-- Python 빌드 도구 회귀 검증: `python3 -m unittest discover -s tests -p 'test_*.py'`. Linux 호스트 런타임 호환 설정은 README의 교차 빌드 절차를 따른다.
+- Python 빌드 도구 회귀 검증: `python3 -m unittest discover -s tests -p 'test_*.py'`. Linux 호스트 런타임 호환 설정은 [상세 개발 안내](../docs/development.md)의 교차 빌드 절차를 따른다.
 - 최초 빌드: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 -Bootstrap`.
 - 이후 빌드: `scripts/build.ps1`; CTest의 `core-tests`와 배포 ZIP 생성까지 수행한다.
 - SSH/UI: `npm --prefix tests/ssh ci --ignore-scripts --omit=optional` 후 `node tests/ssh/integration.cjs`.
@@ -43,7 +43,7 @@
 - 실행 인자: `node tests/ssh/launch-integration.cjs`. 배포 EXE로 실제 루프백 SSH 인증, 저장 호스트 재사용, UTF-8 파이프, 일회용 암호 정리와 자식 명령줄을 검증한다.
 - 개인키 등록: `node tests/ssh/key-import-integration.cjs`. 외부 형식 가져오기, 등록 파일 보호와 배포 EXE의 실제 키 인증·재사용을 검증한다.
 - 테스트는 임시 루프백 SSH 서버와 `build/` 아래 격리 데이터만 사용한다. 테스트 창은 자동 종료한다.
-- 배포 산출물은 플랫폼별 기존 `release` 경로로 일원화하고 해시·manifest·다운로드 목록·설명서를 함께 갱신해 커밋·푸시한다. 실행파일과 ZIP 내부 이름은 항상 `wShell.exe`이며 NGS용 별도 이름의 파일은 제공하지 않는다. NGS 환경의 수동 이름 변경은 README에만 안내한다. Linux 배포 manifest는 `--cross-built`로 생성하고 재검증은 `--catalog-only`로 기존 출처와 검증 상태를 보존한다.
+- 배포 산출물은 플랫폼별 기존 `release` 경로로 일원화하고 해시·manifest·다운로드 목록·설명서를 함께 갱신해 커밋·푸시한다. 실행파일과 ZIP 내부 이름은 항상 `wShell.exe`이며 NGS용 별도 이름의 파일은 제공하지 않는다. NGS 환경의 수동 이름 변경은 [상세 사용법](../docs/usage.md)에 안내한다. Linux 배포 manifest는 `--cross-built`로 생성하고 재검증은 `--catalog-only`로 기존 출처와 검증 상태를 보존한다.
 - 데스크톱 버전은 루트 `VERSION`에서 관리한다. 현재 배포 대상은 `release/<version>/windows-x64/`이며 `scripts/index-dist.py`로 해시 manifest를 생성한다. `release/<version>/macos-universal/`은 macOS 빌드를 명시적으로 요청받았을 때만 갱신한다.
 - 새 Windows 배포는 `VERSION`을 올리고 소스 변경을 커밋한 뒤 `scripts/build.ps1`과 위의 로컬 회귀 검증을 실행한다. 검증한 EXE·ZIP·SHA-256·manifest를 별도 배포 커밋으로 푸시한다. 소스 커밋·푸시와 `release` 파일 공유에 GitHub Actions 실행은 필요하지 않다.
 - 로컬 배포 manifest는 실제 `sourceCommit`과 `sourceDirty: false`를 확인한다. 로컬 빌드에는 `workflow`가 없으며 CI 통과로 표시하지 않는다. 명시적으로 요청받은 CI 배포는 통과한 산출물을 내려받고 `python scripts/index-dist.py --catalog-only`로 검증·목록만 갱신해 원래 소스 커밋과 CI 링크를 보존한다.
@@ -84,3 +84,14 @@
 - 조합 문자열은 화면 표시 전용이다. IME가 확정한 문자열만 기존 입력 경로로 보내고, 취소·종료 이벤트에서 중복 전송하지 않는다. UTF-16 서로게이트 쌍을 나누지 않는다.
 - macOS는 AppKit의 attributed/plain 확정 문자열과 marked selection을 모두 처리한다. 입력 내용을 임의로 정규화하거나 서버의 로케일·키맵을 변경하지 않는다.
 - `ime-tests`로 조합·취소·확정·한글 폭·리사이즈를 검증하고, 루프백 SSH에서 유니코드 문자열이 한 번만 전달되는지 확인한다. 합성 이벤트 검증과 실제 OS 입력기 수동 검증을 구분해 기록한다.
+
+## PC 간 작업과 규칙 관리
+
+- 작업 시작 시 루트 `AGENTS.md`, 이 문서, 해당 기능 규칙을 읽는다. PC에 남은 기억·개인 설정·과거 대화보다 Git에 기록한 규칙을 기준으로 삼는다.
+- 다른 PC에서 작업을 이어갈 때 `git status --short --branch`, `git diff`, `git remote -v`로 상태를 확인하고 `git fetch origin` 후 원격과의 차이를 확인한다. 작업 트리가 깨끗하고 현재 브랜치의 추적 관계를 확인한 경우 `git pull --ff-only`로 동기화한다. 기존 변경을 강제 초기화하거나 덮어쓰지 않는다.
+- 사용자 지시로 공통 정책이 바뀌면 해당 `rules/` 원본과 필요한 색인·안내를 같은 변경에 반영한다. 이번 작업만의 예외와 지속되는 정책 변경을 구분하고, 예외는 작업 결과나 릴리스 노트에 범위와 이유를 남긴다.
+- PC별 절대 경로·도구 설치 위치를 공통 기본값으로 넣지 않는다. 명령은 저장소 루트 기준으로 작성하고 필요한 OS·런타임·환경변수를 명시한다. 줄바꿈은 `.gitattributes`를 따른다.
+- README는 제품 소개 → 기능 → 다운로드·사용법 → 지원 범위 → 개발 진입점 순으로 유지한다. 기능을 수정할 때 기존 항목을 갱신하며, 새 버전마다 섹션이나 스크린샷을 계속 덧붙이지 않는다.
+- 상세 사용자 절차는 `docs/usage.md`와 기능별 `docs/`, 상세 빌드·검증 명령은 `docs/development.md`, 버전별 변경·검증 한계는 `docs/releases/<version>.md`에 기록한다. 다운로드 목록은 `release/README.md`로 모은다.
+- 기능 설명은 배포된 플랫폼별 동작과 일치시킨다. 과거 버전의 검증 결과를 현재 버전의 검증 완료로 재사용하지 않는다.
+- 작업을 마칠 때 변경 파일, 실행한 검증, 미실행 검증과 다음 PC에서 필요한 작업을 남긴다. 규칙 변경도 코드와 함께 커밋해 다른 PC가 같은 기준을 받도록 한다.
