@@ -5,6 +5,7 @@ extern "C" {
 #endif
 int wsMessageBoxW(HWND owner, LPCWSTR text, LPCWSTR title, UINT flags);
 int wsSftpDeleteDialog(HWND owner, LPCWSTR text);
+int wsWorkspaceCloseDialog(HWND owner);
 int wsMessageBoxA(HWND owner, LPCSTR text, LPCSTR title, UINT flags);
 int wsMessageBoxIndirectW(const MSGBOXPARAMSW *params);
 int wsHostKeyDialog(HWND owner, const char *title, const char *text, const char *details, int changed);

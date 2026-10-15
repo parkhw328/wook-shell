@@ -1505,7 +1505,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_CLOSE: {
             if (GetPropW(hwnd,L"wShell.DragActive")) return 0;
             bool live=false; for (auto &tab:app->tabs) if (!tab->ended && !tab->preview) live=true;
-            if (live && wsMessageBoxW(hwnd,L"Close this window and disconnect its active sessions?",L"Close workspace",MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2)!=IDYES) return 0;
+            if (live && wsWorkspaceCloseDialog(hwnd)!=IDYES) return 0;
             for (auto &tab:app->tabs) if (IsWindow(tab->terminal)) PostMessageW(tab->terminal,WM_CLOSE,0,0);
             DestroyWindow(hwnd); return 0;
         }

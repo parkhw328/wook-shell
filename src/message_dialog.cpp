@@ -287,13 +287,19 @@ extern "C" int wsMessageBoxIndirectW(const MSGBOXPARAMSW *params) {
         return show(params->hwndOwner, p);
     } catch (...) { return MessageBoxIndirectW(params); }
 }
-extern "C" int wsSftpDeleteDialog(HWND owner, LPCWSTR text) {
+static int confirmYesNo(HWND owner, LPCWSTR text, LPCWSTR title, UINT icon) {
     try {
-        Message p; p.title = L"Delete selected items"; p.text = text;
-        p.params.dwStyle = MB_ICONWARNING; p.yesNoShortcuts = true;
+        Message p; p.title = title; p.text = text;
+        p.params.dwStyle = icon; p.yesNoShortcuts = true;
         p.choices = {{IDYES,L"Yes (Y)"},{IDNO,L"No (N)"}};
         p.defaultId = p.cancelId = IDNO; return show(owner, p);
     } catch (...) { return IDNO; }
+}
+extern "C" int wsSftpDeleteDialog(HWND owner, LPCWSTR text) {
+    return confirmYesNo(owner, text, L"Delete selected items", MB_ICONWARNING);
+}
+extern "C" int wsWorkspaceCloseDialog(HWND owner) {
+    return confirmYesNo(owner, L"Close this window and disconnect its active sessions?", L"Close workspace", MB_ICONQUESTION);
 }
 extern "C" int wsMessageBoxW(HWND owner, LPCWSTR text, LPCWSTR title, UINT flags) {
     MSGBOXPARAMSW params{sizeof(params)}; params.hwndOwner = owner; params.lpszText = text;

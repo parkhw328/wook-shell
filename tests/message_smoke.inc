@@ -57,6 +57,27 @@ template<typename Check> void testMessageDialogs(App &app, Check require) {
         captureTestWindow(dialog, L"ui-about.bmp");
         PostMessageW(GetFocus(), WM_KEYDOWN, VK_ESCAPE, 0);
     }, IDOK);
+    for (WORD key : {WORD('Y'), WORD('N'), WORD(VK_ESCAPE), WORD(VK_RETURN)}) {
+        run([&] { return wsWorkspaceCloseDialog(app.hwnd); }, [&](HWND dialog) {
+            inspect(dialog);
+            require(ui::value(dialog)==L"Close workspace", "Workspace confirmation must retain its title");
+            require(ui::value(GetDlgItem(dialog,IDYES))==L"Yes (Y)" && ui::value(GetDlgItem(dialog,IDNO))==L"No (N)",
+                    "Workspace confirmation must show Y and N shortcuts");
+            require(GetFocus()==GetDlgItem(dialog,IDNO), "Workspace close must default to No");
+            if(key=='Y')captureTestWindow(dialog,L"ui-workspace-close-shortcuts.bmp");
+            // A shortcut must work even with the opposite button focused.
+            if(key=='N')SetFocus(GetDlgItem(dialog,IDYES));
+            PostMessageW(GetFocus(),WM_KEYDOWN,key,1);
+        }, key=='Y'?IDYES:IDNO);
+    }
+    int repeatStage=0;
+    run([&] { return wsWorkspaceCloseDialog(app.hwnd); }, [&](HWND dialog) {
+        if(!repeatStage++) {
+            PostMessageW(GetFocus(),WM_KEYDOWN,'Y',1|(1LL<<30)); return;
+        }
+        require(IsWindow(dialog), "Held Y must not approve workspace closure");
+        PostMessageW(GetFocus(),WM_KEYDOWN,'N',1);
+    }, IDNO);
     RECT original{}; GetWindowRect(app.hwnd, &original);
     SetWindowPos(app.hwnd, nullptr, 0, 0, ui::px(980), ui::px(740), SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
     RECT shortcut{}, about{}, client{}; GetWindowRect(app.control(Shortcuts), &shortcut); GetWindowRect(app.control(About), &about);
