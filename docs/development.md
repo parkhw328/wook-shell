@@ -1,8 +1,27 @@
 # 빌드 및 검증 상세 안내
 
-모든 명령은 저장소 루트에서 실행합니다. 기본 설정과 빠른 빌드는 [README](../README.md#개발-환경)에서 확인하세요. 작업 범위와 배포 정책은 [개발 규칙](../rules/development.md)을 따릅니다.
+모든 명령은 저장소 루트에서 실행합니다. 작업 범위와 배포 정책은 [개발 규칙](../rules/development.md)을 따릅니다.
 
-### Linux에서 Windows 교차 빌드
+## 빠른 개발 빌드
+
+**작업 전 [AGENTS.md](../AGENTS.md) → [개발 규칙](../rules/development.md) → 해당 기능 규칙을 읽습니다.** PC가 바뀌어도 Git에 저장된 규칙을 공통 기준으로 사용합니다. 현재는 Windows 로컬 빌드·검증이 기본이며, macOS·iPad 빌드와 GitHub Actions 실행은 명시적인 요청이 있을 때만 수행합니다.
+
+모든 명령은 저장소 루트에서 실행합니다. Windows는 Python 3.10 이상·PowerShell이 필요하며, 최초 명령이 고정된 빌드 도구와 소스를 다운로드합니다.
+
+```powershell
+# 최초 개발 빌드 (기존 배포 파일을 갱신하지 않음)
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 -Bootstrap -EngineOnly
+# 이후 개발 빌드
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 -EngineOnly
+# 실행
+.\build\native\wShell.exe
+# 핵심 테스트 (-EngineOnly는 테스트를 실행하지 않음)
+.tools\cmake-4.4.4-windows-x86_64\bin\ctest.exe --test-dir build/native/workspace --output-on-failure
+```
+
+[빌드 문제 해결](build-troubleshooting.md)
+
+## Linux에서 Windows 교차 빌드
 
 Linux x86_64에서도 Windows EXE와 ZIP을 만들 수 있습니다. Python 3.12 이상과 인터넷 연결이 필요하며, 컴파일러 실행에는 `GLIBCXX_3.4.30`을 제공하는 호환 libstdc++가 필요합니다. 현재 Rocky Linux 9 / glibc 2.34 환경에서 아래 호스트 런타임 설정으로 검증했습니다. 아래 명령은 고정 버전·SHA-256으로 검증한 LLVM-MinGW, CMake, Ninja와 PuTTY 소스를 `.tools/`, `.deps/`에 준비합니다. 시스템 전역에 컴파일러를 설치하지 않습니다.
 
@@ -26,7 +45,7 @@ python3 -m unittest discover -s tests -p 'test_*.py'
 
 위 명령은 배포 무결성 검사와 PE 리소스 판독기의 정상·손상 입력 회귀 테스트를 실행합니다.
 
-### Windows에서 빌드와 실행 검증
+## Windows에서 빌드와 실행 검증
 
 빌드 환경은 Windows x64, Python 3.10 이상, PowerShell입니다. C++ 컴파일러·CMake·Ninja·PuTTY 소스는 다음 명령이 저장소 내부로 다운로드하고 SHA-256을 확인합니다.
 

@@ -36,7 +36,7 @@ Git에 저장된 `AGENTS.md`와 `rules/`를 모든 PC·작업 도구의 공통 �
 
 - C++20·Win32, C/C++ 공백 4칸·PascalCase 타입·camelCase 함수/변수를 사용한다. Swift 기준은 개발 규칙을 따른다.
 - Markdown은 UTF-8, 설명적인 제목, 언어를 표시한 코드 블록을 사용한다. 새 문서 이름은 소문자와 하이픈을 사용한다. 줄바꿈은 `.gitattributes`를 따른다.
-- 빌드 전제 조건·빠른 실행 명령은 [README](README.md#개발-환경), 상세 명령은 [개발 안내](docs/development.md)를 따른다.
+- 빌드 전제 조건·빠른 실행·상세 검증 명령은 [개발 안내](docs/development.md)를 따른다.
 - 기본 작업 범위는 Windows 로컬 빌드·검증이다. macOS·iPad 빌드와 GitHub Actions 재개는 명시적인 요청을 따른다.
 - 실행 동작 변경에는 회귀 테스트를 추가한다. 실제 사용자 데이터 대신 `build/` 아래 격리 데이터와 루프백 서버를 사용한다.
 - Linux 정적 검사·교차 컴파일과 Windows 실행 검증을 구분한다. 실행하지 못한 검사는 이유와 함께 기록하고 통과로 표시하지 않는다.

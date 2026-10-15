@@ -26,7 +26,7 @@
 - Export/Import 파일 선택 화면과 완료 안내에 비밀번호가 이전되지 않으며 가져온 호스트에서 다시 입력해야 함을 명시한다.
 - 구현 완료와 실제 검증 완료를 구분하고, 미지원 항목을 문서화한다.
 - Windows는 CMD 기본 로컬 탭과 PowerShell 선택을 제공한다. macOS는 기본 로그인 셸을 PTY에서 실행한다.
-- macOS는 AppKit·SwiftTerm·OS OpenSSH를 사용하며 단일 `.app` 번들로 이동한다. Windows와 macOS의 기능 차이는 README에 명시한다.
+- macOS는 AppKit·SwiftTerm·OS OpenSSH를 사용하며 단일 `.app` 번들로 이동한다. Windows와 macOS의 기능 차이는 [사용법](../docs/usage.md#지원-플랫폼)에 명시한다.
 - macOS 저장소는 `~/Library/Application Support/wShell`이며 저장 비밀번호는 로그인 Keychain에 보관한다. 백업에 비밀번호가 포함되지 않는다는 안내는 두 플랫폼에 모두 표시한다.
 - 공개키 인증 화면은 서버에 등록하는 공개키와 서명에 필요한 개인키를 구분한다. `.pub` 단독 로그인을 지원한다고 표시하지 않는다.
 - About에는 `Created by Hyunwook Park`을 표시한다. 플랫폼별 산출물은 `release/<version>/` 아래에 둔다.

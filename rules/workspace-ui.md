@@ -1,6 +1,6 @@
 # 작업 공간 UI 규칙
 
-Windows 작업 공간의 기본 동작과 회귀 검증 기준이다. macOS·iPad는 해당 플랫폼의 UI 규칙을 유지하며 기능 차이를 README에 명시한다.
+Windows 작업 공간의 기본 동작과 회귀 검증 기준이다. macOS·iPad는 해당 플랫폼의 UI 규칙을 유지하며 기능 차이를 [사용법](../docs/usage.md#지원-플랫폼)에 명시한다.
 
 ## 탐색과 상단 메뉴
 
@@ -20,7 +20,7 @@ Windows 작업 공간의 기본 동작과 회귀 검증 기준이다. macOS·iPa
 - 검색 아래 ↑ / ↓, 우클릭 메뉴, 목록의 Ctrl+Up / Down은 호스트의 같은 폴더 내 순서 또는 폴더 간 순서를 바꾼다. 루트 호스트를 먼저 표시한다. 선택은 별칭이나 행 번호 대신 원래 호스트·폴더 이름으로 추적한다.
 - 검색은 접힌 폴더의 자식도 표시하되 접힘 설정을 바꾸지 않는다. 검색을 지우면 원래 접힘 상태를 복원한다. 필터 중 순서 변경과 접기는 비활성화한다.
 - 폴더 메타데이터는 `workspace/folders`, 호스트 순서는 세션의 `WookOrder`, 소속은 기존 `WookGroup`으로 저장한다. 여러 레코드를 바꾸기 전에 쓰기 잠금을 모두 얻고, 저장 실패 시 이미 쓴 레코드를 복구한다. 오류를 숨기지 않는다.
-- `.wshell` 백업에 `workspace/folders`만 허용하고 다른 로컬 workspace 환경 설정은 포함하지 않는다. 새 폴더 레코드를 지원하지 않는 이전 Windows·macOS·iPad 가져오기와의 차이를 README에 명시한다.
+- `.wshell` 백업에 `workspace/folders`만 허용하고 다른 로컬 workspace 환경 설정은 포함하지 않는다. 새 폴더 레코드를 지원하지 않는 이전 Windows·macOS·iPad 가져오기와의 차이를 [사용법](../docs/usage.md)에 명시한다.
 - `tests/connections_test.inc`는 이전 그룹, 빈 폴더, Unicode·중복 이름, 순서·백업, 잠금·쓰기 실패와 암호문·고급 설정 보존을 검증한다. `node tests/ssh/connections-integration.cjs`는 격리된 실제 Windows UI에서 생성·이름 변경·취소·삭제 확인, 목록 순서·검색·대량 연결·최소 크기와 화면 캡처를 검증한다.
 
 ## 탭이 많을 때
