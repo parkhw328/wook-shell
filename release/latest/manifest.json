@@ -1,40 +1,51 @@
 {
-  "version": "1.1.1",
+  "version": "1.2.0",
   "createdBy": "Hyunwook Park",
   "artifacts": [
     {
       "platform": "windows-x64",
       "file": "windows-x64/wShell.exe",
-      "bytes": 3576320,
-      "sha256": "be7444359e89b9380cfb7a9176de7505a0b446a5cd50a570da2c920e0fbaf041"
+      "bytes": 3637760,
+      "sha256": "c6665b1d79e0a72ef27954560a21d593599166bef7e634bfe4d46ab69a434511"
     },
     {
       "platform": "windows-x64",
       "file": "windows-x64/wshell-windows-x64.zip",
-      "bytes": 1622253,
-      "sha256": "8bd74ec999cf5edb2986989f2d73192fb721418fd757e191c0842110f00b230a"
+      "bytes": 1650908,
+      "sha256": "5e217977b481e573aa7cfe83fe6e155edabf156b40845926756640138fea1084"
     }
   ],
-  "sourceCommit": "0d9d126442c9a10fba60113619ac85812ce7a22a",
+  "sourceCommit": "27aba357c2c67f9ca95f8c052c2e9c558e89272d",
   "sourceDirty": false,
   "buildHost": "windows",
   "validation": {
     "staticPackage": "passed",
     "coreTests": {
       "status": "passed",
-      "count": 4
+      "count": 4,
+      "coreChecks": 932
     },
-    "dragIntegration": {
+    "connectionsIntegration": {
       "status": "passed",
-      "checks": 47
+      "checks": 77
     },
-    "sftpIntegration": "passed",
+    "scrollbarIntegration": {
+      "status": "passed",
+      "checks": 66
+    },
+    "launchIntegration": {
+      "status": "passed",
+      "authenticated": 8,
+      "shells": 8
+    },
     "pythonTests": {
-      "passed": 12,
-      "skipped": 1
+      "status": "passed",
+      "testsRun": 13,
+      "skippedSuites": 1,
+      "skipReason": "ArrowKeysTest requires a host cc compiler"
     },
     "windowsRuntime": "partial",
-    "fullUiRegression": "not-run for 1.1.1; 1.1.0 incomplete due to native mouse target obscured by another application",
+    "fullUiRegression": "incomplete during feature development at native mouse phase 34 because another application obscured the target; not rerun after the version-only bump",
     "explorerMouseDrop": "not-run",
     "crossWindowDropHitTesting": "not-run",
     "mixedMonitorDpi": "not-run",

@@ -1,0 +1,54 @@
+{
+  "version": "1.2.0",
+  "createdBy": "Hyunwook Park",
+  "artifacts": [
+    {
+      "platform": "windows-x64",
+      "file": "windows-x64/wShell.exe",
+      "bytes": 3637760,
+      "sha256": "c6665b1d79e0a72ef27954560a21d593599166bef7e634bfe4d46ab69a434511"
+    },
+    {
+      "platform": "windows-x64",
+      "file": "windows-x64/wshell-1.2.0-windows-x64.zip",
+      "bytes": 1650908,
+      "sha256": "5e217977b481e573aa7cfe83fe6e155edabf156b40845926756640138fea1084"
+    }
+  ],
+  "sourceCommit": "27aba357c2c67f9ca95f8c052c2e9c558e89272d",
+  "sourceDirty": false,
+  "buildHost": "windows",
+  "validation": {
+    "staticPackage": "passed",
+    "coreTests": {
+      "status": "passed",
+      "count": 4,
+      "coreChecks": 932
+    },
+    "connectionsIntegration": {
+      "status": "passed",
+      "checks": 77
+    },
+    "scrollbarIntegration": {
+      "status": "passed",
+      "checks": 66
+    },
+    "launchIntegration": {
+      "status": "passed",
+      "authenticated": 8,
+      "shells": 8
+    },
+    "pythonTests": {
+      "status": "passed",
+      "testsRun": 13,
+      "skippedSuites": 1,
+      "skipReason": "ArrowKeysTest requires a host cc compiler"
+    },
+    "windowsRuntime": "partial",
+    "fullUiRegression": "incomplete during feature development at native mouse phase 34 because another application obscured the target; not rerun after the version-only bump",
+    "explorerMouseDrop": "not-run",
+    "crossWindowDropHitTesting": "not-run",
+    "mixedMonitorDpi": "not-run",
+    "ngs": "not-run"
+  }
+}

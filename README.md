@@ -54,7 +54,7 @@ Windows 1.2.0은 공개 배포 버전입니다. SignPath 신청은 제출했으�
 
 **블로그용 최신 버전 고정 링크:** [Windows EXE 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wShell.exe) · [Windows ZIP 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wshell-windows-x64.zip). 새 버전을 배포해도 주소는 바뀌지 않습니다. 현재 연결되는 버전과 SHA-256은 [최신 manifest](release/latest/manifest.json)에서 확인할 수 있습니다.
 
-1.2.0에서는 왼쪽 연결 목록의 폴더 추가·이름 변경·삭제와 호스트의 폴더 이동, 폴더·호스트 순서 변경을 지원합니다. 빈 폴더·접힘 상태·순서는 저장과 백업에 포함됩니다. 기존 탭 분리·파일 드래그앤드롭·SFTP 삭제 확인 단축키도 포함합니다. Windows 로컬 빌드와 기능별 자동 검증을 수행했으며, 이 PC의 보안 정책과 전체 UI 검사 포커스 확보에 따른 검증 제한은 [변경 내역](docs/releases/1.2.0.md)에 기록했습니다.
+1.2.0에서는 왼쪽 연결 목록의 폴더 추가·이름 변경·삭제와 호스트의 폴더 이동, 폴더·호스트 순서 변경을 지원합니다. 빈 폴더·접힘 상태·순서는 저장과 백업에 포함됩니다. 기존 탭 분리·파일 드래그앤드롭·SFTP 삭제 확인 단축키도 포함합니다. Windows 로컬 빌드와 기능별 자동 검증을 수행했으며, 전체 UI 회귀 및 실제 탐색기 드롭·다중 모니터 배율·NGS 검증에는 제한이 있습니다. [변경 내역](docs/releases/1.2.0.md)을 확인하세요.
 
 | 플랫폼 | 최신 배포 버전 | 다운로드 |
 | --- | --- | --- |
