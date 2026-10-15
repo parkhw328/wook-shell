@@ -3,6 +3,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <limits>
 
 namespace wook {
 std::string utf8(const std::wstring &value);
@@ -23,6 +24,7 @@ struct Profile {
     int fontSize = 9;
     bool passwordSaved = false;
     std::wstring alias, tabColor;
+    unsigned long order = std::numeric_limits<unsigned long>::max();
     std::wstring displayName() const { return alias.empty() ? name : alias; }
 };
 enum class PasswordAction { keep, replace, forget };

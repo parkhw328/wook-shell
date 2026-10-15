@@ -1,4 +1,5 @@
 #include "core.hpp"
+#include "connections.hpp"
 #include "backup.hpp"
 #include "credentials.hpp"
 #include "split.hpp"
@@ -23,6 +24,7 @@ template<typename Fn> static void rejects(Fn fn, const char *name) {
 }
 #include "password_test.inc"
 #include "launch_test.inc"
+#include "connections_test.inc"
 int wmain() {
     try {
         for (int available : {400, 600, 1000, 1800}) for (int count = 1; count <= 32; ++count) {
@@ -196,6 +198,7 @@ int wmain() {
         check(wsPath(L"sessions", std::string(101, 'x').c_str()) == nullptr, "bounded session filenames");
         testPasswords(data + L"-passwords");
         testLaunch(data + L"-launch");
+        testConnections(data + L"-connections");
         std::wcout << L"PASS: " << checks << L" checks. Isolated data: " << data << L"\n";
         return 0;
     } catch (const std::exception &e) { std::cerr << "FAIL: " << e.what() << "\n"; return 1; }

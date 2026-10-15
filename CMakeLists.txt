@@ -10,14 +10,14 @@ endif()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_compile_definitions(UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0A00)
-add_library(wook-core STATIC src/core.cpp src/store.c src/backup.cpp src/credentials.cpp src/launch.cpp src/launch_relay.cpp)
+add_library(wook-core STATIC src/core.cpp src/connections.cpp src/store.c src/backup.cpp src/credentials.cpp src/launch.cpp src/launch_relay.cpp)
 target_link_libraries(wook-core PUBLIC crypt32 advapi32 bcrypt)
 target_include_directories(wook-core PUBLIC src)
 target_compile_options(wook-core PRIVATE -Wall -Wextra)
 add_library(wsftp STATIC mac/Sources/CSFTP/wsftp.c)
 target_include_directories(wsftp PUBLIC mac/Sources/CSFTP/include)
 target_compile_options(wsftp PRIVATE -Wall -Wextra)
-set(workspace_sources src/main.cpp src/theme.cpp src/dialog.cpp src/message_dialog.cpp src/resources.cpp src/key_dialog.cpp src/key_import.cpp src/workspace_dialog.cpp src/settings_ui.cpp src/ime.c src/prompt.cpp src/sftp.cpp src/sftp_view.cpp src/file_drag.cpp assets/app.rc
+set(workspace_sources src/main.cpp src/theme.cpp src/dialog.cpp src/folder_dialog.cpp src/message_dialog.cpp src/resources.cpp src/key_dialog.cpp src/key_import.cpp src/workspace_dialog.cpp src/settings_ui.cpp src/ime.c src/prompt.cpp src/sftp.cpp src/sftp_view.cpp src/file_drag.cpp assets/app.rc
     $<TARGET_OBJECTS:wshell-terminal> $<TARGET_OBJECTS:wshell-terminal-be-list>)
 # windres does not emit dependencies for binary RCDATA and nested resource scripts.
 set_property(SOURCE assets/app.rc APPEND PROPERTY OBJECT_DEPENDS

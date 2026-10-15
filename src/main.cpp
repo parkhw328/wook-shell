@@ -1,4 +1,5 @@
 #include "core.hpp"
+#include "connections.hpp"
 #include "dialog.hpp"
 #include "ui.hpp"
 #include "resources.hpp"
@@ -34,7 +35,7 @@ using wook::Profile;
 extern "C" int WINAPI wshellTerminalMain(HINSTANCE, HINSTANCE, LPSTR, int);
 namespace {
 enum { Search = 100, HostList, NewHost, ConnectHost, EditHost, Quick, QuickConnect, Preview,
-       Advanced, Duplicate, Reconnect, SessionSettings, Tools, Shortcuts, About, SaveCurrent, HomeNew, HomePreview, LocalCmd, LocalPowerShell, FilesHost, FilesSession, Split, CommandText, SendCommand, SendAll, SyncInput, Targets, NavigationToggle, TabsPrevious, TabsNext, TabsList, ControlEnd };
+       Advanced, Duplicate, Reconnect, SessionSettings, Tools, Shortcuts, About, SaveCurrent, HomeNew, HomePreview, LocalCmd, LocalPowerShell, FilesHost, FilesSession, Split, CommandText, SendCommand, SendAll, SyncInput, Targets, NavigationToggle, TabsPrevious, TabsNext, TabsList, NewFolder, MoveHostUp, MoveHostDown, ControlEnd, ToggleFolder, RenameFolder, DeleteFolder };
 constexpr int sidebarExpanded = 252, sidebarCollapsed = 48, appBarHeight = 48;
 enum class CloseTabs { all, others, right };
 struct Tab {
@@ -50,6 +51,11 @@ struct Tab {
     ~Tab() { if (process) CloseHandle(process); }
 };
 struct Hit { RECT rect; int index; bool close; };
+struct ConnectionRow {
+    int profile = -1;
+    std::wstring folder;
+    size_t count = 0;
+};
 struct App {
     bool secondary = false;
     wook::LaunchRelay *launchRelay = nullptr;
@@ -61,6 +67,9 @@ struct App {
     std::wstring directory;
     std::vector<Profile> profiles;
     std::vector<size_t> filtered;
+    std::vector<wook::Folder> folders;
+    std::vector<ConnectionRow> connectionRows;
+    std::wstring connectionQuery;
     std::vector<std::unique_ptr<Tab>> tabs;
     std::vector<Hit> hits;
     std::vector<Tab *> panes;
@@ -89,8 +98,14 @@ struct App {
     bool wheelTabs(UINT message, WPARAM keys, LPARAM position);
     void allTabsMenu(POINT point);
     void paint(HDC dc);
-    void refresh();
-    void filter();
+    void refresh(std::wstring selection = L"");
+    void refreshConnections(const std::wstring &selection = L"");
+    void filter(std::wstring selection = L"");
+    std::wstring connectionSelection() const;
+    std::wstring selectedFolder() const;
+    bool canMoveConnection(int direction) const;
+    void moveConnection(int direction);
+    void activateConnection();
     void setNavigation(bool show);
     void hostActions();
     void select(int index);
@@ -328,7 +343,8 @@ void App::setNavigation(bool show) {
     if (navigationVisible == show) return;
     wook::saveNavigationVisible(show);
     auto focus = GetFocus();
-    bool restoreFocus = focus == control(NavigationToggle) || (!show && (focus == control(Search) || focus == control(HostList)));
+    bool restoreFocus = focus == control(NavigationToggle) || (!show && (focus == control(Search) || focus == control(HostList) ||
+        focus == control(NewFolder) || focus == control(MoveHostUp) || focus == control(MoveHostDown)));
     navigationVisible = show; sidebar = show ? sidebarExpanded : sidebarCollapsed;
     layout();
     if (restoreFocus) { if (active < 0) SetFocus(control(Quick)); else focusActive(); }
@@ -338,34 +354,107 @@ void App::hostActions() {
     EnableWindow(control(ConnectHost), selected != nullptr);
     EnableWindow(control(EditHost), selected != nullptr);
     EnableWindow(control(FilesHost), selected && selected->protocol == L"ssh");
+    EnableWindow(control(MoveHostUp), canMoveConnection(-1));
+    EnableWindow(control(MoveHostDown), canMoveConnection(1));
     InvalidateRect(hwnd, nullptr, FALSE);
 }
-void App::filter() {
+std::wstring App::connectionSelection() const {
+    auto index = SendMessageW(control(HostList), LB_GETCURSEL, 0, 0);
+    if (index < 0 || (size_t)index >= connectionRows.size()) return {};
+    const auto &row = connectionRows[index];
+    if (row.profile < 0) return L"folder:" + row.folder;
+    return (size_t)row.profile < profiles.size() ? L"host:" + profiles[row.profile].name : L"";
+}
+std::wstring App::selectedFolder() const {
+    auto key = connectionSelection();
+    return key.starts_with(L"folder:") ? key.substr(7) : L"";
+}
+void App::filter(std::wstring selection) {
     auto query = lower(ui::value(control(Search)));
-    auto current = SendMessageW(control(HostList), LB_GETCURSEL, 0, 0);
-    std::wstring old;
-    if (current >= 0 && (size_t)current < filtered.size()) old = profiles[filtered[current]].name;
-    filtered.clear();
+    bool queryChanged = query != connectionQuery;
+    bool reveal = !selection.empty();
+    connectionQuery = query;
+    if (selection.empty() && !queryChanged) selection = connectionSelection();
+    auto top = SendMessageW(control(HostList), LB_GETTOPINDEX, 0, 0);
+    filtered.clear(); connectionRows.clear();
     SendMessageW(control(HostList), WM_SETREDRAW, FALSE, 0);
     SendMessageW(control(HostList), LB_RESETCONTENT, 0, 0);
-    int selected = 0;
     for (size_t i = 0; i < profiles.size(); ++i) {
         auto &p = profiles[i];
         if (!query.empty() && lower(p.name + L" " + p.alias + L" " + p.host + L" " + p.group + L" " + p.user).find(query) == std::wstring::npos) continue;
-        if (p.name == old) selected = (int)filtered.size();
         filtered.push_back(i);
-        SendMessageW(control(HostList), LB_ADDSTRING, 0, (LPARAM)p.name.c_str());
+        if (p.group.empty()) connectionRows.push_back({(int)i});
     }
-    if (!filtered.empty()) SendMessageW(control(HostList), LB_SETCURSEL, selected, 0);
+    for (const auto &folder : folders) {
+        std::vector<size_t> children;
+        for (auto i : filtered) if (profiles[i].group == folder.name) children.push_back(i);
+        if (!query.empty() && children.empty() && lower(folder.name).find(query) == std::wstring::npos) continue;
+        connectionRows.push_back({-1, folder.name, children.size()});
+        if (!folder.collapsed || !query.empty()) for (auto i : children) connectionRows.push_back({(int)i, folder.name});
+    }
+    int selected = -1, firstHost = -1;
+    for (size_t i = 0; i < connectionRows.size(); ++i) {
+        const auto &row = connectionRows[i];
+        std::wstring key, text;
+        if (row.profile < 0) {
+            key = L"folder:" + row.folder;
+            auto folder = std::find_if(folders.begin(), folders.end(), [&](const auto &f) { return f.name == row.folder; });
+            text = row.folder + (folder->collapsed && query.empty() ? L", collapsed, " : L", expanded, ") + std::to_wstring(row.count) + L" hosts";
+        } else {
+            key = L"host:" + profiles[row.profile].name; text = profiles[row.profile].displayName();
+            if (firstHost < 0) firstHost = (int)i;
+        }
+        if (key == selection) selected = (int)i;
+        SendMessageW(control(HostList), LB_ADDSTRING, 0, (LPARAM)text.c_str());
+    }
+    if (selected < 0) selected = firstHost >= 0 ? firstHost : connectionRows.empty() ? -1 : 0;
+    SendMessageW(control(HostList), LB_SETCURSEL, selected, 0);
+    if (top >= 0 && !queryChanged && !reveal) SendMessageW(control(HostList), LB_SETTOPINDEX, std::min((int)top, std::max(0, (int)connectionRows.size() - 1)), 0);
     SendMessageW(control(HostList), WM_SETREDRAW, TRUE, 0);
     InvalidateRect(control(HostList), nullptr, TRUE);
     hostActions();
-    visible(control(HostList), navigationVisible && !filtered.empty());
+    visible(control(HostList), navigationVisible && !connectionRows.empty());
 }
-void App::refresh() { auto next = wook::loadProfiles(); filtered.clear(); profiles = std::move(next); filter(); }
+void App::refresh(std::wstring selection) {
+    if (selection.empty()) selection = connectionSelection();
+    auto next = wook::loadProfiles(); auto groups = wook::loadFolders(next);
+    filtered.clear(); connectionRows.clear(); profiles = std::move(next); folders = std::move(groups); filter(selection);
+}
+void App::refreshConnections(const std::wstring &selection) {
+    for (auto window : workspaces) window->refresh(window == this ? selection : L"");
+}
 Profile *App::selectedHost() {
     auto i = SendMessageW(control(HostList), LB_GETCURSEL, 0, 0);
-    return i >= 0 && (size_t)i < filtered.size() ? &profiles[filtered[i]] : nullptr;
+    if (i < 0 || (size_t)i >= connectionRows.size()) return nullptr;
+    auto index = connectionRows[i].profile;
+    return index >= 0 && (size_t)index < profiles.size() ? &profiles[index] : nullptr;
+}
+bool App::canMoveConnection(int direction) const {
+    if (!ui::value(control(Search)).empty()) return false;
+    auto key = connectionSelection();
+    if (key.starts_with(L"folder:")) {
+        for (size_t i = 0; i < folders.size(); ++i) if (folders[i].name == key.substr(7))
+            return direction < 0 ? i > 0 : i + 1 < folders.size();
+    } else if (key.starts_with(L"host:")) {
+        for (size_t i = 0; i < profiles.size(); ++i) if (profiles[i].name == key.substr(5)) {
+            for (int j = (int)i + direction; j >= 0 && j < (int)profiles.size(); j += direction)
+                if (profiles[j].group == profiles[i].group) return true;
+            return false;
+        }
+    }
+    return false;
+}
+void App::moveConnection(int direction) {
+    if (!canMoveConnection(direction)) return;
+    auto key = connectionSelection(); auto folder = selectedFolder();
+    if (!folder.empty()) wook::moveFolder(folder, direction);
+    else if (auto p = selectedHost()) wook::moveProfileBy(p->name, direction);
+    refreshConnections(key);
+    auto index = SendMessageW(control(HostList), LB_GETCURSEL, 0, 0);
+    SendMessageW(control(HostList), LB_SETCURSEL, index, 0); SetFocus(control(HostList));
+}
+void App::activateConnection() {
+    if (!selectedFolder().empty()) action(ToggleFolder); else action(ConnectHost);
 }
 void App::layout(bool revealTab) {
     ui::DpiScope dpiScope(hwnd);
@@ -405,9 +494,13 @@ void App::layout(bool revealTab) {
     ui::place(control(Shortcuts), 726, 8, 110, 32);
     ui::place(control(About), 844, 8, 70, 32);
     ui::place(control(Search), 26, 112, sidebarExpanded - 52, 22);
-    ui::place(control(HostList), 10, 158, sidebarExpanded - 20, std::max(55, height - 196));
+    ui::place(control(NewFolder), 18, 150, 130, 30);
+    ui::place(control(MoveHostUp), 156, 150, 34, 30);
+    ui::place(control(MoveHostDown), 198, 150, 34, 30);
+    ui::place(control(HostList), 10, 188, sidebarExpanded - 20, std::max(55, height - 226));
     visible(control(Search), navigationVisible);
-    visible(control(HostList), navigationVisible && !filtered.empty());
+    visible(control(HostList), navigationVisible && !connectionRows.empty());
+    for (int id : {NewFolder, MoveHostUp, MoveHostDown}) visible(control(id), navigationVisible);
     int left = sidebar + 48, span = std::max(360, width - left - 48), card = (span - 17) / 2;
     ui::place(control(Quick), left + 17, appBarHeight + 246, std::max(100, span - 166), 25);
     ui::place(control(QuickConnect), left + span - 123, appBarHeight + 235, 123, 46);
@@ -525,9 +618,9 @@ void App::paint(HDC dc) {
         auto count = ui::value(control(Search)).empty() ? std::to_wstring(profiles.size()) : std::to_wstring(filtered.size()) + L" / " + std::to_wstring(profiles.size());
         ui::label(dc, count, ui::rect(142, 66, 58, 23), ui::TextSize::caption, ui::muted, false, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
         ui::round(dc, ui::rect(18, 102, sidebar - 36, 40), ui::raised);
-        if (filtered.empty()) {
-            ui::label(dc, profiles.empty() ? L"No saved connections." : L"No matching connections.", ui::rect(24, 172, 210, 25), ui::TextSize::body, ui::muted);
-            ui::label(dc, profiles.empty() ? L"Use New host to add one." : L"Try another name or address.", ui::rect(24, 200, 210, 22), ui::TextSize::caption, ui::muted);
+        if (connectionRows.empty()) {
+            ui::label(dc, profiles.empty() ? L"No saved connections." : L"No matching connections.", ui::rect(24, 202, 210, 25), ui::TextSize::body, ui::muted);
+            ui::label(dc, profiles.empty() ? L"Use New host to add one." : L"Try another name or address.", ui::rect(24, 230, 210, 22), ui::TextSize::caption, ui::muted);
         }
     }
     ui::fill(dc, ui::rect(sidebar + 1, appBarHeight + 51, width - sidebar, 1), ui::line);
@@ -829,15 +922,55 @@ void App::action(int id) {
     case TabsNext: scrollTabs(1); break;
     case TabsList: { RECT r; GetWindowRect(control(TabsList), &r); allTabsMenu({r.right, r.bottom}); break; }
     case NavigationToggle: command(15); break;
+    case NewFolder: {
+        std::wstring name;
+        if (editFolder(hwnd, name, false)) { SetWindowTextW(control(Search), L""); refreshConnections(L"folder:" + name); }
+        break;
+    }
+    case RenameFolder: {
+        auto name = selectedFolder();
+        if (!name.empty() && editFolder(hwnd, name, true)) {
+            SetWindowTextW(control(Search), L""); refreshConnections(L"folder:" + name);
+        }
+        break;
+    }
+    case DeleteFolder: {
+        auto name = selectedFolder();
+        if (name.empty()) break;
+        auto message = L"Delete the folder \"" + name + L"\"?\r\n\r\nSaved hosts will move out of the folder. Their connection settings and open terminal tabs will be kept.";
+        if (wsMessageBoxW(hwnd, message.c_str(), L"Delete folder", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) == IDYES) {
+            wook::deleteFolder(name); refreshConnections();
+        }
+        break;
+    }
+    case ToggleFolder: {
+        if (!ui::value(control(Search)).empty()) break;
+        auto name = selectedFolder();
+        for (const auto &folder : folders) if (folder.name == name) {
+            wook::collapseFolder(name, !folder.collapsed); refreshConnections(L"folder:" + name); break;
+        }
+        break;
+    }
+    case MoveHostUp: moveConnection(-1); break;
+    case MoveHostDown: moveConnection(1); break;
     case Split: splitMenu(); break;
     case Targets: targetsMenu(); break;
-    case NewHost: case HomeNew: { Profile p; if (editHost(hwnd, p, false)) refresh(); break; }
+    case NewHost: case HomeNew: {
+        Profile p; p.group = selectedFolder();
+        if (p.group.empty()) if (auto selected = selectedHost()) p.group = selected->group;
+        if (editHost(hwnd, p, false)) {
+            if (!p.group.empty()) wook::collapseFolder(p.group, false);
+            SetWindowTextW(control(Search), L""); refreshConnections(L"host:" + p.name);
+        }
+        break;
+    }
     case EditHost: {
         auto selected = selectedHost(); if (!selected) break;
         Profile p = *selected; auto oldName = p.name;
         if (editHost(hwnd, p, true)) {
             for (auto &tab : tabs) if (tab->profile.name == oldName && !tab->transient) { tab->profile.alias = p.alias; tab->profile.tabColor = p.tabColor; }
-            refresh(); layout();
+            if (!p.group.empty()) wook::collapseFolder(p.group, false);
+            refreshConnections(L"host:" + p.name); layout();
         }
         break;
     }
@@ -951,19 +1084,48 @@ void App::allTabsMenu(POINT point) {
     else if (choice == 101) closeTabs(CloseTabs::all);
 }
 void App::hostMenu(POINT point) {
-    if (!selectedHost()) return;
+    auto selected = selectedHost();
+    auto folder = selectedFolder();
+    Profile host; if (selected) host = *selected;
+    auto choices = folders;
     HMENU menu = CreatePopupMenu();
-    AppendMenuW(menu, MF_STRING, 1, L"Connect in new tab");
-    AppendMenuW(menu, MF_STRING, 2, L"Edit host…");
-    AppendMenuW(menu, MF_STRING, 3, L"Duplicate host…");
-    AppendMenuW(menu, MF_STRING, 4, L"Connection settings");
+    if (selected) {
+        AppendMenuW(menu, MF_STRING, 1, L"Connect in new tab");
+        AppendMenuW(menu, MF_STRING, 2, L"Edit host…\tF2");
+        AppendMenuW(menu, MF_STRING, 3, L"Duplicate host…");
+        AppendMenuW(menu, MF_STRING, 4, L"Connection settings");
+        auto move = CreatePopupMenu();
+        AppendMenuW(move, MF_STRING | (host.group.empty() ? MF_CHECKED | MF_GRAYED : 0), 1000, L"No folder");
+        for (size_t i = 0; i < choices.size(); ++i) {
+            // Ampersands in user-provided names are literal, not menu mnemonics.
+            std::wstring label;
+            for (auto c : choices[i].name) { label += c; if (c == L'&') label += c; }
+            AppendMenuW(move, MF_STRING | (host.group == choices[i].name ? MF_CHECKED | MF_GRAYED : 0), 1001 + i, label.c_str());
+        }
+        AppendMenuW(menu, MF_POPUP, (UINT_PTR)move, L"Move to folder");
+    } else if (!folder.empty()) {
+        AppendMenuW(menu, MF_STRING | (ui::value(control(Search)).empty() ? 0 : MF_GRAYED), ToggleFolder, L"Expand / collapse\tEnter");
+        AppendMenuW(menu, MF_STRING, RenameFolder, L"Rename folder…\tF2");
+        AppendMenuW(menu, MF_STRING, NewHost, L"New host in folder…");
+    }
+    AppendMenuW(menu, MF_STRING, NewFolder, L"New folder…");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(menu, MF_STRING, 5, L"Delete host");
+    AppendMenuW(menu, MF_STRING | (canMoveConnection(-1) ? 0 : MF_GRAYED), MoveHostUp, L"Move up\tCtrl+Up");
+    AppendMenuW(menu, MF_STRING | (canMoveConnection(1) ? 0 : MF_GRAYED), MoveHostDown, L"Move down\tCtrl+Down");
+    if (selected || !folder.empty()) AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    if (selected) AppendMenuW(menu, MF_STRING, 5, L"Delete host");
+    else if (!folder.empty()) AppendMenuW(menu, MF_STRING, DeleteFolder, L"Delete folder…");
     int choice = TrackPopupMenu(menu, TPM_RETURNCMD, point.x, point.y, 0, hwnd, nullptr); DestroyMenu(menu);
+    if (choice >= 1000 && choice <= 1000 + (int)choices.size() && selected) {
+        wook::moveProfile(host.name, choice == 1000 ? L"" : choices[choice - 1001].name);
+        refreshConnections(L"host:" + host.name); return;
+    }
+    if (choice >= NewFolder || choice == NewHost) { action(choice); return; }
     if (choice == 1) action(ConnectHost); else if (choice == 2) action(EditHost); else if (choice == 4) action(Advanced);
-    else if (choice == 3) { Profile p = *selectedHost(); p.name += L" copy"; if (editHost(hwnd, p, false)) refresh(); }
+    else if (choice == 3) { Profile p = host; p.name += L" copy"; if (editHost(hwnd, p, false)) refreshConnections(L"host:" + p.name); }
     else if (choice == 5 && wsMessageBoxW(hwnd, L"Delete this saved host? Existing terminal tabs will stay open.", L"Delete host", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) == IDYES) {
-        wook::deleteProfile(selectedHost()->name); refresh();
+        for (const auto &group : folders) if (group.name == host.group) { wook::collapseFolder(group.name, group.collapsed); break; }
+        wook::deleteProfile(host.name); refreshConnections();
     }
 }
 void App::tabMenu(int index, POINT point) {
@@ -1003,9 +1165,34 @@ void App::tabMenu(int index, POINT point) {
 
 LRESULT CALLBACK editProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR data) {
     auto *app = (App *)data;
+    if (msg == WM_GETDLGCODE && GetDlgCtrlID(hwnd) == HostList && wp == VK_RETURN)
+        return DefSubclassProc(hwnd, msg, wp, lp) | DLGC_WANTMESSAGE;
     if (msg == WM_SETFOCUS || msg == WM_KILLFOCUS) PostMessageW(app->hwnd, WM_APP + 47, 0, 0);
     if (msg == WM_KEYDOWN && wp == VK_RETURN) {
+        if (GetDlgCtrlID(hwnd) == HostList) {
+            PostMessageW(app->hwnd, WM_COMMAND, app->selectedFolder().empty() ? ConnectHost : ToggleFolder, 0); return 0;
+        }
         PostMessageW(app->hwnd, WM_COMMAND, GetDlgCtrlID(hwnd) == CommandText ? SendCommand : GetDlgCtrlID(hwnd) == Quick ? QuickConnect : ConnectHost, 0); return 0;
+    }
+    if (GetDlgCtrlID(hwnd) == HostList && msg == WM_KEYDOWN) {
+        if (wp == VK_F2) { PostMessageW(app->hwnd, WM_COMMAND, app->selectedFolder().empty() ? EditHost : RenameFolder, 0); return 0; }
+        if (wp == VK_DELETE && !app->selectedFolder().empty()) { PostMessageW(app->hwnd, WM_COMMAND, DeleteFolder, 0); return 0; }
+        if ((GetKeyState(VK_CONTROL) & 0x8000) && (wp == VK_UP || wp == VK_DOWN)) {
+            PostMessageW(app->hwnd, WM_COMMAND, wp == VK_UP ? MoveHostUp : MoveHostDown, 0); return 0;
+        }
+        if ((wp == VK_LEFT || wp == VK_RIGHT) && !app->selectedFolder().empty()) {
+            auto name = app->selectedFolder();
+            for (const auto &folder : app->folders) if (folder.name == name && folder.collapsed != (wp == VK_LEFT)) {
+                PostMessageW(app->hwnd, WM_COMMAND, ToggleFolder, 0); break;
+            }
+            return 0;
+        }
+    }
+    if (GetDlgCtrlID(hwnd) == HostList && msg == WM_LBUTTONUP && GET_X_LPARAM(lp) < ui::px(42)) {
+        auto item = SendMessageW(hwnd, LB_ITEMFROMPOINT, 0, lp);
+        RECT row{}; POINT point{GET_X_LPARAM(lp), GET_Y_LPARAM(lp)};
+        if (!HIWORD(item) && SendMessageW(hwnd, LB_GETITEMRECT, LOWORD(item), (LPARAM)&row) != LB_ERR &&
+            PtInRect(&row, point) && !app->selectedFolder().empty()) PostMessageW(app->hwnd, WM_COMMAND, ToggleFolder, 0);
     }
     if (msg == WM_KEYDOWN && wp == VK_ESCAPE && GetDlgCtrlID(hwnd) != HostList) {
         SetWindowTextW(hwnd, L""); return 0;
@@ -1044,6 +1231,8 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             SendMessageW(app->control(HostList), LB_SETITEMHEIGHT, 0, ui::px(65));
             SetWindowSubclass(app->control(HostList), editProc, 1, (DWORD_PTR)app);
             addButton(NavigationToggle, L"Hide hosts");
+            addButton(NewFolder, L"+ Folder"); addButton(MoveHostUp, L"↑"); addButton(MoveHostDown, L"↓");
+            SetWindowTextW(app->control(MoveHostUp), L"Move up"); SetWindowTextW(app->control(MoveHostDown), L"Move down");
             addButton(TabsPrevious, L"‹"); addButton(TabsNext, L"›"); addButton(TabsList, L"All tabs ▾");
             SetWindowSubclass(app->control(TabsPrevious), scrollButtonProc, 1, (DWORD_PTR)app);
             SetWindowSubclass(app->control(TabsNext), scrollButtonProc, 1, (DWORD_PTR)app);
@@ -1069,7 +1258,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 TOOLINFOW tip{sizeof(tip)}; tip.uFlags = TTF_SUBCLASS; tip.hwnd = hwnd; tip.uId = 1000 + i;
                 tip.lpszText = LPSTR_TEXTCALLBACKW; SendMessageW(app->tooltips, TTM_ADDTOOLW, 0, (LPARAM)&tip);
             }
-            for (int id : {NavigationToggle, Search, NewHost, ConnectHost, FilesHost, EditHost, Advanced, SessionSettings, TabsPrevious, TabsNext, TabsList}) {
+            for (int id : {NavigationToggle, NewFolder, MoveHostUp, MoveHostDown, Search, NewHost, ConnectHost, FilesHost, EditHost, Advanced, SessionSettings, TabsPrevious, TabsNext, TabsList}) {
                 TOOLINFOW tip{sizeof(tip)}; tip.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
                 tip.hwnd = hwnd; tip.uId = (UINT_PTR)app->control(id); tip.lpszText = LPSTR_TEXTCALLBACKW;
                 SendMessageW(app->tooltips, TTM_ADDTOOLW, 0, (LPARAM)&tip);
@@ -1104,27 +1293,39 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_DRAWITEM: {
             auto d = (DRAWITEMSTRUCT *)lp;
             if (d->CtlID == HostList) {
-                if (d->itemID >= app->filtered.size()) return TRUE;
-                const auto &p = app->profiles[app->filtered[d->itemID]];
+                if (d->itemID >= app->connectionRows.size()) return TRUE;
+                const auto &row = app->connectionRows[d->itemID];
                 bool selected = d->itemState & ODS_SELECTED; ui::fill(d->hDC, d->rcItem, ui::panel);
                 RECT r = d->rcItem; InflateRect(&r, -ui::px(3), -ui::px(3));
                 if (selected) ui::round(d->hDC, r, ui::raised, ui::line, 10);
                 int y = MulDiv(r.top, 96, ui::dpi);
-                ui::round(d->hDC, ui::rect(13, y + 12, 33, 33), ui::panel, selected ? ui::line : ui::panel, 8);
-                ui::label(d->hDC, L">_", ui::rect(13, y + 12, 33, 33), ui::TextSize::body, hostColor(p), true, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-                ui::label(d->hDC, p.displayName(), ui::rect(57, y + 7, sidebarExpanded - 93, 25), ui::TextSize::body, selected ? ui::bright : ui::text, true);
-                std::wstring detail = p.group.empty() ? (p.user.empty() ? L"" : p.user + L"@") + p.host : p.group + L" / " + p.host;
-                ui::label(d->hDC, detail, ui::rect(57, y + 31, sidebarExpanded - 93, 22), ui::TextSize::caption, ui::muted);
+                if (row.profile < 0) {
+                    auto folder = std::find_if(app->folders.begin(), app->folders.end(), [&](const auto &f) { return f.name == row.folder; });
+                    bool collapsed = folder != app->folders.end() && folder->collapsed && ui::value(app->control(Search)).empty();
+                    ui::label(d->hDC, collapsed ? L"▸" : L"▾", ui::rect(10, y + 11, 28, 32), ui::TextSize::body, ui::accent, true, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                    ui::label(d->hDC, row.folder, ui::rect(42, y + 7, sidebarExpanded - 78, 25), ui::TextSize::body, selected ? ui::bright : ui::text, true);
+                    ui::label(d->hDC, std::to_wstring(row.count) + (row.count == 1 ? L" host" : L" hosts"), ui::rect(42, y + 31, sidebarExpanded - 78, 22), ui::TextSize::caption, ui::muted);
+                } else {
+                    const auto &p = app->profiles[row.profile];
+                    int indent = p.group.empty() ? 0 : 14;
+                    ui::round(d->hDC, ui::rect(13 + indent, y + 12, 28, 33), ui::panel, selected ? ui::line : ui::panel, 8);
+                    ui::label(d->hDC, L">_", ui::rect(13 + indent, y + 12, 28, 33), ui::TextSize::body, hostColor(p), true, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                    ui::label(d->hDC, p.displayName(), ui::rect(50 + indent, y + 7, sidebarExpanded - 86 - indent, 25), ui::TextSize::body, selected ? ui::bright : ui::text, true);
+                    std::wstring detail = (p.user.empty() ? L"" : p.user + L"@") + p.host;
+                    ui::label(d->hDC, detail, ui::rect(50 + indent, y + 31, sidebarExpanded - 86 - indent, 22), ui::TextSize::caption, ui::muted);
+                }
                 if (d->itemState & ODS_FOCUS) { RECT f = r; InflateRect(&f,-3,-3); DrawFocusRect(d->hDC,&f); }
             } else if (d->CtlID == NavigationToggle)
                 ui::drawButton(d, false, ui::TextSize::section, app->navigationVisible ? L"‹" : L"›");
+            else if (d->CtlID == MoveHostUp || d->CtlID == MoveHostDown)
+                ui::drawButton(d, false, ui::TextSize::body, d->CtlID == MoveHostUp ? L"↑" : L"↓");
             else ui::drawButton(d, d->CtlID == QuickConnect || d->CtlID == ConnectHost || d->CtlID == NewHost,
                                   d->CtlID == TabsList ? ui::TextSize::caption : ui::TextSize::body);
             return TRUE;
         }
         case WM_COMMAND:
             if (LOWORD(wp) == Search && HIWORD(wp) == EN_CHANGE) app->filter();
-            else if (LOWORD(wp) == HostList && HIWORD(wp) == LBN_DBLCLK) app->action(ConnectHost);
+            else if (LOWORD(wp) == HostList && HIWORD(wp) == LBN_DBLCLK) app->activateConnection();
             else if (LOWORD(wp) == HostList && HIWORD(wp) == LBN_SELCHANGE) app->hostActions();
             else if (HIWORD(wp) == BN_CLICKED) app->action(LOWORD(wp));
             return 0;
@@ -1141,6 +1342,9 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 int id = GetDlgCtrlID((HWND)header->idFrom);
                 auto p = app->selectedHost();
                 if (id == NavigationToggle) app->tooltipText = app->navigationVisible ? L"Hide hosts (Ctrl+Shift+H)" : L"Show hosts (Ctrl+Shift+H)";
+                else if (id == NewFolder) app->tooltipText = L"Create a folder for saved connections";
+                else if (id == MoveHostUp || id == MoveHostDown) app->tooltipText = !ui::value(app->control(Search)).empty() ?
+                    L"Clear search to change the saved order" : id == MoveHostUp ? L"Move selected host or folder up (Ctrl+Up)" : L"Move selected host or folder down (Ctrl+Down)";
                 else if (id == Search) app->tooltipText = L"Search by name, alias, address, group or username (Ctrl+Shift+P)";
                 else if (id == NewHost) app->tooltipText = L"Save a new connection";
                 else if (id == SessionSettings) app->tooltipText = L"Change settings for the active terminal";
@@ -1157,11 +1361,22 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         case WM_CONTEXTMENU: {
             POINT p{GET_X_LPARAM(lp),GET_Y_LPARAM(lp)};
-            if (p.x == -1) { RECT r; GetWindowRect(app->control(HostList), &r); p={r.left+30,r.top+30}; }
+            bool keyboard = p.x == -1;
+            if (keyboard) {
+                auto list = app->control(HostList); RECT r{};
+                auto selected = SendMessageW(list, LB_GETCURSEL, 0, 0);
+                if (selected >= 0 && SendMessageW(list, LB_GETITEMRECT, selected, (LPARAM)&r) != LB_ERR) {
+                    p = {r.left + 30, r.top + 30}; ClientToScreen(list, &p);
+                } else { GetWindowRect(list, &r); p = {r.left + 30, r.top + 30}; }
+            }
             if ((HWND)wp == app->control(HostList)) {
-                POINT local = p; ScreenToClient(app->control(HostList), &local);
-                auto item = SendMessageW(app->control(HostList), LB_ITEMFROMPOINT, 0, MAKELPARAM(local.x, local.y));
-                if (!HIWORD(item)) { SendMessageW(app->control(HostList), LB_SETCURSEL, LOWORD(item), 0); app->hostActions(); }
+                if (!keyboard) {
+                    POINT local = p; ScreenToClient(app->control(HostList), &local);
+                    auto item = SendMessageW(app->control(HostList), LB_ITEMFROMPOINT, 0, MAKELPARAM(local.x, local.y));
+                    RECT row{};
+                    bool hit = !HIWORD(item) && SendMessageW(app->control(HostList), LB_GETITEMRECT, LOWORD(item), (LPARAM)&row) != LB_ERR && PtInRect(&row, local);
+                    SendMessageW(app->control(HostList), LB_SETCURSEL, hit ? LOWORD(item) : -1, 0); app->hostActions();
+                }
                 app->hostMenu(p);
             } else {
                 POINT local=p; ScreenToClient(hwnd,&local);

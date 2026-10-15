@@ -1,4 +1,5 @@
 #include "dialog.hpp"
+#include "connections.hpp"
 #include "../build/version.h"
 #include "ui.hpp"
 #include "key_dialog.hpp"
@@ -55,7 +56,11 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         SendMessageW(combo, CB_SETCURSEL, current, 0);
         add(Port, L"22", 280, 236, 226, std::to_wstring(form->profile.port));
         add(User, L"Prompt on connection", 32, 308, 220, form->profile.user);
-        add(Group, L"e.g. Production", 280, 308, 226, form->profile.group);
+        auto folders = ui::control(hwnd, L"COMBOBOX", L"", Group, CBS_DROPDOWN | CBS_AUTOHSCROLL | WS_TABSTOP | WS_VSCROLL);
+        form->fields[Group - Name] = folders; ui::place(folders, 276, 303, 240, 220);
+        SendMessageW(folders, CB_ADDSTRING, 0, (LPARAM)L"");
+        for (const auto &folder : wook::loadFolders(wook::loadProfiles())) SendMessageW(folders, CB_ADDSTRING, 0, (LPARAM)folder.name.c_str());
+        SetWindowTextW(folders, form->profile.group.c_str());
         form->auth = ui::control(hwnd, L"COMBOBOX", L"", Auth, CBS_DROPDOWNLIST | WS_TABSTOP);
         ui::place(form->auth, 28, 374, 350, 160);
         for (auto label : {L"Password", L"Public key authentication"}) SendMessageW(form->auth, CB_ADDSTRING, 0, (LPARAM)label);
@@ -109,7 +114,7 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         ui::label(dc, form->existing ? L"Edit host" : L"A new connection", ui::rect(28, 17, 490, 34), ui::TextSize::title, ui::bright, true);
         const struct { const wchar_t *text; int x, y; } labels[] = {
             {L"NAME",28,61}, {L"ADDRESS / SERIAL PORT",28,135}, {L"PROTOCOL",28,206}, {L"PORT / BAUD",276,206},
-            {L"USERNAME",28,278}, {L"GROUP",276,278}, {L"AUTHENTICATION",28,351}, {L"FONT SIZE",398,351},
+            {L"USERNAME",28,278}, {L"FOLDER (BLANK = NONE)",276,278}, {L"AUTHENTICATION",28,351}, {L"FONT SIZE",398,351},
             {passwordMode(form) ? L"PASSWORD" : L"PRIVATE KEY",28,425}, {L"ALIAS (OPTIONAL)",28,595}, {L"TAB COLOR",320,595}
         };
         for (auto l : labels) ui::label(dc, l.text, ui::rect(l.x, l.y, 230, 20), ui::TextSize::caption, ui::muted, true);
@@ -157,6 +162,11 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 p.name = wook::trim(ui::value(form->fields[Name - Name])); p.host = wook::trim(ui::value(form->fields[Host - Name]));
                 if (p.host.starts_with(L"[") && p.host.ends_with(L"]")) p.host = p.host.substr(1, p.host.size() - 2);
                 p.user = wook::trim(ui::value(form->fields[User - Name])); p.group = wook::trim(ui::value(form->fields[Group - Name]));
+                if (!p.group.empty()) {
+                    wook::validateFolderName(p.group);
+                    for (const auto &folder : wook::loadFolders(wook::loadProfiles()))
+                        if (!_wcsicmp(folder.name.c_str(), p.group.c_str())) { p.group = folder.name; break; }
+                }
                 p.keyFile = passwordMode(form) ? L"" : wook::trim(ui::value(form->fields[Key - Name]));
                 p.protocol = protocols[SendMessageW(form->fields[Protocol - Name], CB_GETCURSEL, 0, 0)];
                 if (p.protocol == L"ssh" && !passwordMode(form)) {

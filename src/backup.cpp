@@ -38,14 +38,15 @@ struct Reader {
     }
 };
 bool allowedName(const Record &r) {
-    return (r.category == "sessions" || r.category == "trust" || r.category == "cas") &&
+    return (r.category == "sessions" || r.category == "trust" || r.category == "cas" ||
+        (r.category == "workspace" && r.name == "folders")) &&
         !r.name.empty() && r.name.size() <= 100 && !r.name.starts_with("__wook_") &&
         (r.category != "trust" || r.name == "hostkeys");
 }
 }
 std::wstring exportSettings(const std::wstring &path) {
     std::vector<Record> records;
-    for (const wchar_t *category : {L"sessions", L"trust", L"cas"}) {
+    for (const wchar_t *category : {L"sessions", L"trust", L"cas", L"workspace"}) {
         size_t count = 0; auto names = wsList(category, &count);
         try {
             for (size_t i = 0; i < count; ++i) {
@@ -73,7 +74,7 @@ std::wstring exportSettings(const std::wstring &path) {
     if (ok) ok = MoveFileExW(temp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
     if (!ok) { DeleteFileW(temp.c_str()); throw std::runtime_error("Cannot finish writing the backup file."); }
     return L"Settings exported.\n\nIncludes sessions, trusted host keys and host authorities. Private-key files are not included.\n\n"
-        L"Passwords are not exported or imported, even in encrypted form. Enter them again for imported hosts.";
+        L"Connection folders and host order are included (Windows). Passwords are not exported or imported, even in encrypted form. Enter them again for imported hosts.";
 }
 std::wstring importSettings(const std::wstring &path) {
     std::ifstream input(std::filesystem::path(path), std::ios::binary | std::ios::ate);

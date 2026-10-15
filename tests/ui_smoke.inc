@@ -6,6 +6,7 @@
 #include "scroll_smoke.inc"
 #include "message_smoke.inc"
 #include "workspace_smoke.inc"
+#include "connections_smoke.inc"
 #include "tabs_smoke.inc"
 #include "sftp_shortcuts_smoke.inc"
 #include "sftp_auth_smoke.inc"
@@ -49,6 +50,7 @@ template<typename Check> void testNativeKeys(const std::wstring &directory, Chec
     require(reopened && publicText(reopened.get()) == publicText(imported.get()), "Converted OpenSSH key changed");
 }
 void runUiSmoke(App &app) {
+    if (GetEnvironmentVariableW(L"WOOK_TEST_CONNECTIONS_ONLY", nullptr, 0)) { runConnectionsSmoke(app); return; }
     if (GetEnvironmentVariableW(L"WOOK_TEST_DRAG_ONLY",nullptr,0)) {runDragSmoke(app);return;}
     static const bool focusOnly = GetEnvironmentVariableW(L"WOOK_TEST_FOCUS_ONLY", nullptr, 0) != 0;
     static const bool mouseOnly = GetEnvironmentVariableW(L"WOOK_TEST_MOUSE_ONLY", nullptr, 0) != 0;

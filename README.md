@@ -134,6 +134,22 @@ macOS의 첫 접속은 비밀번호 공급 전에 서버 키 지문을 별도 �
 
 ![Fixed actions and collapsible navigation](assets/screenshots/navigation-expanded.png)
 
+### Windows 연결 폴더와 표시 순서
+
+![Connection folders and saved order](assets/screenshots/connections-folders.png)
+
+왼쪽 목록의 **+ Folder**로 폴더를 만들고, 폴더 우클릭의 **Rename folder / Delete folder**로 이름을 바꾸거나 삭제합니다. 기존 호스트의 Group 값도 폴더로 표시됩니다. 폴더 화살표 또는 Enter·더블클릭으로 접고 펼치며, 빈 폴더와 접힘 상태도 저장됩니다. 폴더를 삭제하면 안의 호스트는 폴더 밖으로 이동하고 연결 설정과 열려 있는 터미널은 유지됩니다.
+
+호스트 우클릭의 **Move to folder**에서 이동할 폴더를 선택합니다. **No folder**는 폴더 밖으로 옮깁니다. New host / Edit의 **Folder**에서도 기존 폴더를 선택하거나 새 이름을 입력할 수 있습니다. 폴더를 선택한 채 New host를 누르면 해당 폴더가 미리 선택됩니다. 폴더는 한 단계 그룹으로 관리합니다.
+
+호스트 또는 폴더를 선택하고 검색 칸 아래의 **↑ / ↓**, 우클릭의 **Move up / Move down**, 목록에서 **Ctrl+Up / Ctrl+Down**으로 순서를 바꿉니다. 호스트는 같은 폴더 안에서, 폴더는 폴더 목록 안에서 이동합니다. 폴더 없는 호스트가 먼저 표시됩니다. 순서는 재실행 후에도 유지되며, 상단의 열린 터미널 탭은 기존 드래그 및 Move left / Move right로 별도 정렬합니다.
+
+검색은 접힌 폴더 안의 호스트도 표시하고 검색을 지우면 접힘 상태를 복원합니다. 저장된 순서를 바꾸려면 검색을 먼저 지웁니다. **F2**는 선택한 호스트 편집 또는 폴더 이름 변경, **Left / Right**는 폴더 접기·펼치기입니다.
+
+`.wshell` 백업에는 호스트의 폴더·순서와 빈 폴더·접힘 상태가 포함됩니다. 기존 설정을 가져올 때는 현재 저장된 호스트와 폴더 설정을 덮어쓰지 않습니다. 폴더 정보가 포함된 새 백업은 이 기능을 지원하는 Windows 빌드에서 복원합니다. 기존 macOS·iPad 및 이전 Windows 빌드의 가져오기에는 새 폴더 레코드가 지원되지 않습니다.
+
+개발 빌드는 기존 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 -EngineOnly`로 만들고, `node tests/ssh/connections-integration.cjs`로 격리된 Windows 창에서 폴더 생성·이름 변경·취소·삭제 확인, 순서 저장, 검색, 94개 연결과 스크롤바, 최소 창 크기를 검증합니다. 서버 연결은 필요하지 않습니다. 저장·백업·실패 시 복구는 `.tools/cmake-4.4.4-windows-x86_64/bin/ctest.exe --test-dir build/native/workspace --output-on-failure`의 core 테스트에서 검증합니다.
+
 ## Windows 연결과 탭
 
 0.11.0부터 탭이 늘면 폭을 줄이고, 최소 폭에 도달하면 **‹ / ›** 버튼과 휠 스크롤을 제공합니다. 탭 줄의 **3–5 / 32 ▾** 같은 표시는 현재 보이는 범위와 전체 개수입니다. 이 버튼을 누르면 숨겨진 탭까지 전체 이름·주소로 선택할 수 있습니다. `Ctrl+Tab` 전환·새 탭·창 크기 변경 시 선택한 탭이 자동으로 보입니다. 탭 줄만 스크롤할 때에는 현재 연결과 분할 입력 대상이 유지됩니다. [0.11.0 변경 내역](docs/releases/0.11.0.md)

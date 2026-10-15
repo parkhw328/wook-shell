@@ -185,6 +185,13 @@ std::vector<Profile> loadProfiles() {
             Profile p; p.name = name; p.host = read("HostName"); p.user = read("UserName");
             p.protocol = read("Protocol", "ssh"); p.keyFile = read("PublicKeyFile"); p.group = read("WookGroup");
             p.alias = read("WookAlias"); p.tabColor = read("WookTabColor");
+            try {
+                auto order = read("WookOrder"); size_t end = 0;
+                if (!order.empty() && order.find_first_not_of(L"0123456789") == std::wstring::npos) {
+                    auto value = std::stoul(order, &end);
+                    if (end == order.size()) p.order = value;
+                }
+            } catch (...) { /* Older or invalid ordering falls back to the name. */ }
             if (p.protocol == L"serial") p.host = read("SerialLine");
             try { p.port = std::stoi(read(p.protocol == L"serial" ? "SerialSpeed" : "PortNumber", "22")); } catch (...) { p.port = defaultPort(p.protocol); }
             try { p.fontSize = std::stoi(read("FontHeight", "9")); } catch (...) { p.fontSize = 9; }
@@ -193,7 +200,11 @@ std::vector<Profile> loadProfiles() {
         }
     } catch (...) { wsFreeList(names, count); throw; }
     wsFreeList(names, count);
-    std::sort(profiles.begin(), profiles.end(), [](const auto &a, const auto &b) { return _wcsicmp(a.name.c_str(), b.name.c_str()) < 0; });
+    std::sort(profiles.begin(), profiles.end(), [](const auto &a, const auto &b) {
+        if (a.order != b.order) return a.order < b.order;
+        int compared = _wcsicmp(a.name.c_str(), b.name.c_str());
+        return compared ? compared < 0 : a.name < b.name;
+    });
     return profiles;
 }
 void saveProfile(const Profile &p, const std::wstring &originalName, PasswordAction passwordAction, std::wstring_view password) {
