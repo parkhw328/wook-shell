@@ -16,6 +16,8 @@ WsFtp *wsftp_create(void *context, WsFtpRead read, WsFtpWrite write);
 void wsftp_free(WsFtp *client);
 const char *wsftp_error(WsFtp *client);
 int wsftp_status(WsFtp *client);
+/* No transport/protocol failure or unread pipelined responses. Not a liveness probe. */
+int wsftp_usable(WsFtp *client);
 int wsftp_init(WsFtp *client);
 int wsftp_realpath(WsFtp *client, const char *path, char *output, size_t capacity);
 int wsftp_list(WsFtp *client, const char *path, WsFtpEntry entry, void *context);

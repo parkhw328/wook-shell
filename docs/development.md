@@ -52,6 +52,7 @@ node tests/ssh/scroll-integration.cjs
 node tests/ssh/scroll-integration.cjs --follow-output
 node tests/ssh/integration.cjs
 node tests/ssh/sftp-integration.cjs
+node tests/ssh/sftp-error-integration.cjs # 권한 오류 후 조작·재시도·F5 재연결
 node tests/ssh/sftp-auth-integration.cjs # 실제 OTP 입력·Enter/Esc·창 포커스 복귀
 node tests/ssh/scrollbar-theme-integration.cjs # 네비게이션·목록·텍스트·드롭다운 스크롤바 색상/동작
 node tests/ssh/sftp-benchmark.cjs # 업로드·다운로드 지연 조건 비교 및 바이트 일치

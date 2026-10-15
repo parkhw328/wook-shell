@@ -133,6 +133,7 @@ WsFtp *wsftp_create(void *context, WsFtpRead read, WsFtpWrite write) {
 void wsftp_free(WsFtp *c) { if (c) { free(c->in.data); free(c->out.data); free(c); } }
 const char *wsftp_error(WsFtp *c) { return c ? c->error : "Cannot allocate SFTP connection."; }
 int wsftp_status(WsFtp *c) { return c->status; }
+int wsftp_usable(WsFtp *c) { return c && !c->broken; }
 int wsftp_atomic_replace(WsFtp *c) { return c->replace; }
 int wsftp_init(WsFtp *c) {
     request(c, 1); c->out.length = 5; put32(&c->out, 3);
@@ -275,7 +276,14 @@ int wsftp_download(WsFtp *c, const char *path, uint64_t size, WsFtpWrite output,
         }
         if (found < 0) { ok = fail(c, "Unexpected download response identifier."); break; }
         ReadSlot *slot = &slots[found];
-        if (type == 101) { status(c); ok = fail(c, "Remote file could not be read completely; it may have changed."); break; }
+        if (type == 101) {
+            int accepted = status(c);
+            /* Preserve permission/transport errors instead of hiding their cause.
+             * EOF before the advertised size still needs a truncated-file message. */
+            if (accepted || (!c->broken && c->status == 1))
+                fail(c, "Remote file could not be read completely; it may have changed.");
+            ok = 0; break;
+        }
         uint32_t length = 0;
         const unsigned char *data = type == 103 ? getBlob(&c->in, &length) : NULL;
         if (!data || !length || length > slot->expected - slot->used || !valid(c)) {

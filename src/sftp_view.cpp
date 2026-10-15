@@ -30,7 +30,7 @@ LRESULT CALLBACK headerProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,UINT_PTR id,D
     }
     return DefSubclassProc(hwnd,msg,wp,lp);
 }
-struct Result { std::wstring path, message; std::vector<sftp::Entry> entries; bool ok{}; };
+struct Result { std::wstring path, message; std::vector<sftp::Entry> entries; bool ok{}, connected{}; };
 struct Browser {
     IDropTarget *dropTargets[2]{};
     IDataObject *dragData{};
@@ -154,7 +154,7 @@ void Browser::state() {
     // action() and the double-click handler already block mutations while busy.
     for(int id=1;id<=RemoteList;++id) EnableWindow(controls[id],
         id==LocalList||id==RemoteList ? true : id==Cancel ? busy :
-        !busy && !dragging && ((id>=LocalUp&&id<=LocalList) || connected));
+        !busy && !dragging && ((id>=LocalUp&&id<=LocalList) || id==Refresh || connected));
     EnableWindow(controls[ShowHidden],!busy && !dragging);
     transferState();
     InvalidateRect(hwnd,nullptr,TRUE);
@@ -167,9 +167,16 @@ void Browser::start(const std::function<void(Result&)> &operation) {
     if(busy)return;
     if(worker.joinable())worker.join();
     busy=true; done=0; total=0; {std::lock_guard lock(progressLock);current.clear();} state();
-    worker=std::thread([this,operation] {
+    worker=std::thread([this,operation,wasConnected=connected] {
         auto result=std::make_unique<Result>();
-        try { operation(*result); result->ok=true; } catch(const std::exception&e){ result->message=wook::wide(e.what()); if(client)client->cancel(); }
+        try { operation(*result); result->ok=true; result->connected=true; }
+        catch(const std::exception&e) {
+            result->message=wook::wide(e.what());
+            // An ordinary file permission error does not invalidate the session.
+            // Failed pipelines can leave replies queued and must reconnect instead.
+            result->connected=wasConnected && client && client->usable();
+            if(client && !result->connected)client->cancel();
+        }
         if(PostMessageW(hwnd,finished,0,(LPARAM)result.get()))result.release();
     });
 }
@@ -329,7 +336,7 @@ void Browser::action(int id) {
     if(id==LocalGo||id==RemoteGo){navigate(id==RemoteGo,ui::value(controls[id==RemoteGo?RemotePath:LocalPath]));return;}
     if(id==LocalUp){auto parent=fs::path(local).parent_path();if(!parent.empty())navigate(false,parent.wstring());return;}
     if(id==RemoteUp){navigate(true,sftp::join(remote,L".."));return;}
-    if(id==Refresh){readLocal();navigate(true,remote);return;}
+    if(id==Refresh){readLocal();if(connected)navigate(true,remote);else connect();return;}
     if(id!=NewFolder&&id!=Rename&&id!=Delete)return;
     bool remoteSide=remoteFocused; auto entries=selected(remoteSide);
     if(id!=NewFolder && entries.empty())return;
@@ -404,10 +411,10 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
         }
         case WM_APP+60:b->connect();return 0;
         case finished: {
-            std::unique_ptr<Result> r((Result *)lp);if(b->worker.joinable())b->worker.join();b->busy=false;b->connected=r->ok;
+            std::unique_ptr<Result> r((Result *)lp);if(b->worker.joinable())b->worker.join();b->busy=false;b->connected=r->connected;
             b->status=r->message;
             if(r->ok){b->remote=r->path;b->remoteEntries=std::move(r->entries);b->fill(true);b->readLocal();}
-            else b->status+=L" Reconnect to continue. An interrupted upload may leave a .wshell-*.part file on the server.";
+            else if(!r->connected)b->status+=L" Use Refresh (F5) to reconnect. An interrupted upload may leave a .wshell-*.part file on the server.";
             b->state();return 0;
         }
         case WM_TIMER:

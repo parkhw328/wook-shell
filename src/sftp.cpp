@@ -108,6 +108,7 @@ int Client::write(void *context, const void *data, int size) {
     auto self = (Client *)context; DWORD count{};
     return !self->cancelled && WriteFile(self->input, data, size, &count, nullptr) ? (int)count : -1;
 }
+bool Client::usable() const { return !cancelled && wsftp_usable(codec); }
 void Client::check(int ok) { if (!ok) throw std::runtime_error(wsftp_error(codec)); }
 std::wstring Client::initialize() { check(wsftp_init(codec)); return canonical(L"."); }
 std::wstring Client::canonical(const std::wstring &path) { char out[32769]; check(wsftp_realpath(codec, wook::utf8(path).c_str(), out, sizeof(out))); return wook::wide(out); }

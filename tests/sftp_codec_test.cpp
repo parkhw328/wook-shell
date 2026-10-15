@@ -19,7 +19,7 @@ struct Mock {
     ~Mock(){wsftp_free(client);}
     void packet(unsigned type,unsigned id,Bytes payload={}){Bytes b{(unsigned char)type};u32(b,id);b.insert(b.end(),payload.begin(),payload.end());u32(input,(uint32_t)b.size());input.insert(input.end(),b.begin(),b.end());}
     void version(bool extension=false){Bytes b;if(extension){str(b,"posix-rename@openssh.com");str(b,"1");}packet(2,3,b);}
-    void status(unsigned id,unsigned code){Bytes b;u32(b,code);str(b,"fixture");str(b,"");packet(101,id,b);}
+    void status(unsigned id,unsigned code,const std::string& message="fixture"){Bytes b;u32(b,code);str(b,message);str(b,"");packet(101,id,b);}
     void handle(){Bytes b;str(b,"h");packet(102,2,b);}
     void data(unsigned id,const std::string& value){Bytes b;str(b,value);packet(103,id,b);}
 };
@@ -86,6 +86,23 @@ int main(){try{
         require(wsftp_init(m.client),"invalid download init");std::string out;
         require(!wsftp_download(m.client,"x",fault==5?32769:1,fault==6?+[](void*,const void*,int){return -1;}:collect,nullptr,&out),"invalid download accepted");
         auto sent=m.output.size();WsFtpAttrs attrs{};require(!wsftp_stat(m.client,"x",&attrs)&&m.output.size()==sent,"failed pipeline connection reused");}
+    {Mock m;m.version();m.status(2,3,"Permission denied");m.packet(105,3,Bytes(4));
+        // A refused OPEN has no outstanding reads and must leave the stream usable.
+        require(wsftp_init(m.client),"denied open init");std::string out;
+        require(!wsftp_download(m.client,"denied",1,collect,nullptr,&out),"denied open accepted");
+        require(wsftp_status(m.client)==3 && std::string(wsftp_error(m.client)).find("Permission denied")!=std::string::npos,
+                "open permission error must be preserved");
+        require(readRequests(m.output)==0 && out.empty(),"denied open must not read or write data");
+        require(wsftp_usable(m.client),"denied open must keep connection usable");WsFtpAttrs a{};
+        require(wsftp_stat(m.client,"next",&a),"next request after permission denial must succeed");}
+    {Mock m;m.version();m.handle();m.status(3,3,"Permission denied");
+        require(wsftp_init(m.client),"denied read init");std::string out;
+        require(!wsftp_download(m.client,"denied",65536,collect,nullptr,&out),"denied read accepted");
+        require(wsftp_status(m.client)==3 && std::string(wsftp_error(m.client)).find("Permission denied")!=std::string::npos,
+                "read permission error must be preserved");
+        require(!wsftp_usable(m.client),"failed read pipeline must require reconnect");
+        auto sent=m.output.size();WsFtpAttrs a{};
+        require(!wsftp_stat(m.client,"next",&a) && m.output.size()==sent,"denied pipeline must not reuse outstanding replies");}
     {Mock m;m.version();m.handle();m.status(3,0);require(wsftp_init(m.client),"empty init");std::string out;
         require(wsftp_download(m.client,"x",0,collect,nullptr,&out)&&out.empty(),"empty download");}
     {Mock m;m.version();m.handle();require(wsftp_init(m.client),"cancel init");std::string out;

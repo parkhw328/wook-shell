@@ -30,6 +30,8 @@ public:
     ~Client();
     Client(const Client &) = delete;
     void cancel();
+    // Query on the worker, or after joining it; the codec is not thread-safe.
+    bool usable() const;
     std::wstring initialize();
     std::wstring canonical(const std::wstring &path);
     std::vector<Entry> list(const std::wstring &path);

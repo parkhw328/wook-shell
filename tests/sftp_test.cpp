@@ -38,6 +38,22 @@ int wmain() {
         auto empty=(fs::path(root)/L"empty.txt").wstring();{std::ofstream f{fs::path(empty)};}
         client.upload(empty,L"/empty",false,progress);client.download(L"/empty",(fs::path(root)/L"empty-copy").wstring(),false,progress);
         client.remove(L"/empty",false);client.remove(L"/새 폴더/renamed.bin",false);client.remove(L"/새 폴더",true);
+        // Ordinary remote and local permission failures must preserve the connection
+        // and an existing destination; the JS driver checks its exact bytes.
+        bool denied=false;
+        try{client.download(L"/denied-open.bin",downloaded,true,progress);}
+        catch(const std::exception&e){denied=std::string(e.what()).find("Permission denied")!=std::string::npos;}
+        require(denied && client.usable(),"OPEN denial must preserve error and connection");
+        require(!client.list(L"/").empty(),"request after denied OPEN failed");
+        auto missing=(fs::path(root)/L"missing-parent"/L"download.bin").wstring();
+        bool localFailed=false;
+        try{client.download(L"/slow.bin",missing,false,progress);}catch(const std::exception&){localFailed=true;}
+        require(localFailed && client.usable(),"local staging failure must preserve connection");
+        {sftp::Client reader(nullptr,nullptr,L"SFTP fixture",true);reader.initialize();
+            denied=false;
+            try{reader.download(L"/denied-read.bin",downloaded,true,progress);}
+            catch(const std::exception&e){denied=std::string(e.what()).find("Permission denied")!=std::string::npos;}
+            require(denied && !reader.usable(),"READ denial must preserve error and retire pipeline");}
         // Kill a blocked transfer, preserving an existing destination and deleting its stage.
         bool cancelled=false;
         try{client.download(L"/slow.bin",downloaded,true,[&](uint64_t done,uint64_t){if(done)client.cancel();});}catch(...){cancelled=true;}
