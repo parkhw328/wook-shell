@@ -121,3 +121,7 @@ UI 검증은 **EXE만 복사한 빈 폴더**에서 시작하며 내장 폰트·�
 변경 사항과 사용자 확인·자동 검사·미실행 항목은 [1.2.7 릴리스 노트](releases/1.2.7.md)를 확인하세요. 사용자가 수정 개발 빌드의 정상 동작을 확인했으며 자동화된 Windows 전체 회귀 검사 통과를 뜻하지는 않습니다.
 
 다음 Windows 작업에서는 `core-tests`, `launch-relay-tests`, `node tests/ssh/launch-integration.cjs`, `node tests/ssh/mouse-integration.cjs`의 기본·`--application-mouse`·`--alternate-screen` 모드를 실행하세요. 실행 인자 통합 검사는 SFTP URL·초기 경로·기존 창 전달·일회용 암호 소비와 터미널 셸 미생성까지 포함합니다. UI 화면 캡처도 Windows 검증 시 확인해야 합니다.
+
+## 1.2.8 검증 인계
+
+CLI 일반 드래그 복사 변경과 실행/미실행 범위는 [1.2.8 릴리스 노트](releases/1.2.8.md)를 확인하세요. Windows에서는 마우스 기본·`--application-mouse`·`--alternate-screen`·두 옵션 조합과 스크롤 4개 모드를 실행하고 실제 Codex 화면의 선택 강조·클립보드 내용·앱 휠 스크롤을 확인해야 합니다.

@@ -13,9 +13,8 @@ static void restoreMouseTestClipboard(HWND owner) {
 template<typename Check> bool testTerminalMouse(App &app, Check require) {
     static int step = 0, waits = 0;
     static const bool applicationMouse = GetEnvironmentVariableW(L"WOOK_TEST_APP_MOUSE", nullptr, 0) != 0;
-    static const bool alternateScreen = GetEnvironmentVariableW(L"WOOK_TEST_ALT_MOUSE", nullptr, 0) != 0;
-    const bool activeMouse = applicationMouse || alternateScreen;
-    const bool toggledMouse = !applicationMouse || alternateScreen;
+    const bool activeMouse = applicationMouse;
+    const bool toggledMouse = !applicationMouse;
     static RECT cell{};
     auto file = [&](const wchar_t *name) { return std::filesystem::path(app.directory) / name; };
     auto clipboard = [&] {

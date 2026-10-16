@@ -68,8 +68,9 @@ CONF_OPTION(no_mouse_rep,''')
         ("void term_keyinput(Terminal *term, int codepage, const void *str, int len)", "2, codepage, str, len"),
         ("void term_do_paste(Terminal *term, const wchar_t *data, size_t len)", "3, 0, data, (int)len")]:
         terminal = replace(terminal, signature + "\n{", signature + "\n{\n    if (term->wshell_input) term->wshell_input(term->wshell_input_context, " + notify + ");")
-    # Route live alternate-screen input through the upstream mouse encoder.
-    # Shift retains local clipboard input, as does normal-screen stale reporting.
+    # Keep buttons and pointer motion local in clipboard-priority mode.
+    # Only the wheel reaches a live alternate-screen application; Shift
+    # continues to scroll terminal history. Explicit opt-out stays upstream.
     terminal = replace(terminal,
                        "    bool want_raw = (term->xterm_mouse != 0 && !term->xterm_mouse_forbidden);",
                        "    bool want_raw = (term->xterm_mouse != 0 && !term->xterm_mouse_forbidden &&\n                     !conf_get_bool(term->conf, CONF_wshell_mouse_clipboard));")
@@ -83,7 +84,9 @@ CONF_OPTION(no_mouse_rep,''')
 void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,''')
     terminal = replace(terminal, "                      !term->no_mouse_rep &&", '''                      !term->no_mouse_rep &&
                       (!conf_get_bool(term->conf, CONF_wshell_mouse_clipboard) ||
-                       (wshellApplicationMouse(term) && !shift)) &&''')
+                       (wshellApplicationMouse(term) && !shift &&
+                        (braw == MBT_WHEEL_UP || braw == MBT_WHEEL_DOWN ||
+                         braw == MBT_WHEEL_LEFT || braw == MBT_WHEEL_RIGHT))) &&''')
     # A crashed/interrupted TUI can leave mouse reporting enabled when it
     # returns to the shell. Reset at explicit alternate-screen exit only.
     for clear, reset in [("false", "false"), ("true", "true"), ("true", "false")]:
@@ -97,8 +100,6 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,''')
 """ + call)
     (SOURCE / "terminal/terminal.c").write_text(terminal, encoding="utf-8")
     window = original("windows/window.c")
-    window = replace(window, "    if (wgs->send_raw_mouse &&\n        !(shift",
-                     "    if ((wgs->send_raw_mouse || (wshellApplicationMouse(wgs->term) && !shift)) &&\n        !(shift")
     window = replace(window, "                if (wgs->send_raw_mouse &&", '''                if ((wgs->send_raw_mouse ||
                      (wshellApplicationMouse(wgs->term) && !shift_pressed)) &&''')
     window = replace(window, "    if (conf_get_bool(conf, CONF_mouseautocopy)) {",
