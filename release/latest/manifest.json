@@ -1,30 +1,26 @@
 {
-  "version": "1.2.5",
+  "version": "1.2.6",
   "createdBy": "Hyunwook Park",
   "artifacts": [
     {
       "platform": "windows-x64",
       "file": "windows-x64/wShell.exe",
-      "bytes": 3638784,
-      "sha256": "54eed2a88117f9c85fcb43fde7e53120a4fdfc91fde75f0fc507ec1175993c8a"
+      "bytes": 4094464,
+      "sha256": "413e3f0ce354c240b7786f4211559d8c34c329d05c24de60755131cf968e13c6"
     },
     {
       "platform": "windows-x64",
       "file": "windows-x64/wshell-windows-x64.zip",
-      "bytes": 1651813,
-      "sha256": "83ca79876058ba8169943f6391488fd894a1554dcedce06b5b42f808e68bac4c"
+      "bytes": 1691990,
+      "sha256": "bf9ae9ca5c8134fc8220757034c9a5c7882cca1a483c2f9627a6b9da0539af0a"
     }
   ],
-  "sourceCommit": "724070bdb0081df88f651dd944a308616a8379cb",
+  "sourceCommit": "cfa785cf79227164fc255a7e2992d4db0062f369",
   "sourceDirty": false,
-  "buildHost": "windows",
+  "buildHost": "linux",
   "validation": {
     "staticPackage": "passed",
-    "core": "passed",
-    "mouseScroll": "passed",
-    "sftpNavigation": "passed",
-    "windowsRuntime": "partial",
-    "fullSshUi": "incomplete-input-target-check",
+    "windowsRuntime": "not-run",
     "ngs": "not-run"
   }
 }
