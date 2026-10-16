@@ -6,6 +6,9 @@ module.exports = function attachSftp(session, root, events = {}) {
   session.on('sftp', accept => {
     const stream = accept(); const handles = new Map(); let sequence = 0;
     events.connections = (events.connections || 0) + 1;
+    // ssh2 1.17 exposes the peer's advertised channel window here. Capture it
+    // before any file data, so tests detect accidental terminal flow control.
+    events.initialWindow = stream.outgoing.window;
     const resolve = name => {
       const normalized = path.posix.resolve('/', name);
       const file = path.resolve(root, '.' + normalized);
@@ -25,7 +28,8 @@ module.exports = function attachSftp(session, root, events = {}) {
       const item=get(h);if(events.denyRead?.includes(path.basename(item.file)))return stream.status(id,S.PERMISSION_DENIED,'Permission denied');const data=Buffer.alloc(Math.min(length,events.readLimit || 17003)); // Exercise legal short reads.
       const count=fs.readSync(item.fd,data,0,data.length,offset);
       const reply=()=>{if(stream.destroyed)return;if(!count)stream.status(id,S.EOF);else stream.data(id,data.subarray(0,count));};
-      setTimeout(reply,events.readDelay ?? (item.file.endsWith('slow.bin')?35:(id%3)*2)); // Out-of-order replies.
+      const delay = typeof events.readDelay === 'function' ? events.readDelay(offset, length) : events.readDelay;
+      setTimeout(reply,delay ?? (item.file.endsWith('slow.bin')?35:(id%3)*2)); // Out-of-order replies.
     }));
     stream.on('WRITE',guard((id,h,offset,data)=>{fs.writeSync(get(h).fd,data,0,data.length,offset);setTimeout(()=>{if(!stream.destroyed)stream.status(id,S.OK);},events.writeDelay ?? (id%3)*2);}));
     stream.on('CLOSE',guard((id,h)=>{const item=get(h);if(item.fd!==undefined)fs.closeSync(item.fd);handles.delete(h.toString('hex'));stream.status(id,S.OK);}));

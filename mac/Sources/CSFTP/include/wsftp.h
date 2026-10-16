@@ -9,6 +9,7 @@ extern "C" {
 typedef struct WsFtp WsFtp;
 typedef int (*WsFtpRead)(void *, void *, int);
 typedef int (*WsFtpWrite)(void *, const void *, int);
+typedef int (*WsFtpWriteAt)(void *, uint64_t, const void *, int);
 typedef int (*WsFtpProgress)(void *, uint64_t, uint64_t);
 typedef struct WsFtpAttrs { uint64_t size; uint32_t flags, permissions, modified; } WsFtpAttrs;
 typedef int (*WsFtpEntry)(void *, const char *, const WsFtpAttrs *);
@@ -28,6 +29,10 @@ int wsftp_rename(WsFtp *client, const char *from, const char *to, int replace);
 int wsftp_atomic_replace(WsFtp *client);
 int wsftp_download(WsFtp *client, const char *remote, uint64_t size,
                     WsFtpWrite output, WsFtpProgress progress, void *context);
+/* A seekable destination can commit replies immediately, in any order. Progress
+ * counts bytes written, including blocks beyond a still-pending earlier read. */
+int wsftp_download_at(WsFtp *client, const char *remote, uint64_t size,
+                     WsFtpWriteAt output, WsFtpProgress progress, void *context);
 /* Upload creates a NEW path exclusively. The caller stages and then renames it. */
 int wsftp_upload(WsFtp *client, const char *remote, uint64_t size,
                   WsFtpRead input, WsFtpProgress progress, void *context);

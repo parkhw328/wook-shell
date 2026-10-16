@@ -240,15 +240,16 @@ int wsftp_upload(WsFtp *c, const char *path, uint64_t size, WsFtpRead input, WsF
     if (!ok) c->broken = 1;
     return ok && closeHandle(c, &h);
 }
-/* A bounded sliding window keeps reads in flight across RTTs. Completed
- * blocks stay in file order; short replies refill only their missing tail. */
-int wsftp_download(WsFtp *c, const char *path, uint64_t size, WsFtpWrite output, WsFtpProgress progress, void *context) {
+/* Seekable destinations release each slot as soon as its reply is written;
+ * stream destinations retain completed blocks until earlier reads arrive. */
+static int download(WsFtp *c, const char *path, uint64_t size, WsFtpWrite output,
+                    WsFtpWriteAt outputAt, WsFtpProgress progress, void *context) {
     enum { WINDOW = 64 };
     typedef struct ReadSlot { uint32_t id, expected, used; uint64_t offset; } ReadSlot;
     ReadSlot slots[WINDOW] = {{0}};
     Handle h; if (!openHandle(c, 3, path, 0, &h)) return 0;
-    unsigned char *blocks = malloc(WINDOW * CHUNK);
-    if (!blocks) return fail(c, "Cannot allocate transfer buffers.");
+    unsigned char *blocks = outputAt ? NULL : malloc(WINDOW * CHUNK);
+    if (!outputAt && !blocks) return fail(c, "Cannot allocate transfer buffers.");
     /* Bound request bytes too: the synchronous transport must be able to
      * enqueue the window without deadlocking against buffered replies. */
     unsigned window = 32768 / (25 + h.length);
@@ -259,6 +260,10 @@ int wsftp_download(WsFtp *c, const char *path, uint64_t size, WsFtpWrite output,
     while (ok && done < size) {
         while (count < window && next < size) {
             unsigned index = (head + count) % WINDOW;
+            if (outputAt) {
+                index = 0;
+                while (slots[index].expected) ++index;
+            }
             ReadSlot *slot = &slots[index];
             slot->offset = next; slot->used = 0;
             slot->expected = size - next > CHUNK ? CHUNK : (uint32_t)(size - next);
@@ -270,10 +275,8 @@ int wsftp_download(WsFtp *c, const char *path, uint64_t size, WsFtpWrite output,
         if (!ok) break;
         uint32_t id; int type = receive(c, &id), found = -1;
         if (!type) { ok = 0; break; }
-        for (unsigned i = 0; i < count; ++i) {
-            unsigned index = (head + i) % WINDOW;
-            if (slots[index].id == id && slots[index].used < slots[index].expected) found = (int)index;
-        }
+        for (unsigned i = 0; i < WINDOW; ++i)
+            if (slots[i].id == id && slots[i].used < slots[i].expected) found = (int)i;
         if (found < 0) { ok = fail(c, "Unexpected download response identifier."); break; }
         ReadSlot *slot = &slots[found];
         if (type == 101) {
@@ -289,13 +292,30 @@ int wsftp_download(WsFtp *c, const char *path, uint64_t size, WsFtpWrite output,
         if (!data || !length || length > slot->expected - slot->used || !valid(c)) {
             ok = fail(c, "Invalid SFTP data reply."); break;
         }
-        memcpy(blocks + found * CHUNK + slot->used, data, length); slot->used += length;
+        if (outputAt) {
+            unsigned written = 0;
+            while (written < length) {
+                int n = outputAt(context, slot->offset + slot->used + written, data + written, length - written);
+                if (n <= 0 || (unsigned)n > length - written) {
+                    ok = fail(c, "Cannot write the local file. Check free space and permissions."); break;
+                }
+                written += n;
+            }
+            if (!ok) break;
+            done += written;
+        } else {
+            memcpy(blocks + found * CHUNK + slot->used, data, length);
+        }
+        slot->used += length;
         if (slot->used < slot->expected) {
             slot->id = request(c, 5); blob(&c->out, h.data, h.length);
             put64(&c->out, slot->offset + slot->used); put32(&c->out, slot->expected - slot->used);
             if (!(ok = send(c))) break;
         }
-        while (ok && count && slots[head].used == slots[head].expected) {
+        if (outputAt && slot->used == slot->expected) {
+            slot->expected = slot->used = 0; --count;
+        }
+        while (!outputAt && ok && count && slots[head].used == slots[head].expected) {
             unsigned written = 0;
             while (written < slots[head].used) {
                 int n = output(context, blocks + head * CHUNK + written, slots[head].used - written);
@@ -313,6 +333,12 @@ int wsftp_download(WsFtp *c, const char *path, uint64_t size, WsFtpWrite output,
     /* Failures may leave outstanding replies. Do not reuse this connection. */
     if (!ok) c->broken = 1;
     return ok && progressCall(c, progress, context, done, size) && closeHandle(c, &h);
+}
+int wsftp_download(WsFtp *c, const char *path, uint64_t size, WsFtpWrite output, WsFtpProgress progress, void *context) {
+    return download(c, path, size, output, NULL, progress, context);
+}
+int wsftp_download_at(WsFtp *c, const char *path, uint64_t size, WsFtpWriteAt output, WsFtpProgress progress, void *context) {
+    return download(c, path, size, NULL, output, progress, context);
 }
 int wsftp_local_name(const char *name) {
     size_t length = strlen(name);

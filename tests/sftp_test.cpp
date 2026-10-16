@@ -18,8 +18,14 @@ int wmain() {
         require(client.initialize()==L"/","home directory");
         if (GetEnvironmentVariableW(L"WOOK_SFTP_BENCHMARK",nullptr,0)) {
             auto started=GetTickCount64();
-            client.download(L"/payload.bin",(fs::path(root)/L"benchmark.bin").wstring(),false,[](uint64_t,uint64_t){});
+            auto lastProgress=started;ULONGLONG longestGap=0;uint64_t previous=0;
+            client.download(L"/payload.bin",(fs::path(root)/L"benchmark.bin").wstring(),false,[&](uint64_t done,uint64_t){
+                auto now=GetTickCount64();
+                if(!done)lastProgress=now;
+                if(done>previous){longestGap=std::max(longestGap,now-lastProgress);lastProgress=now;previous=done;}
+            });
             std::cout<<"Download milliseconds: "<<GetTickCount64()-started<<'\n';
+            std::cout<<"Download longest progress gap milliseconds: "<<longestGap<<'\n';
             started=GetTickCount64();
             client.upload((fs::path(root)/L"benchmark.bin").wstring(),L"/benchmark-upload.bin",false,[](uint64_t,uint64_t){});
             std::cout<<"Upload milliseconds: "<<GetTickCount64()-started<<'\n';

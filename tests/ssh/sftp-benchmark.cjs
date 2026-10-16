@@ -21,10 +21,14 @@ const server = new Server({ hostKeys: [key] }, client => {
 });
 (async () => {
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-    for (const readLimit of [32768, 17003]) {
-        scenario = { readLimit, readDelay: 40, writeDelay: 40 };
+    for (const condition of [
+        { name: 'full', readLimit: 32768, readDelay: 40 },
+        { name: 'short', readLimit: 17003, readDelay: 40 },
+        { name: 'delayed-blocks', readLimit: 32768, readDelay: offset => offset % (64 * 32768) === 0 ? 300 : 40 },
+    ]) {
+        scenario = { ...condition, writeDelay: 40 };
         fs.rmSync(path.join(remote, 'benchmark-upload.bin'), { force: true });
-        const local = path.join(artifact, String(readLimit)); fs.mkdirSync(local);
+        const local = path.join(artifact, condition.name); fs.mkdirSync(local);
         const child = spawn(path.join(root, 'build/native/sftp-tests.exe'), [], { windowsHide: true, env: {
             ...process.env, WOOK_DATA_DIR: path.join(local, 'data'), WOOK_SFTP_LOCAL: local,
             WOOK_SFTP_ENGINE: path.join(root, 'build/native/wShell.exe'), WOOK_TEST_PORT: String(server.address().port),
@@ -34,11 +38,15 @@ const server = new Server({ hostKeys: [key] }, client => {
         const timer = setTimeout(() => child.kill(), 120000);
         const code = await new Promise((resolve, reject) => { child.on('error', reject); child.on('close', resolve); });
         clearTimeout(timer); assert.equal(code, 0);
+        assert.ok(scenario.initialWindow >= 2 * 1024 * 1024, 'SFTP must start with a bulk-transfer SSH window');
         assert.deepEqual(fs.readFileSync(path.join(local, 'benchmark.bin')), payload);
         assert.deepEqual(fs.readFileSync(path.join(remote, 'benchmark-upload.bin')), payload);
         const uploadMilliseconds = Number(output.match(/Upload milliseconds: (\d+)/)[1]);
         const milliseconds = Number(output.match(/Download milliseconds: (\d+)/)[1]);
-        console.log(JSON.stringify({ readLimit, readDelay: 40, writeDelay: 40, bytes: payload.length, milliseconds, uploadMilliseconds,
+        const longestProgressGapMilliseconds = Number(output.match(/Download longest progress gap milliseconds: (\d+)/)[1]);
+        console.log(JSON.stringify({ condition: condition.name, readLimit: condition.readLimit,
+            readDelay: typeof condition.readDelay === 'function' ? '40ms; first block of each 2MiB delayed 300ms' : condition.readDelay,
+            writeDelay: 40, initialWindow: scenario.initialWindow, bytes: payload.length, milliseconds, uploadMilliseconds, longestProgressGapMilliseconds,
             uploadKBps: Number((payload.length / 1024 / (uploadMilliseconds / 1000)).toFixed(1)),
             KBps: Number((payload.length / 1024 / (milliseconds / 1000)).toFixed(1)) }));
     }

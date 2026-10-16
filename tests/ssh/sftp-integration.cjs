@@ -9,10 +9,11 @@ const payload=crypto.randomBytes(1200003);fs.writeFileSync(path.join(local,'payl
 for(const name of ['denied-open.bin','denied-read.bin'])fs.writeFileSync(path.join(remote,name),payload);
 const key=crypto.generateKeyPairSync('rsa',{modulusLength:2048}).privateKey.export({type:'pkcs1',format:'pem'});
 const pin='SHA256:'+crypto.createHash('sha256').update(utils.parseKey(key).getPublicSSH()).digest('base64').replace(/=+$/,'');
+const events={denyOpen:['denied-open.bin'],denyRead:['denied-read.bin']};
 const clients=new Set();const server=new Server({hostKeys:[key]},client=>{
   clients.add(client);client.on('close',()=>clients.delete(client));client.on('error',()=>{});
   client.on('authentication',ctx=>ctx.username==='none'&&ctx.method==='none'?ctx.accept():ctx.reject());
-  client.on('ready',()=>client.on('session',accept=>attach(accept(),remote,{denyOpen:['denied-open.bin'],denyRead:['denied-read.bin']})));
+  client.on('ready',()=>client.on('session',accept=>attach(accept(),remote,events)));
 });
 (async()=>{
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -20,6 +21,7 @@ const clients=new Set();const server=new Server({hostKeys:[key]},client=>{
   test.stdout.pipe(process.stdout);test.stderr.pipe(process.stderr);
   const timer=setTimeout(()=>{test.kill();for(const c of clients)c.end();},60000);
   const code=await new Promise(resolve=>test.on('close',resolve));clearTimeout(timer);assert.equal(code,0);
+  assert.ok(events.initialWindow>=2*1024*1024,'SFTP must advertise a bulk-transfer window from connection start');
   assert.deepEqual(fs.readFileSync(path.join(local,'한글-🙂.bin')),payload,'download and cancellation preserve exact bytes');
   assert.deepEqual(fs.readdirSync(remote).filter(n=>!n.startsWith('.wshell-')).sort(),['denied-open.bin','denied-read.bin','slow.bin','안녕하세요.txt'].sort());
   console.log('PASS: independent SFTP server + SHA-256 byte equality ('+artifact+')');

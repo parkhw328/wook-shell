@@ -35,6 +35,7 @@ It embeds JetBrains Mono, Flexoki colors and the license notices in wShell.app. 
 development-only Swift package dependencies are pinned in mac/Package.resolved and are not app runtime dependencies.
 Windows local terminals use the existing PuTTY ConPTY backend with Windows pseudoconsole APIs.
 SFTP uses a wShell-owned C protocol codec over PuTTY's SSH subsystem on Windows and OS OpenSSH on macOS. Windows integration adds a raw pipe transport and native authentication prompts inside the same executable; SSH cryptography is unchanged. The codec follows SFTP v3 ([draft](https://www.ietf.org/archive/id/draft-ietf-secsh-filexfer-02.txt)) and the OpenSSH POSIX rename extension; it does not redistribute an additional SFTP client.
+The Windows SFTP connection enables PuTTY's existing PSFTP-style single-channel flow control and retains pipe-backlog throttling; terminal connections keep their existing channel configuration.
 
 ## iPad personal preview additions
 

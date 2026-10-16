@@ -262,6 +262,10 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,''')
         conf_set_bool(conf, CONF_nopty, true);
         conf_set_bool(conf, CONF_ssh_no_shell, false);
         conf_set_bool(conf, CONF_x11_forward, false);
+        conf_set_bool(conf, CONF_agentfwd, false);
+        /* Match PSFTP's single-channel flow control. A terminal-sized channel
+         * window repeatedly starves bulk downloads while pipe writes drain. */
+        conf_set_bool(conf, CONF_ssh_simple, true);
         conf_set_int(conf, CONF_logtype, LGTYP_NONE);
         conf_set_int(conf, CONF_close_on_exit, FORCE_ON);
         const char *key;

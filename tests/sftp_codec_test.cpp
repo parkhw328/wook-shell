@@ -20,11 +20,29 @@ struct Mock {
     void packet(unsigned type,unsigned id,Bytes payload={}){Bytes b{(unsigned char)type};u32(b,id);b.insert(b.end(),payload.begin(),payload.end());u32(input,(uint32_t)b.size());input.insert(input.end(),b.begin(),b.end());}
     void version(bool extension=false){Bytes b;if(extension){str(b,"posix-rename@openssh.com");str(b,"1");}packet(2,3,b);}
     void status(unsigned id,unsigned code,const std::string& message="fixture"){Bytes b;u32(b,code);str(b,message);str(b,"");packet(101,id,b);}
-    void handle(){Bytes b;str(b,"h");packet(102,2,b);}
+    void handle(const std::string& value="h"){Bytes b;str(b,value);packet(102,2,b);}
     void data(unsigned id,const std::string& value){Bytes b;str(b,value);packet(103,id,b);}
 };
 int checks=0;void require(bool ok,const char*message){if(!ok)throw std::runtime_error(message);++checks;}
 int collect(void*p,const void*b,int n){auto&out=*(std::string*)p;int count=std::min(n,701);out.append((const char*)b,count);return count;}
+struct PositionedOutput {
+    std::string bytes;
+    uint64_t done{};
+    unsigned updates{};
+    explicit PositionedOutput(size_t size):bytes(size,'\0'){}
+    static int write(void *p,uint64_t offset,const void *data,int length) {
+        auto& out=*(PositionedOutput*)p;
+        int count=std::min(length,701); // Partial local writes must advance the offset.
+        if(offset>out.bytes.size() || (uint64_t)count>out.bytes.size()-offset)return -1;
+        out.bytes.replace((size_t)offset,count,(const char*)data,count);
+        return count;
+    }
+    static int progress(void *p,uint64_t done,uint64_t total) {
+        auto& out=*(PositionedOutput*)p;
+        require(done>=out.done && done<=total,"positioned download progress");
+        out.done=done;++out.updates;return 1;
+    }
+};
 unsigned readRequests(const Bytes& bytes, unsigned type=5){
     unsigned count=0;
     for(size_t at=0;at+4<=bytes.size();){
@@ -57,6 +75,42 @@ int main(){try{
         require(wsftp_init(m.client),"window init");std::string out;
         require(wsftp_download(m.client,"x",expected.size(),collect,nullptr,&out),"sliding window download");
         require(refilled&&out==expected,"sliding window bytes/order");}
+    {Mock m;m.version();m.handle();std::string expected;
+        for(unsigned block=0;block<130;++block)expected+=std::string(32768,(char)('A'+block%26));
+        // Keep the first reply pending beyond two whole request windows.
+        m.data(4,expected.substr(32768,32768));size_t boundary=m.input.size();
+        for(unsigned block=2;block<130;++block)m.data(3+block,expected.substr(block*32768,32768));
+        m.data(3,expected.substr(0,32768));m.status(133,0);
+        PositionedOutput out(expected.size());bool refilled=false;
+        m.beforeRead=[&](const Mock& wire){if(wire.offset==boundary){
+            refilled=true;
+            require(readRequests(wire.output)==65,"late first block must not stop read replenishment");
+            require(out.done==32768 && out.bytes[0]=='\0' && out.bytes[32768]=='B',"persist and report out-of-order data immediately");
+        }};
+        require(wsftp_init(m.client),"positioned window init");
+        require(wsftp_download_at(m.client,"archive.tar.gz",expected.size(),PositionedOutput::write,PositionedOutput::progress,&out),"positioned window download");
+        require(refilled && out.bytes==expected && out.done==expected.size(),"positioned window bytes/progress");}
+    {Mock m;m.version();m.handle();m.data(4,"xy");size_t boundary=m.input.size();
+        m.data(6,std::string(32766,'B'));m.data(5,"end");m.data(3,std::string(32768,'A'));m.status(7,0);
+        PositionedOutput out(65539);bool retried=false;
+        m.beforeRead=[&](const Mock& wire){if(wire.offset==boundary){retried=true;
+            require(readRequests(wire.output)==4 && out.done==2,"short positioned read must write and retry its tail immediately");
+        }};
+        require(wsftp_init(m.client),"short positioned init");
+        require(wsftp_download_at(m.client,"x",out.bytes.size(),PositionedOutput::write,PositionedOutput::progress,&out),"short positioned download");
+        require(retried && out.bytes==std::string(32768,'A')+"xy"+std::string(32766,'B')+"end","short positioned bytes/offsets");}
+    {Mock m;m.version();m.handle(std::string(4096,'h'));size_t initialBoundary=m.input.size();std::string expected(8*32768,'x');
+        m.data(4,std::string(32768,'x'));size_t boundary=m.input.size();
+        for(unsigned id=5;id<=10;++id)m.data(id,std::string(32768,'x'));
+        m.data(3,std::string(32768,'x'));m.status(11,0);bool refilled=false,bounded=false;
+        m.beforeRead=[&](const Mock& wire){
+            if(wire.offset==initialBoundary){bounded=true;require(readRequests(wire.output)==7,"long handles must bound queued request bytes");}
+            if(wire.offset==boundary){refilled=true;
+            require(readRequests(wire.output)==8,"long handle window must refill before the first reply");
+        }};
+        require(wsftp_init(m.client),"long handle init");PositionedOutput out(expected.size());
+        require(wsftp_download_at(m.client,"x",out.bytes.size(),PositionedOutput::write,nullptr,&out),"long handle positioned download");
+        require(bounded && refilled && out.bytes==expected,"long handle download bytes");}
     {Mock m;m.version();m.handle();m.status(4,0);size_t boundary=m.input.size();m.status(3,0);
         for(unsigned id=5;id<=67;++id)m.status(id,0);
         m.status(68,0);bool refilled=false;
@@ -75,7 +129,7 @@ int main(){try{
         if(fault==3)require(readRequests(m.output,6)==0,"upload issued after cancellation");
         auto sent=m.output.size();WsFtpAttrs attrs{};
         require(!wsftp_stat(m.client,"x",&attrs)&&m.output.size()==sent,"failed upload connection reused");}
-    for(int fault=0;fault<7;++fault){Mock m;m.version();m.handle();
+    for(bool positioned:{false,true})for(int fault=0;fault<7;++fault){Mock m;m.version();m.handle();
         if(fault==0)m.data(999,"x"); // Unknown request.
         if(fault==1)m.data(3,"");
         if(fault==2)m.data(3,"too long");
@@ -84,7 +138,11 @@ int main(){try{
         if(fault==5){m.data(4,"y");m.data(4,"y");} // Duplicate completed block.
         if(fault==6)m.data(3,"x"); // Local write failure.
         require(wsftp_init(m.client),"invalid download init");std::string out;
-        require(!wsftp_download(m.client,"x",fault==5?32769:1,fault==6?+[](void*,const void*,int){return -1;}:collect,nullptr,&out),"invalid download accepted");
+        int ok;
+        if(positioned){PositionedOutput target(fault==5?32769:1);
+            ok=wsftp_download_at(m.client,"x",target.bytes.size(),fault==6?+[](void*,uint64_t,const void*,int){return -1;}:PositionedOutput::write,nullptr,&target);
+        }else ok=wsftp_download(m.client,"x",fault==5?32769:1,fault==6?+[](void*,const void*,int){return -1;}:collect,nullptr,&out);
+        require(!ok,"invalid download accepted");
         auto sent=m.output.size();WsFtpAttrs attrs{};require(!wsftp_stat(m.client,"x",&attrs)&&m.output.size()==sent,"failed pipeline connection reused");}
     {Mock m;m.version();m.status(2,3,"Permission denied");m.packet(105,3,Bytes(4));
         // A refused OPEN has no outstanding reads and must leave the stream usable.
@@ -108,6 +166,14 @@ int main(){try{
     {Mock m;m.version();m.handle();require(wsftp_init(m.client),"cancel init");std::string out;
         require(!wsftp_download(m.client,"x",65536,collect,[](void*,uint64_t,uint64_t){return 0;},&out),"initial cancellation ignored");
         require(readRequests(m.output)==0,"reads issued after cancellation");}
+    {Mock m;m.version();m.handle();m.status(3,0);require(wsftp_init(m.client),"empty positioned init");PositionedOutput out(0);
+        require(wsftp_download_at(m.client,"x",0,PositionedOutput::write,PositionedOutput::progress,&out),"empty positioned download");}
+    for(bool afterData:{false,true}){Mock m;m.version();m.handle();m.data(4,"x");
+        require(wsftp_init(m.client),"positioned cancel init");PositionedOutput out(32769);
+        require(!wsftp_download_at(m.client,"x",32769,PositionedOutput::write,
+            afterData?+[](void*,uint64_t done,uint64_t)->int{return done==0;}:+[](void*,uint64_t,uint64_t)->int{return 0;},&out),"positioned cancellation ignored");
+        require(!wsftp_usable(m.client),"cancelled positioned connection reused");
+        require(afterData?out.bytes[32768]=='x':readRequests(m.output)==0,"positioned cancellation bytes/requests");}
     {Mock m;m.version();require(wsftp_init(m.client),"short transport I/O init");require(!wsftp_atomic_replace(m.client),"unadvertised extension");require(!wsftp_rename(m.client,"a","b",1),"unsafe replace accepted");}
     {Mock m;m.version(true);m.status(2,0);require(wsftp_init(m.client)&&wsftp_atomic_replace(m.client),"extension negotiation");require(wsftp_rename(m.client,"a","b",1),"atomic rename");require(std::string(m.output.begin(),m.output.end()).find("posix-rename@openssh.com")!=std::string::npos,"extension request missing");}
     {Mock m;m.packet(2,6);require(!wsftp_init(m.client),"unsupported version accepted");}
