@@ -2,9 +2,9 @@
 
 저장한 SSH 호스트를 선택하고 **SFTP**를 누르면 전용 탭이 열립니다. Windows의 연결된 SSH 탭에서는 **Files**, macOS에서는 **Tools → Open SFTP**도 사용할 수 있습니다. SFTP 연결은 터미널과 독립적이므로 파일을 전송하면서 명령을 실행할 수 있습니다.
 
-## 실행 인자로 SFTP 열기 (Windows 개발 빌드)
+## 실행 인자로 SFTP 열기 (Windows)
 
-현재 소스의 개발 빌드는 WinSCP 형식의 접속 URL을 받아 SFTP 탭을 바로 엽니다. 공개된 기존 버전에는 이 변경이 포함되어 있지 않습니다. 구문은 [WinSCP 실행 인자](https://winscp.net/eng/docs/commandline)와 [세션 URL](https://winscp.net/eng/docs/session_url)의 접속 기능 중 아래 범위를 지원합니다.
+Windows 1.2.7부터 WinSCP 형식의 접속 URL을 받아 SFTP 탭을 바로 엽니다. 구문은 [WinSCP 실행 인자](https://winscp.net/eng/docs/commandline)와 [세션 URL](https://winscp.net/eng/docs/session_url)의 접속 기능 중 아래 범위를 지원합니다.
 
 ```powershell
 .\wShell.exe "sftp://deploy@server.example:2222/home/deploy/"

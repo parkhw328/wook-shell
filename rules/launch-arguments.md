@@ -21,4 +21,4 @@
 - URL의 사용자·암호·경로는 UTF-8 `%XX`와 `+` 공백을 한 번만 디코딩한다. 옵션으로 전달한 암호는 그대로 보존한다. 암호를 포함한 URL은 일반 문자열 임시 복사 없이 처리하고 디코딩 버퍼도 사용 후 지운다.
 - URL의 원격 디렉터리는 `/`로 끝나야 한다. `--remote-path`도 지원하며 경로는 저장 호스트를 변경하지 않는 이번 탭의 초기 위치다. 중복 자격 증명·경로, SSH/SFTP 모드 충돌, 잘못된 escape·UTF-8·NUL은 접속 전에 거부한다.
 - 기존 창 전달에 SFTP 모드·초기 경로를 포함한다. SFTP 작업 프로세스도 일회용 DPAPI 레코드 식별자만 전달받는다. 재접속에는 일회용 암호를 다시 사용하지 않는다.
-- FTP·SCP 전송, WinSCP 저장 사이트·INI 가져오기, 파일 URL 자동 다운로드, `/hostkey`, `/privatekey`, `/script`, `/command` 등 미지원 옵션은 무시하지 않고 거부한다. 전체 WinSCP CLI 호환으로 안내하지 않는다. 지원 범위와 예시는 [SFTP 사용법](../docs/sftp.md#실행-인자로-sftp-열기-windows-개발-빌드)을 따른다.
+- FTP·SCP 전송, WinSCP 저장 사이트·INI 가져오기, 파일 URL 자동 다운로드, `/hostkey`, `/privatekey`, `/script`, `/command` 등 미지원 옵션은 무시하지 않고 거부한다. 전체 WinSCP CLI 호환으로 안내하지 않는다. 지원 범위와 예시는 [SFTP 사용법](../docs/sftp.md#실행-인자로-sftp-열기-windows)을 따른다.
