@@ -1,6 +1,6 @@
 # wShell downloads
 
-Current Windows release: **1.2.7**. [Standalone EXE](1.2.7/windows-x64/wShell.exe) · [ZIP](1.2.7/windows-x64/wshell-1.2.7-windows-x64.zip)
+Current Windows release: **1.2.8**. [Standalone EXE](1.2.8/windows-x64/wShell.exe) · [ZIP](1.2.8/windows-x64/wshell-1.2.8-windows-x64.zip)
 
 Stable latest Windows links for blogs: [EXE](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wShell.exe) · [ZIP](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wshell-windows-x64.zip) · [Version and SHA-256](latest/manifest.json). These URLs stay the same when a new release is published.
 
@@ -10,15 +10,16 @@ Stable latest Windows links for blogs: [EXE](https://github.com/parkhw328/wook-s
 
 | Platform | Version | Download |
 | --- | --- | --- |
-| windows-x64 | 1.2.7 | [EXE](1.2.7/windows-x64/wShell.exe) · [ZIP](1.2.7/windows-x64/wshell-1.2.7-windows-x64.zip) |
+| windows-x64 | 1.2.8 | [EXE](1.2.8/windows-x64/wShell.exe) · [ZIP](1.2.8/windows-x64/wshell-1.2.8-windows-x64.zip) |
 | macos-universal | 0.11.0 | [ZIP](0.11.0/macos-universal/wshell-0.11.0-macos-universal.zip) |
 
-Latest means the newest published build for each platform. The macOS build predates the new Windows icon and features. See the [Windows release notes](../docs/releases/1.2.7.md) for test results and limitations. iPad is on hold.
+Latest means the newest published build for each platform. The macOS build predates the new Windows icon and features. See the [Windows release notes](../docs/releases/1.2.8.md) for test results and limitations. iPad is on hold.
 
 Versioned binaries, checksums and manifests are tracked in Git. Open a file and select **Download raw file** to download it. Each Windows ZIP contains only wShell.exe. Windows releases are unsigned.
 
 | Version | Platform | Download | Verification |
 | --- | --- | --- | --- |
+| 1.2.8 | windows-x64 | [ZIP](1.2.8/windows-x64/wshell-1.2.8-windows-x64.zip) | [SHA-256](1.2.8/windows-x64/wshell-1.2.8-windows-x64.zip.sha256) · [manifest](1.2.8/manifest.json) · Linux cross-build; static package checks passed. Windows runtime / NGS testing has not been run. |
 | 1.2.7 | windows-x64 | [ZIP](1.2.7/windows-x64/wshell-1.2.7-windows-x64.zip) | [SHA-256](1.2.7/windows-x64/wshell-1.2.7-windows-x64.zip.sha256) · [manifest](1.2.7/manifest.json) · Linux cross-build; static package checks passed. Windows runtime / NGS testing has not been run. |
 | 1.2.6 | windows-x64 | [ZIP](1.2.6/windows-x64/wshell-1.2.6-windows-x64.zip) | [SHA-256](1.2.6/windows-x64/wshell-1.2.6-windows-x64.zip.sha256) · [manifest](1.2.6/manifest.json) · Linux cross-build; static package checks passed. Windows runtime / NGS testing has not been run. |
 | 1.2.5 | windows-x64 | [ZIP](1.2.5/windows-x64/wshell-1.2.5-windows-x64.zip) | [SHA-256](1.2.5/windows-x64/wshell-1.2.5-windows-x64.zip.sha256) · [manifest](1.2.5/manifest.json) |
