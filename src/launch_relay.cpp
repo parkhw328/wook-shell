@@ -130,6 +130,8 @@ void encode(const LaunchRequest &request, SecretText &wire) {
         wire.text.append(slashes * 2, L'\\'); wire.text += L'"';
     };
     append(L"--host", request.profile.host.find(L':') == std::wstring::npos ? request.profile.host : L"[" + request.profile.host + L"]");
+    if (request.files) wire.text += L" --sftp";
+    if (!request.remotePath.empty()) append(L"--remote-path", request.remotePath);
     append(L"--port", std::to_wstring(request.profile.port));
     if (!request.profile.user.empty()) append(L"--user", request.profile.user);
     if (request.named) append(L"--name", request.profile.name);

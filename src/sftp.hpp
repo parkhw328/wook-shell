@@ -26,7 +26,7 @@ class Client {
     void check(int);
 public:
     // Called on the GUI thread so environment snapshots cannot race GUI launches.
-    Client(HWND owner, HANDLE job, const std::wstring &session, bool saved);
+    Client(HWND owner, HANDLE job, const std::wstring &session, bool saved, const std::wstring &passwordSession = {});
     ~Client();
     Client(const Client &) = delete;
     void cancel();

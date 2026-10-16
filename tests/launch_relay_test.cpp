@@ -24,7 +24,7 @@ struct Process {
 };
 const std::wstring password = L"fixture 한글 & | \\\" end\\";
 wook::LaunchRequest request() {
-    std::wstring_view args[] = {L"-ssh", L"user@[::1]", L"-P", L"2222", L"--name", L"relay 서울", L"-pw", password};
+    std::wstring_view args[] = {L"--sftp", L"--remote-path", L"/relay 한글/", L"user@[::1]", L"-P", L"2222", L"--name", L"relay 서울", L"-pw", password};
     return wook::parseLaunchArguments(args);
 }
 }
@@ -52,6 +52,7 @@ int wmain(int argc, wchar_t **argv) {
             Sleep(100); owner.start(window); early.wait();
             auto received = owner.take();
             check(received && received->mode == wook::LaunchRequest::Mode::connect && received->named, "Receive connection");
+            check(received->files && received->remotePath == L"/relay 한글/", "Preserve SFTP mode and remote directory");
             check(received->profile.host == L"::1" && received->profile.port == 2222 && received->profile.user == L"user" &&
                   received->profile.name == L"relay 서울", "Preserve endpoint and Unicode name");
             check(std::wstring(received->password.begin(), received->password.end()) == password, "Preserve Unicode and quoted password");

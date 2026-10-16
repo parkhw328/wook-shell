@@ -14,3 +14,11 @@
 - `--password-stdin`은 UTF-8 파이프의 첫 줄 또는 EOF를 읽으며 끝의 CR/LF만 제거한다. 비밀번호의 공백·따옴표·유니코드는 그대로 유지한다. 셸을 거치지 않고 프로세스를 생성한다.
 - `-pw`는 최초 실행 프로세스 목록·호출한 셸 기록에 노출될 수 있음을 문서화한다. 앱 내부에서 자식 인수나 로그로 재전달하지 않는 것과 구분한다.
 - 파싱·충돌·DPAPI 범위·일회용 소비는 `tests/launch_test.inc`, 배포 EXE의 실제 SSH 접속·비밀 없는 자식 인수는 `tests/ssh/launch-integration.cjs`로 검증한다. 테스트는 격리 저장소와 루프백만 사용한다.
+
+## WinSCP 형식의 SFTP 실행 인자
+
+- `sftp://`·`winscp-sftp://` URL 또는 `--sftp`/`-sftp`는 SSH 터미널 대신 SFTP 탭을 연다. `/username=`, `/password=`, `/sessionname=`도 SFTP 모드를 선택하며 각각 사용자·일회용 암호·호스트 이름에 대응한다.
+- URL의 사용자·암호·경로는 UTF-8 `%XX`와 `+` 공백을 한 번만 디코딩한다. 옵션으로 전달한 암호는 그대로 보존한다. 암호를 포함한 URL은 일반 문자열 임시 복사 없이 처리하고 디코딩 버퍼도 사용 후 지운다.
+- URL의 원격 디렉터리는 `/`로 끝나야 한다. `--remote-path`도 지원하며 경로는 저장 호스트를 변경하지 않는 이번 탭의 초기 위치다. 중복 자격 증명·경로, SSH/SFTP 모드 충돌, 잘못된 escape·UTF-8·NUL은 접속 전에 거부한다.
+- 기존 창 전달에 SFTP 모드·초기 경로를 포함한다. SFTP 작업 프로세스도 일회용 DPAPI 레코드 식별자만 전달받는다. 재접속에는 일회용 암호를 다시 사용하지 않는다.
+- FTP·SCP 전송, WinSCP 저장 사이트·INI 가져오기, 파일 URL 자동 다운로드, `/hostkey`, `/privatekey`, `/script`, `/command` 등 미지원 옵션은 무시하지 않고 거부한다. 전체 WinSCP CLI 호환으로 안내하지 않는다. 지원 범위와 예시는 [SFTP 사용법](../docs/sftp.md#실행-인자로-sftp-열기-windows-개발-빌드)을 따른다.

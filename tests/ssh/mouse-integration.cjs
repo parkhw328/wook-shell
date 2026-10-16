@@ -44,7 +44,7 @@ const server = new Server({ hostKeys: [key] }, client => {
             const preceding = received.slice(0, received.indexOf(marker));
             const previousMarker = preceding.lastIndexOf('hover-');
             const segment = previousMarker < 0 ? preceding : preceding.slice(preceding.indexOf('\r', previousMarker) + 1);
-            hoverReports[name] = segment.match(/\x1b\[<\d+;\d+;\d+[mM]/g) || [];
+            hoverReports[name] = segment.match(/\x1b\[<\d+;\d+;\d+[mM]|\x1b\[M[\s\S]{3}/g) || [];
             if (name === 'abandoned') signal('abandoned-input');
           }
         }
@@ -70,7 +70,8 @@ const server = new Server({ hostKeys: [key] }, client => {
           fs.writeFileSync(path.join(artifact, 'restored-input.json'), JSON.stringify(received));
           stage = 'abandoned'; received = '';
           // A TUI returns to the normal screen without resetting any-event reporting.
-          stream.write('\x1b[?1049h\x1b[?1003h\x1b[?1006h\x1b[?1049l'); screen();
+          // Cover both printable legacy coordinates and extended SGR reports.
+          stream.write('\x1b[?1049h\x1b[?1003h' + (alternateScreen ? '\x1b[?1006l' : '\x1b[?1006h') + '\x1b[?1049l'); screen();
         }
       }, 30);
     });
@@ -120,7 +121,7 @@ const server = new Server({ hostKeys: [key] }, client => {
     assert.equal(hoverReports.active.length, applicationMouse || alternateScreen ? 10 : 0, 'Requested alternate-screen or explicit application mouse mode sends passive movement');
     assert.deepEqual(hoverReports.shift, [], 'Shift must suppress passive movement as well as clicks');
     assert.deepEqual(hoverReports.restored, [], 'No movement reports after normal TUI cleanup');
-    assert.equal(hoverReports.abandoned.length, applicationMouse ? 0 : 10, 'Reproduce stale reporting only when application mouse mode is allowed');
+    assert.deepEqual(hoverReports.abandoned, [], 'Returning from the TUI must stop stale mouse reports with either preference');
     assert.deepEqual(hoverReports['abandoned-shift'], [], 'Shift must also suppress movement when the TUI leaves mouse reporting enabled');
     assert.ok(received.includes('35;68;23M\r'), 'Do not remove literal report-looking keyboard input');
     console.log('Mouse capture, Shift override, focus return and bracketed paste checks passed.');

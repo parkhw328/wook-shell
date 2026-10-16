@@ -57,6 +57,7 @@ struct Browser {
     HWND navigationEdit{}, navigationFocus{}, navigationForeground{};
     int paneWidth{}, gutter = 88;
     bool transferLabels = true;
+    std::wstring passwordSession, initialRemote;
     std::wstring session, local, remote, status = L"Connecting to SFTP…", current;
     bool saved{}, busy{}, connected{}, showHidden = false, remoteFocused = true;
     std::unique_ptr<sftp::Client> client;
@@ -199,8 +200,9 @@ void Browser::start(const std::function<void(Result&)> &operation) {
 }
 void Browser::connect() {
     stop(); busy=false; connected=false; status=L"Connecting to SFTP…";
-    client=std::make_unique<sftp::Client>(owner,job,session,saved);
-    start([this](Result &r){r.path=client->initialize();r.entries=client->list(r.path);r.message=L"Connected · Select local files and > to upload; select remote files and < to download.";});
+    client=std::make_unique<sftp::Client>(owner,job,session,saved,passwordSession);
+    passwordSession.clear(); // Reconnect uses saved/manual authentication, never the launch secret.
+    start([this](Result &r){r.path=client->initialize();if(!initialRemote.empty())r.path=client->canonical(initialRemote);r.entries=client->list(r.path);r.message=L"Connected · Select local files and > to upload; select remote files and < to download.";});
 }
 void Browser::navigate(bool remoteSide,std::wstring path) {
     if(busy)return;
@@ -539,9 +541,10 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
     return DefWindowProcW(hwnd,msg,wp,lp);
 }
 }
-HWND createSftpView(HWND owner,HANDLE job,const std::wstring &session,bool saved) {
+HWND createSftpView(HWND owner,HANDLE job,const std::wstring &session,bool saved,const std::wstring &passwordSession,const std::wstring &remotePath) {
     WNDCLASSW wc{};wc.lpfnWndProc=viewProc;wc.hInstance=GetModuleHandleW(nullptr);wc.lpszClassName=L"wShell.SFTP";wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);RegisterClassW(&wc);
     auto b=std::make_unique<Browser>(owner,job,session,saved);
+    b->passwordSession=passwordSession; b->initialRemote=remotePath;
     auto hwnd=CreateWindowExW(WS_EX_CONTROLPARENT,wc.lpszClassName,L"SFTP",WS_CHILD|WS_CLIPCHILDREN,0,0,800,600,owner,nullptr,wc.hInstance,&b);
     if(!hwnd)throw std::runtime_error("Cannot create the SFTP tab.");return hwnd;
 }

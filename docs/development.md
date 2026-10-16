@@ -115,3 +115,9 @@ UI 검증은 **EXE만 복사한 빈 폴더**에서 시작하며 내장 폰트·�
 하드웨어 Serial, 실제 프록시/GSSAPI/X11 구성, 원격 Codex 화면 전체는 환경별 실기 검증이 남아 있습니다.
 분할 비율 드래그 조정, 클라우드 동기화는 제공하지 않습니다. `plink`·`pscp`·`psftp` 등 별도 CLI 실행파일도 배포하지 않습니다.
 
+
+## 2026-10-16 작업 검증 인계
+
+현재 소스는 TUI의 대체 화면 종료 시 남은 마우스 보고 해제와 WinSCP 형식 SFTP 직접 실행을 포함합니다. 공개 버전별 배포 파일은 변경하지 않았습니다. `python3 -m unittest discover -s tests -p 'test_*.py'`의 20개 검사가 통과했으며, Linux 교차 빌드와 PE·ZIP 정적 검사를 수행했습니다. `tests/test_terminal_exit.py`는 실제 패치된 세 화면 전환 처리 코드를 호스트 C 컴파일러로 실행하여 잔존 보고 해제와 정상 화면·진입 상태 보존을 검사합니다.
+
+Windows 실행 환경이 없어 실행 인자·IPC·DPAPI·SSH/UI 테스트와 실제 Codex 종료는 미실행입니다. 다음 Windows 작업에서는 `core-tests`, `launch-relay-tests`, `node tests/ssh/launch-integration.cjs`, `node tests/ssh/mouse-integration.cjs`의 기본·`--application-mouse`·`--alternate-screen` 모드 및 실제 SSH 안에서 Codex의 Ctrl+C 종료를 확인하세요. 실행 인자 통합 검사는 SFTP URL·초기 경로·기존 창 전달·일회용 암호 소비와 터미널 셸 미생성까지 포함합니다. UI 화면 캡처도 Windows 검증 시 확인해야 합니다.

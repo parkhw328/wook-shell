@@ -14,7 +14,7 @@ struct Handle {
     HANDLE release() { auto out = value; value = nullptr; return out; }
 };
 void require(bool ok, const char *message) { if (!ok) throw std::runtime_error(message); }
-std::vector<wchar_t> environment(HWND owner, const std::wstring &session, bool saved) {
+std::vector<wchar_t> environment(HWND owner, const std::wstring &session, bool saved, const std::wstring &passwordSession) {
     wchar_t *block = GetEnvironmentStringsW();
     require(block != nullptr, "Cannot read the process environment.");
     std::vector<std::wstring> values;
@@ -26,7 +26,8 @@ std::vector<wchar_t> environment(HWND owner, const std::wstring &session, bool s
         values.push_back(L"WOOK_PARENT_HWND=" + std::to_wstring((uintptr_t)owner));
         values.push_back(L"WOOK_PARENT_PID=" + std::to_wstring(GetCurrentProcessId()));
     }
-    if (saved) values.push_back(L"WOOK_PASSWORD_SESSION=" + session);
+    if (!passwordSession.empty()) values.push_back(L"WOOK_PASSWORD_SESSION=" + passwordSession);
+    else if (saved) values.push_back(L"WOOK_PASSWORD_SESSION=" + session);
     std::sort(values.begin(), values.end(), [](const auto &a, const auto &b) { return _wcsicmp(a.c_str(), b.c_str()) < 0; });
     std::vector<wchar_t> result;
     for (auto &value : values) { result.insert(result.end(), value.begin(), value.end()); result.push_back(0); }
@@ -53,7 +54,7 @@ struct Transfer {
 }
 std::wstring join(const std::wstring &path, const std::wstring &name) { return path + (path.ends_with(L"/") ? L"" : L"/") + name; }
 std::wstring uniqueName() { GUID id{}; require(SUCCEEDED(CoCreateGuid(&id)), "Cannot create a unique transfer name."); wchar_t buffer[40]; StringFromGUID2(id, buffer, 40); return L".wshell-" + std::wstring(buffer) + L".part"; }
-Client::Client(HWND owner, HANDLE job, const std::wstring &session, bool saved) {
+Client::Client(HWND owner, HANDLE job, const std::wstring &session, bool saved, const std::wstring &passwordSession) {
     SECURITY_ATTRIBUTES sa{sizeof(sa),nullptr,TRUE};
     Handle inRead, inWrite, outRead, outWrite, error, event;
     require(CreatePipe(&inRead.value, &inWrite.value, &sa, 65536), "Cannot create SFTP input pipe.");
@@ -85,7 +86,7 @@ Client::Client(HWND owner, HANDLE job, const std::wstring &session, bool saved) 
     GetEnvironmentVariableW(L"WOOK_SFTP_ENGINE", self, 32768);
 #endif
     auto args = wook::quoteArg(self) + L" --terminal -load " + wook::quoteArg(session) + L" -wook-sftp";
-    auto env = environment(owner, session, saved); PROCESS_INFORMATION pi{};
+    auto env = environment(owner, session, saved, passwordSession); PROCESS_INFORMATION pi{};
     bool started = updated && CreateProcessW(self, args.data(), nullptr, nullptr, TRUE, CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT,
                                              env.data(), nullptr, &si.StartupInfo, &pi);
     DeleteProcThreadAttributeList(si.lpAttributeList);

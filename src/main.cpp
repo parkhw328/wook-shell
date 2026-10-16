@@ -111,7 +111,7 @@ struct App {
     void select(int index);
     void focusActive();
     void refreshPaneFocus();
-    void connect(const Profile &profile, bool saved, bool preview = false, bool advanced = false, bool files = false, std::wstring_view password = {});
+    void connect(const Profile &profile, bool saved, bool preview = false, bool advanced = false, bool files = false, std::wstring_view password = {}, const std::wstring &remotePath = {});
     void localShell(bool powershell = false);
     int tabIndex(uint64_t id) const;
     void closeTab(int index, bool confirmed = false);
@@ -718,7 +718,7 @@ void App::paint(HDC dc) {
     if (active < 0 || !tabs[active]->transient || tabs[active]->preview || tabs[active]->profile.protocol == L"local")
         ui::label(dc, L"NATIVE  ·  WINDOWS x64", ui::rect(width - 200, height - 30, 180, 26), ui::TextSize::caption, ui::muted, false, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
 }
-void App::connect(const Profile &requested, bool saved, bool preview, bool advanced, bool files, std::wstring_view password) {
+void App::connect(const Profile &requested, bool saved, bool preview, bool advanced, bool files, std::wstring_view password, const std::wstring &remotePath) {
     Profile profile = requested;
     if (files && profile.protocol != L"ssh") throw std::runtime_error("SFTP requires an SSH host.");
     if (tabs.size() >= 32) throw std::runtime_error("Close a tab before opening more than 32 sessions.");
@@ -757,16 +757,16 @@ void App::connect(const Profile &requested, bool saved, bool preview, bool advan
         bool ok = wsSave(store); wsClose(store);
         if (!ok) throw std::runtime_error("Cannot save temporary session settings.");
     }
+    if (!password.empty()) tab->launchPassword = std::make_unique<wook::LaunchPassword>(profile, password);
     if (files) {
         tab->files = true;
-        tab->terminal = createSftpView(hwnd, job, tab->storageName, saved);
+        tab->terminal = createSftpView(hwnd, job, tab->storageName, saved, tab->launchPassword ? tab->launchPassword->name() : L"", remotePath);
         tabs.push_back(std::move(tab)); select((int)tabs.size() - 1); return;
     }
     std::wstring args = wook::quoteArg(engine) + L" --terminal -load " + wook::quoteArg(tab->storageName);
     if (preview) args += L" -wook-preview";
     if (advanced) args += L" -wook-config";
     if (local) args += L" -wook-local";
-    if (!password.empty()) tab->launchPassword = std::make_unique<wook::LaunchPassword>(profile, password);
     SetEnvironmentVariableW(L"WOOK_PARENT_HWND", std::to_wstring((uintptr_t)hwnd).c_str());
     SetEnvironmentVariableW(L"WOOK_PARENT_PID", std::to_wstring(GetCurrentProcessId()).c_str());
     SetEnvironmentVariableW(L"WOOK_EDIT_SESSION", advanced && saved ? tab->storageName.c_str() : nullptr);
@@ -1516,7 +1516,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             SetForegroundWindow(hwnd);
             if (request->mode == wook::LaunchRequest::Mode::connect) {
                 auto profile = wook::resolveLaunchProfile(*request); app->refresh();
-                app->connect(profile, true, false, false, false, {request->password.data(), request->password.size()});
+                app->connect(profile, true, false, false, request->files, {request->password.data(), request->password.size()}, request->remotePath);
             }
             return 0;
         }
@@ -1613,7 +1613,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
         if (launch.mode == wook::LaunchRequest::Mode::preview) app.action(Preview);
         else if (launch.mode == wook::LaunchRequest::Mode::connect) {
             auto profile = wook::resolveLaunchProfile(launch); app.refresh();
-            app.connect(profile, true, false, false, false, {launch.password.data(), launch.password.size()});
+            app.connect(profile, true, false, false, launch.files, {launch.password.data(), launch.password.size()}, launch.remotePath);
             launch.clearPassword();
         } else SetFocus(app.control(Quick));
         MSG msg;

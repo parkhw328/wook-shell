@@ -4,6 +4,23 @@ static void testLaunch(const std::wstring &data) {
     check(parse({}).mode == wook::LaunchRequest::Mode::workspace, "Empty launch opens workspace");
     check(parse({L"--help"}).mode == wook::LaunchRequest::Mode::help, "Help is read-only");
     check(parse({L"--preview"}).mode == wook::LaunchRequest::Mode::preview, "Preview remains supported");
+    auto files = parse({L"sftp://deploy:p%40ss%3A%2B+%ED%95%9C@example.invalid:2222/home/%ED%95%9C/"});
+    check(files.files && files.profile.host == L"example.invalid" && files.profile.user == L"deploy" && files.profile.port == 2222 &&
+          files.remotePath == L"/home/한/", "SFTP URL opens files with decoded UTF-8 directory");
+    check(std::wstring_view(files.password.data(), files.password.size()) == L"p@ss:+ 한", "WinSCP password escapes decoded once");
+    auto switches = parse({L"winscp-sftp://[::1]:2200/", L"/username=deploy", L"/password=literal%20+", L"/sessionname=Files 서울"});
+    check(switches.files && switches.profile.host == L"::1" && switches.profile.name == L"Files 서울" &&
+          std::wstring_view(switches.password.data(), switches.password.size()) == L"literal%20+", "WinSCP switches preserve literal credentials and IPv6");
+    check(parse({L"--sftp", L"host.invalid", L"--remote-path", L"/tmp/"}).files, "Explicit SFTP launch mode");
+    check(parse({L"host.invalid", L"/username=deploy", L"/password=secret"}).files, "WinSCP switches select file browser");
+    check(parse({L"sftp://host.invalid", L"--user", L"deploy", L"--password-stdin"}).passwordStdin, "SFTP supports password pipe");
+    for (auto args : {std::vector<std::wstring_view>{L"sftp://u:p%ZZ@host/"}, {L"sftp://u:%FF@host/"},
+                     {L"sftp://u:p%00@host/"}, {L"sftp://u:p@host/file"}, {L"ftp://host/"}, {L"scp://host/"},
+                     {L"sftp://u;fingerprint=x@host/"}, {L"sftp://host/?x"}, {L"sftp://u:p@host/", L"/password=other"},
+                     {L"sftp://u:p@host/", L"--password-stdin"}, {L"sftp://host/", L"-ssh"},
+                     {L"host", L"/hostkey=*"}, {L"host", L"/command"}, {L"host", L"--remote-path", L"/tmp/"},
+                     {L"sftp://host/", L"--remote-path", L"/tmp/"}, {L"sftp://u:@host/"}})
+        rejects([&] { wook::parseLaunchArguments(args); }, "Malformed or unsupported WinSCP input is rejected");
     auto launch = parse({L"-ssh", L"deploy@Example.invalid", L"-P", L"2222", L"--name", L"서울 launch", L"-pw", L"한글 password & | \\\""});
     check(launch.profile.user == L"deploy" && launch.profile.host == L"Example.invalid" && launch.profile.port == 2222, "PuTTY launch options");
     check(std::wstring_view(launch.password.data(), launch.password.size()) == L"한글 password & | \\\"", "Password is preserved literally");

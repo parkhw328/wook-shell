@@ -15,7 +15,8 @@ const key = utils.generateKeyPairSync('ed25519').private;
 const password = 'fixture 한글 & | " \\ ' + crypto.randomBytes(16).toString('hex');
 const clients = new Set(), processes = new Set();
 const watchdog = setTimeout(() => { for (const child of processes) child.kill(); process.exitCode = 1; server.close(); server2.close(); }, 120000);
-let authenticated = 0, shells = 0;
+let authenticated = 0, shells = 0, fileSessions = 0;
+const listedPaths = [];
 const onClient = client => {
   clients.add(client); client.on('close', () => clients.delete(client)); client.on('error', () => {});
   client.on('authentication', ctx => {
@@ -29,6 +30,14 @@ const onClient = client => {
     session.on('pty', accept => accept());
     session.on('env', accept => { if (accept) accept(); });
     session.on('exec', accept => { const stream = accept(); stream.exit(0); stream.end(); });
+    session.on('sftp', accept => {
+      ++fileSessions;
+      const stream = accept(); stream.on('error', () => {});
+      stream.on('REALPATH', (id, name) => stream.name(id, [{ filename: name === '.' ? '/home/deploy' : name, longname: '', attrs: {} }]));
+      stream.on('OPENDIR', (id, name) => { listedPaths.push(name); stream.handle(id, Buffer.from('directory')); });
+      stream.on('READDIR', id => stream.status(id, 1));
+      stream.on('CLOSE', id => stream.status(id, 0));
+    });
     session.on('shell', accept => { ++shells; const stream = accept(); stream.on('error', () => {}); stream.write('CLI fixture connected\r\n'); });
   }));
 };
@@ -125,7 +134,20 @@ function records() {
   await until(() => shells === 8);
   assert.ok((await childArguments(replacement.pid)).includes('--terminal'), 'Workspace can restart after owner termination');
   await stop(replacement);
-  const report = { passed: true, authenticated, shells, puttyArguments: true, longOptions: true, utf8Pipe: true, passwordSingleUse: true, savedHostPreserved: true, childArgumentsContainNoPassword: true,
+  // Public WinSCP URL opens a file tab without requesting a PTY or shell.
+  const filesOwner = start(executable, [`sftp://deploy:${encodeURIComponent(password)}@127.0.0.1:${port}/home/%ED%95%9C/`]);
+  await until(() => fileSessions === 1 && listedPaths.includes('/home/한/'));
+  const filesRelay = start(executable, [`winscp-sftp://127.0.0.1:${port}/tmp/`, '/username=deploy', `/password=${password}`]);
+  await until(() => filesRelay.exitCode === 0 && fileSessions === 2 && listedPaths.includes('/tmp/'));
+  assert.equal(shells, 8, 'SFTP launches never start a terminal shell');
+  assert.equal(authenticated, 10, 'Each SFTP tab consumes its launch password once');
+  const filesArgs = await childArguments(filesOwner.pid);
+  assert.equal((filesArgs.match(/-wook-sftp/g) || []).length, 2, 'Both file tabs use internal SFTP workers in the existing workspace');
+  assert.ok(!filesArgs.includes(password.slice(-32)), 'SFTP child arguments contain no password');
+  assert.ok(!records().some(r => r.name.startsWith('__wook_launch_')), 'SFTP launch credentials are consumed');
+  await stop(filesOwner);
+
+  const report = { passed: true, fileSessions, winscpUrlAndRelay: true, authenticated, shells, puttyArguments: true, longOptions: true, utf8Pipe: true, passwordSingleUse: true, savedHostPreserved: true, childArgumentsContainNoPassword: true,
     existingWindowTabs: true, differentServers: true, renamedExecutable: true, concurrentLaunches: true, relayedPasswordPipe: true, ownerRestart: true };
   fs.writeFileSync(path.join(artifact, 'result.json'), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report)); console.log('Evidence: ' + artifact);

@@ -6,7 +6,8 @@ namespace wook {
 struct LaunchRequest {
     enum class Mode { workspace, connect, preview, help } mode = Mode::workspace;
     Profile profile;
-    bool named = false, passwordStdin = false;
+    bool named = false, passwordStdin = false, files = false;
+    std::wstring remotePath;
     std::vector<wchar_t> password;
     LaunchRequest() = default;
     LaunchRequest(const LaunchRequest &) = delete;
@@ -29,9 +30,14 @@ public:
     const std::wstring &name() const { return name_; }
 };
 inline constexpr wchar_t launchHelp[] =
-    L"Open an SSH connection and save a new host when needed:\n\n"
+    L"Open an SSH terminal or SFTP browser and save a new host when needed:\n\n"
     L"wShell.exe -ssh user@host -P 22 -pw \"password\"\n"
     L"wShell.exe --host 192.0.2.10 --user deploy --name \"My server\"\n\n"
+    L"wShell.exe sftp://user@host:22/remote/directory/\n"
+    L"wShell.exe winscp-sftp://host/ /username=user /password=secret\n"
+    L"SFTP: --sftp, --remote-path, /username=, /password=, /sessionname=\n"
+    L"SFTP URLs decode UTF-8 %XX escapes. Directory URLs must end in /.\n"
+    L"FTP/SCP, file downloads, WinSCP scripts and advanced options are unsupported.\n\n"
     L"Options: -ssh / --ssh, --host, -P / --port, -l / --user,\n"
     L"-pw / --password, --password-stdin, --name, --help\n\n"
     L"Passwords apply to this connection only. Command-line passwords may\n"

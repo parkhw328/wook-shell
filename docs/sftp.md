@@ -2,6 +2,22 @@
 
 저장한 SSH 호스트를 선택하고 **SFTP**를 누르면 전용 탭이 열립니다. Windows의 연결된 SSH 탭에서는 **Files**, macOS에서는 **Tools → Open SFTP**도 사용할 수 있습니다. SFTP 연결은 터미널과 독립적이므로 파일을 전송하면서 명령을 실행할 수 있습니다.
 
+## 실행 인자로 SFTP 열기 (Windows 개발 빌드)
+
+현재 소스의 개발 빌드는 WinSCP 형식의 접속 URL을 받아 SFTP 탭을 바로 엽니다. 공개된 기존 버전에는 이 변경이 포함되어 있지 않습니다. 구문은 [WinSCP 실행 인자](https://winscp.net/eng/docs/commandline)와 [세션 URL](https://winscp.net/eng/docs/session_url)의 접속 기능 중 아래 범위를 지원합니다.
+
+```powershell
+.\wShell.exe "sftp://deploy@server.example:2222/home/deploy/"
+.\wShell.exe "winscp-sftp://server.example/" /username=deploy /password=example /sessionname="Files server"
+.\wShell.exe --sftp --host server.example --user deploy --remote-path /var/log/
+```
+
+같은 주소·포트·계정의 저장 호스트는 재사용하며 기존 창이 있으면 새 파일 탭으로 엽니다. 비밀번호를 생략하면 인증창에서 입력합니다. `--password-stdin`도 사용할 수 있습니다. URL에 암호를 넣을 때는 `sftp://user:password@host/` 형식이며 `@`, `:`, `+`, 공백 같은 특수 문자는 `%40`, `%3A`, `%2B`, `%20`으로 인코딩합니다. `%XX`는 UTF-8이고 URL의 `+`는 공백입니다. `/password=` 값에는 이 디코딩을 적용하지 않습니다.
+
+URL에 경로가 있으면 마지막 `/`가 필요합니다. 경로가 없으면 서버 홈을 열고, 지정한 경로는 이번 탭에만 적용합니다. URL과 옵션으로 사용자·암호·경로를 중복 지정하면 오류를 표시합니다. URL과 `/password=`의 암호도 최초 프로세스 목록·셸 기록에 노출될 수 있습니다. 앱 내부에서는 기존 일회용 DPAPI 인증을 사용하며 저장 암호를 변경하지 않습니다.
+
+지원 범위는 **SFTP 파일 탐색 연결**입니다. FTP·FTPS·SCP, WinSCP 저장 사이트·INI, 파일 URL 자동 다운로드, `/hostkey`, `/privatekey`, `/script`, `/command`, `/newinstance` 등의 추가 옵션은 지원하지 않으며 오류를 표시합니다. 서버 키 확인은 기존 인증창에서 수행하고, 등록한 개인키는 저장 호스트 설정을 사용합니다.
+
 ## 파일 이동
 
 ![Windows SFTP 중앙 전송 버튼](../assets/screenshots/sftp.png)

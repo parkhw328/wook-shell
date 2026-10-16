@@ -84,6 +84,17 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,''')
     terminal = replace(terminal, "                      !term->no_mouse_rep &&", '''                      !term->no_mouse_rep &&
                       (!conf_get_bool(term->conf, CONF_wshell_mouse_clipboard) ||
                        (wshellApplicationMouse(term) && !shift)) &&''')
+    # A crashed/interrupted TUI can leave mouse reporting enabled when it
+    # returns to the shell. Reset at explicit alternate-screen exit only.
+    for clear, reset in [("false", "false"), ("true", "true"), ("true", "false")]:
+        call = f"            swap_screen(term, term->no_alt_screen ? 0 : state, {clear}, {reset});"
+        terminal = replace(terminal, call, """            if (!state && term->alt_which && !term->no_alt_screen) {
+                term->xterm_mouse = 0;
+                term->xterm_extended_mouse = false;
+                term->urxvt_extended_mouse = false;
+                term_update_raw_mouse_mode(term);
+            }
+""" + call)
     (SOURCE / "terminal/terminal.c").write_text(terminal, encoding="utf-8")
     window = original("windows/window.c")
     window = replace(window, "    if (wgs->send_raw_mouse &&\n        !(shift",
