@@ -41,7 +41,7 @@ template<typename Check> bool testTerminalScroll(App &app, Check require) {
         auto path = wsPath(L"sessions", wook::utf8(p.name).c_str()); auto store = wsOpen(path, 1); free(path);
         require(store != nullptr, "Cannot create scroll session");
         wsSet(store, "SSHManualHostKeys", wook::utf8(fingerprint).c_str());
-        wsSet(store, "ScrollOnKey", "0"); // Enter must work for existing sessions with this disabled.
+        wsSet(store, "ScrollOnKey", "0"); // Previous default must migrate to return-on-key behavior.
         wsSet(store, "ScrollBar", "1"); // Observe position via Win32 instead of a test-only engine hook.
         wsSet(store, "ScrollOnDisp", "1"); // Older saved sessions include the old engine default.
         if (blockMouse) wsSet(store, "NoMouseReporting", "1");
@@ -100,6 +100,26 @@ template<typename Check> bool testTerminalScroll(App &app, Check require) {
     } else if (step == 6 && std::filesystem::exists(file(L"scroll-tail.ready")) && waits > 3) {
         auto info = scroll();
         require(bottom(info) > previousBottom && info.nPos == bottom(info), "Output must keep following once the user returns to the bottom");
+        wheel(WHEEL_DELTA); step = 23; waits = 0;
+    } else if (step == 23 && waits > 2) {
+        require(scroll().nPos < bottom(scroll()), "Character fixture must be viewing history");
+        SendMessageW(terminal(), WM_CHAR, L'x', 1); step = 24; waits = 0;
+    } else if (step == 24 && waits > 2) {
+        require(scroll().nPos == bottom(scroll()), "Character input must return without server echo");
+        wheel(WHEEL_DELTA); step = 25; waits = 0;
+    } else if (step == 25 && waits > 2) {
+        require(scroll().nPos < bottom(scroll()), "Unicode fixture must be viewing history");
+        SendMessageW(terminal(), WM_CHAR, L'한', 1); step = 26; waits = 0;
+    } else if (step == 26 && waits > 2) {
+        require(scroll().nPos == bottom(scroll()), "Unicode input must return without server echo");
+        wheel(WHEEL_DELTA); step = 27; waits = 0;
+    } else if (step == 27 && waits > 2) {
+        require(scroll().nPos < bottom(scroll()), "Arrow fixture must be viewing history");
+        SendMessageW(terminal(), WM_KEYDOWN, VK_LEFT, 1 | (0x4b << 16) | (1 << 24));
+        SendMessageW(terminal(), WM_KEYUP, VK_LEFT, (LPARAM)0xc14b0001u);
+        step = 28; waits = 0;
+    } else if (step == 28 && waits > 2) {
+        require(scroll().nPos == bottom(scroll()), "Arrow input must return without server echo");
         wheel(WHEEL_DELTA); step = 10; waits = 0;
     } else if (step == 10 && waits > 2) {
         require(scroll().nPos < bottom(scroll()), "Enter fixture must be viewing history");
@@ -123,6 +143,12 @@ template<typename Check> bool testTerminalScroll(App &app, Check require) {
         auto info = scroll();
         require(info.nPos == (followOutput ? bottom(info) : heldPosition), "TUI cursor movement and repaint must respect the chosen scroll policy");
         captureTestWindow(app.hwnd, L"ui-scroll-alternate.bmp");
+        wheel(WHEEL_DELTA, true); step = 29; waits = 0;
+    } else if (step == 29 && waits > 2) {
+        require(scroll().nPos < bottom(scroll()), "Alternate character fixture must be viewing history");
+        SendMessageW(terminal(), WM_CHAR, L'y', 1); step = 30; waits = 0;
+    } else if (step == 30 && waits > 2) {
+        require(scroll().nPos == bottom(scroll()), "Character input must return to the live alternate screen");
         wheel(WHEEL_DELTA, true); step = 14; waits = 0;
     } else if (step == 14 && waits > 2) {
         require(scroll().nPos < bottom(scroll()), "Alternate-screen Enter fixture must be viewing history");

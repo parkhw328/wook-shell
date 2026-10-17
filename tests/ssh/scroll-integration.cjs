@@ -84,6 +84,8 @@ const server = new Server({ hostKeys: [key] }, client => {
     assert.equal(code, 0, 'Scroll test process must exit successfully');
     assert.equal(result.passed, true, JSON.stringify(result));
     assert.equal((allInput.match(/\r/g) || []).length, 3, 'Each Enter must reach SSH exactly once');
+    for (const input of ['x', '한', '\x1b[D', 'y'])
+      assert.equal(allInput.split(input).length - 1, 1, 'Keyboard input must reach SSH exactly once: ' + JSON.stringify(input));
     assert.equal(stage, 'normal', 'Both normal and alternate screens and return must be exercised');
     const reports = [...allInput.matchAll(/\x1b\[<(\d+);\d+;\d+([mM])/g)].map(m => [Number(m[1]), m[2]]);
     assert.deepEqual(reports, blockMouse || noMouse ? [] : [[64, 'M'], [65, 'M']], 'Only application wheel events arrive; clipboard-priority clicks remain local');

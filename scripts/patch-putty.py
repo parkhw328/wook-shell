@@ -37,6 +37,17 @@ CONF_OPTION(no_mouse_rep,''')
     DEFAULT_BOOL(false),
     SAVE_KEYWORD("WookScrollOnDisp"),
 )''')
+    # Upgrade old ScrollOnKey=false defaults without rewriting session files.
+    # The existing checkbox persists explicit opt-out under the new key.
+    conf_header = replace(conf_header, '''CONF_OPTION(scroll_on_key,
+    VALUE_TYPE(BOOL),
+    DEFAULT_BOOL(false),
+    SAVE_KEYWORD("ScrollOnKey"),
+)''', '''CONF_OPTION(scroll_on_key,
+    VALUE_TYPE(BOOL),
+    DEFAULT_BOOL(true),
+    SAVE_KEYWORD("WookScrollOnKey"),
+)''')
     # Old sessions saved PuTTY's default, which discards Shift on arrows.
     # A wShell-specific key upgrades that default while preserving an explicit
     # choice of legacy Ctrl-toggles-app-mode made in the updated settings UI.
