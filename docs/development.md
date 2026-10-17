@@ -74,6 +74,7 @@ node tests/ssh/scroll-integration.cjs --block-mouse
 node tests/ssh/scroll-integration.cjs --no-mouse
 node tests/ssh/integration.cjs
 node tests/ssh/sftp-integration.cjs
+node tests/ssh/sftp-cancel-integration.cjs # 64MB 업로드·다운로드 취소, 재연결, 크기 표시
 node tests/ssh/sftp-error-integration.cjs # 권한 오류 후 조작·재시도·F5 재연결
 node tests/ssh/sftp-auth-integration.cjs # 실제 OTP 입력·Enter/Esc·창 포커스 복귀
 node tests/ssh/scrollbar-theme-integration.cjs # 네비게이션·목록·텍스트·드롭다운 스크롤바 색상/동작
@@ -125,3 +126,7 @@ UI 검증은 **EXE만 복사한 빈 폴더**에서 시작하며 내장 폰트·�
 ## 1.2.8 검증 인계
 
 CLI 일반 드래그 복사 변경과 실행/미실행 범위는 [1.2.8 릴리스 노트](releases/1.2.8.md)를 확인하세요. Windows에서는 마우스 기본·`--application-mouse`·`--alternate-screen`·두 옵션 조합과 스크롤 4개 모드를 실행하고 실제 Codex 화면의 선택 강조·클립보드 내용·앱 휠 스크롤을 확인해야 합니다.
+
+## 1.2.9 검증 인계
+
+Ctrl+C 직후 좌표 보고 중단과 SFTP 취소·숫자 표시는 [1.2.9 릴리스 노트](releases/1.2.9.md)를 확인하세요. Windows에서는 마우스 기본·`--application-mouse`·`--alternate-screen`·두 옵션 조합과 `node tests/ssh/sftp-cancel-integration.cjs`를 실행하고 생성된 SFTP 취소 화면 캡처를 확인해야 합니다. 기존 SFTP 오류·인증·끌어 놓기 검사와 실제 SSH 안의 Codex Ctrl+C 후 포인터 이동도 함께 확인하세요. Linux 교차 빌드는 Windows UI 실행 검증을 대신하지 않습니다.

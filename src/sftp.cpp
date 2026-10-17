@@ -36,7 +36,7 @@ std::vector<wchar_t> environment(HWND owner, const std::wstring &session, bool s
 struct Transfer {
     HANDLE file; const std::function<void(uint64_t,uint64_t)> *update; std::atomic_bool *cancelled;
     uint64_t position{};
-    static int read(void *p, void *data, int size) { DWORD count{}; return ReadFile(((Transfer *)p)->file, data, size, &count, nullptr) ? (int)count : -1; }
+    static int read(void *p, void *data, int size) { if(((Transfer *)p)->cancelled->load())return -1; DWORD count{}; return ReadFile(((Transfer *)p)->file, data, size, &count, nullptr) ? (int)count : -1; }
     static int writeAt(void *p, uint64_t offset, const void *data, int size) {
         auto t = (Transfer *)p;
         if (t->cancelled->load() || offset > INT64_MAX) return -1;
@@ -157,6 +157,7 @@ void Client::upload(const std::wstring &local, const std::wstring &remote, bool 
     Transfer transfer{file.value, &progress, &cancelled};
     uint64_t size = ((uint64_t)info.nFileSizeHigh << 32) | info.nFileSizeLow;
     check(wsftp_upload(codec, wook::utf8(temp).c_str(), size, Transfer::read, Transfer::progress, &transfer));
+    require(!cancelled, "Transfer cancelled.");
     check(wsftp_rename(codec, wook::utf8(temp).c_str(), wook::utf8(remote).c_str(), found));
 }
 void Client::download(const std::wstring &remote, const std::wstring &local, bool replace, const std::function<void(uint64_t,uint64_t)> &progress) {
@@ -171,6 +172,7 @@ void Client::download(const std::wstring &remote, const std::wstring &local, boo
         check(wsftp_download_at(codec, wook::utf8(remote).c_str(), a.size, Transfer::writeAt, Transfer::progress, &transfer));
         require(FlushFileBuffers(file.value), "Cannot save the downloaded file. Check disk space.");
         CloseHandle(file.release());
+        require(!cancelled, "Transfer cancelled.");
         require(MoveFileExW(temp.c_str(), local.c_str(), MOVEFILE_WRITE_THROUGH | (replace ? MOVEFILE_REPLACE_EXISTING : 0)), "Cannot finish the download. The existing destination has been kept.");
     } catch (...) { DeleteFileW(temp.c_str()); throw; }
 }

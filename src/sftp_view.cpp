@@ -1,5 +1,6 @@
 #include "sftp_view.hpp"
 #include "sftp.hpp"
+#include "number_format.hpp"
 #include "transfer_rate.hpp"
 #include "ui.hpp"
 #include "prompt.h"
@@ -59,6 +60,7 @@ struct Browser {
     bool transferLabels = true;
     std::wstring passwordSession, initialRemote;
     std::wstring session, local, remote, status = L"Connecting to SFTP…", current;
+    bool cancelRequested=false;
     bool saved{}, busy{}, connected{}, showHidden = false, remoteFocused = true;
     std::unique_ptr<sftp::Client> client;
     std::thread worker;
@@ -84,9 +86,9 @@ struct Browser {
     void transferState();
     std::wstring progressText() {
         std::lock_guard lock(progressLock);
-        if (!busy || current.empty()) return status;
+        if (cancelRequested || !busy || current.empty()) return status;
         wchar_t speed[64];swprintf(speed,64,L"%.1f KB/s",kbps);
-        return std::wstring(speed)+L" · "+std::to_wstring(done.load())+L" / "+std::to_wstring(total.load())+L" bytes\n"+current;
+        return std::wstring(speed)+L" · "+wook::formatInteger(done.load())+L" / "+wook::formatInteger(total.load())+L" bytes\n"+current;
     }
     void start(const std::function<void(Result &)> &operation);
     void connect();
@@ -102,10 +104,11 @@ struct Browser {
 void Browser::layout() {
     RECT r; GetClientRect(hwnd,&r); int w = MulDiv(r.right,96,ui::dpi), h = MulDiv(r.bottom,96,ui::dpi);
     int x=16,y=14;
-    for (auto [id,width] : {std::pair{NewFolder,120},{Rename,128},{Delete,136},{Refresh,136},{Cancel,90},{ShowHidden,208}}) {
+    for (auto [id,width] : {std::pair{NewFolder,120},{Rename,128},{Delete,136},{Refresh,136},{ShowHidden,208}}) {
         if (x+width > w-16) {x=16;y+=44;}
         ui::place(controls[id],x,y,width,34); x+=width+8;
     }
+    ui::place(controls[Cancel],std::max(16,w-184),h-60,168,34);
     gutter = w < 560 ? 68 : 88;
     int top = y+50, span = paneWidth = std::max(80, (w-32-gutter)/2);
     int listHeight = std::max(30,h-top-142), buttonWidth = gutter-20;
@@ -121,8 +124,8 @@ void Browser::layout() {
         ui::place(controls[base+2],left+46,top+34,std::max(1,span-92),24);
         ui::place(controls[base+1],left+span-42,top+30,42,30);
         ui::place(controls[base+3],left,top+72,span,listHeight);
-        ListView_SetColumnWidth(controls[base+3],0,ui::px(std::max(100,span-202)));
-        ListView_SetColumnWidth(controls[base+3],1,ui::px(85)); ListView_SetColumnWidth(controls[base+3],2,ui::px(108));
+        ListView_SetColumnWidth(controls[base+3],0,ui::px(std::max(100,span-277)));
+        ListView_SetColumnWidth(controls[base+3],1,ui::px(160)); ListView_SetColumnWidth(controls[base+3],2,ui::px(108));
     }
     InvalidateRect(hwnd,nullptr,TRUE);
 }
@@ -136,7 +139,7 @@ void Browser::fill(bool remoteSide) {
         if (!showHidden && hidden) continue;
         auto name = (entry.directory()?L"▸  ":entry.regular()?L"   ":L"↗  ")+entry.name;
         LVITEMW item{}; item.mask=LVIF_TEXT|LVIF_PARAM; item.iItem=i; item.pszText=name.data(); item.lParam=&entry-entries.data(); ListView_InsertItem(list,&item);
-        auto size=entry.directory()?L"Folder":entry.regular()?std::to_wstring(entry.size):L"Link / other";
+        auto size=entry.directory()?L"Folder":entry.regular()?wook::formatInteger(entry.size):L"Link / other";
         ListView_SetItemText(list,i,1,(wchar_t *)size.c_str());
         std::wstring date;
         if (entry.modified) {
@@ -171,9 +174,11 @@ void Browser::state() {
     // bypassing our dark item drawing. Keep the lists enabled for scrolling;
     // action() and the double-click handler already block mutations while busy.
     for(int id=1;id<=RemoteList;++id) EnableWindow(controls[id],
-        id==LocalList||id==RemoteList ? true : id==Cancel ? busy :
+        id==LocalList||id==RemoteList ? true : id==Cancel ? busy && !cancelRequested :
         !busy && !dragging && ((id>=LocalUp&&id<=LocalList) || id==Refresh || connected));
     EnableWindow(controls[ShowHidden],!busy && !dragging);
+    SetWindowTextW(controls[Cancel],cancelRequested?L"Cancelling…":L"Cancel transfer");
+    SetWindowTextW(controls[Refresh],!busy&&!connected?L"Reconnect (F5)":L"Refresh (F5)");
     transferState();
     InvalidateRect(hwnd,nullptr,TRUE);
 }
@@ -184,7 +189,7 @@ void Browser::transferState() {
 void Browser::start(const std::function<void(Result&)> &operation) {
     if(busy)return;
     if(worker.joinable())worker.join();
-    busy=true; done=0; total=0; {std::lock_guard lock(progressLock);current.clear();} state();
+    busy=true; cancelRequested=false; done=0; total=0; {std::lock_guard lock(progressLock);current.clear();} state();
     worker=std::thread([this,operation,wasConnected=connected] {
         auto result=std::make_unique<Result>();
         try { operation(*result); result->ok=true; result->connected=true; }
@@ -353,7 +358,11 @@ void Browser::beginDrag(bool remoteSide) {
     if(FAILED(result))throw std::runtime_error("Windows could not complete the file drag.");
 }
 void Browser::action(int id) {
-    if(id==Cancel){if(client)client->cancel();status=L"Cancelling transfer…";return;}
+    if(id==Cancel){
+        if(!busy || cancelRequested || !client)return;
+        cancelRequested=true;status=L"Cancelling transfer…";
+        client->cancel();state();return;
+    }
     if(dragging)return;
     if(id==ShowHidden && !busy){showHidden=SendMessageW(controls[ShowHidden],BM_GETCHECK,0,0)==BST_CHECKED;fill(false);fill(true);state();return;}
     if(busy)return;
@@ -407,13 +416,13 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
         case WM_APP+124: b->beginDrag(wp!=0);return 0;
 #endif
         case WM_CREATE: {
-            const wchar_t *labels[]={L"",L"Upload →",L"← Download",L"New folder",L"Rename (F2)",L"Delete (Del)",L"Refresh (F5)",L"Cancel"};
+            const wchar_t *labels[]={L"",L"Upload →",L"← Download",L"New folder",L"Rename (F2)",L"Delete (Del)",L"Refresh (F5)",L"Cancel transfer"};
             for(int i=1;i<=7;++i)b->controls[i]=ui::button(hwnd,labels[i],i);
             b->tooltips=CreateWindowExW(WS_EX_TOPMOST,TOOLTIPS_CLASSW,nullptr,WS_POPUP|TTS_ALWAYSTIP|TTS_NOPREFIX,
                 CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,hwnd,nullptr,GetModuleHandleW(nullptr),nullptr);
-            for(int id : {Upload,Download}) {
+            for(int id : {Upload,Download,Cancel}) {
                 TOOLINFOW tip{sizeof(tip)};tip.uFlags=TTF_IDISHWND|TTF_SUBCLASS;tip.hwnd=hwnd;tip.uId=(UINT_PTR)b->controls[id];
-                tip.lpszText=(wchar_t *)(id==Upload?L"Upload selected local files to the current remote folder (>)":L"Download selected remote files to the current local folder (<)");
+                tip.lpszText=(wchar_t *)(id==Cancel?L"Stop the current operation and queued files; reconnect with F5":id==Upload?L"Upload selected local files to the current remote folder (>)":L"Download selected remote files to the current local folder (<)");
                 SendMessageW(b->tooltips,TTM_ADDTOOLW,0,(LPARAM)&tip);
             }
             b->controls[ShowHidden]=ui::checkbox(hwnd,L"Show hidden files",ShowHidden);
@@ -439,8 +448,14 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
         case finished: {
             std::unique_ptr<Result> r((Result *)lp);if(b->worker.joinable())b->worker.join();b->busy=false;b->connected=r->connected;
             b->status=r->message;
+            if(b->cancelRequested) {
+                b->connected=false;
+                b->status=r->ok?L"Operation completed before cancellation. Reconnect (F5) to refresh.":
+                    L"Cancelled · Reconnect (F5). Unfinished uploads may leave .wshell-*.part files.";
+            }
             if(r->ok){b->remote=r->path;b->remoteEntries=std::move(r->entries);b->fill(true);b->readLocal();}
-            else if(!r->connected)b->status+=L" Use Refresh (F5) to reconnect. An interrupted upload may leave a .wshell-*.part file on the server.";
+            else if(!r->connected && !b->cancelRequested)b->status+=L" Use Refresh (F5) to reconnect. An interrupted upload may leave a .wshell-*.part file on the server.";
+            b->cancelRequested=false;
             b->state();
             if(b->navigationEdit && GetFocus()==b->navigationFocus &&
                GetForegroundWindow()==b->navigationForeground && IsWindowVisible(b->hwnd))
@@ -522,7 +537,7 @@ LRESULT CALLBACK viewProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
                 ui::label(dc,id==Upload?L"Upload":L"Download",label,ui::TextSize::caption,ui::muted,false,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
             }
             auto message=b->progressText();
-            ui::label(dc,message,ui::rect(16,h-62,w-32,52),ui::TextSize::caption,ui::text,false,DT_LEFT|DT_WORDBREAK);
+            ui::label(dc,message,ui::rect(16,h-62,std::max(80,w-216),52),ui::TextSize::caption,ui::text,false,DT_LEFT|DT_WORDBREAK);
             if(b->busy&&b->total){int length=(int)((w-32)*std::min(1.0,(double)b->done/b->total));ui::fill(dc,ui::rect(16,h-68,length,3),ui::accent);}
             if(dc!=target){
                 BitBlt(target,ps.rcPaint.left,ps.rcPaint.top,ps.rcPaint.right-ps.rcPaint.left,ps.rcPaint.bottom-ps.rcPaint.top,

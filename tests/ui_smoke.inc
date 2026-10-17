@@ -11,6 +11,7 @@
 #include "sftp_shortcuts_smoke.inc"
 #include "sftp_auth_smoke.inc"
 #include "sftp_error_smoke.inc"
+#include "sftp_cancel_smoke.inc"
 #include "key_import_test.inc"
 #include "drag_smoke.inc"
 template<typename Check> void testNativeKeys(const std::wstring &directory, Check require) {
@@ -60,7 +61,8 @@ void runUiSmoke(App &app) {
     static const bool sftpAuthOnly = GetEnvironmentVariableW(L"WOOK_TEST_SFTP_AUTH_ONLY", nullptr, 0) != 0;
     static const bool scrollbarThemeOnly = GetEnvironmentVariableW(L"WOOK_TEST_SCROLLBAR_THEME_ONLY", nullptr, 0) != 0;
     static const bool sftpErrorOnly = GetEnvironmentVariableW(L"WOOK_TEST_SFTP_ERROR_ONLY", nullptr, 0) != 0;
-    static int phase = sftpErrorOnly ? 63 : scrollbarThemeOnly ? 62 : sftpAuthOnly ? 61 : messagesOnly ? 58 : scrollOnly ? 57 : mouseOnly ? 56 : focusOnly ? 33 : 0;
+    static const bool sftpCancelOnly = GetEnvironmentVariableW(L"WOOK_TEST_SFTP_CANCEL_ONLY", nullptr, 0) != 0;
+    static int phase = sftpCancelOnly ? 64 : sftpErrorOnly ? 63 : scrollbarThemeOnly ? 62 : sftpAuthOnly ? 61 : messagesOnly ? 58 : scrollOnly ? 57 : mouseOnly ? 56 : focusOnly ? 33 : 0;
     static int waits = 0;
     static int checks = 0;
     static bool uploadRateSeen=false, downloadRateSeen=false;
@@ -118,7 +120,9 @@ void runUiSmoke(App &app) {
       progress << "{\"phase\":" << phase << ",\"waits\":" << waits << ",\"tabs\":" << app.tabs.size() << "}\n"; }
     try {
         if (++waits > 80) throw std::runtime_error("Timed out waiting for hosted terminal windows.");
-        if (phase == 63) {
+        if (phase == 64) {
+            if (testSftpCancel(app, require)) { phase = 37; waits = 0; }
+        } else if (phase == 63) {
             if (testSftpErrors(app, require)) { phase = 37; waits = 0; }
         } else if (phase == 62) {
             phase = -1; testScrollbarThemes(app, require); phase = 37; waits = 0;

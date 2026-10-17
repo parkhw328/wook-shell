@@ -38,7 +38,7 @@ const server = new Server({ hostKeys: [key] }, client => {
       stream.on('data', bytes => {
         received += decoder.write(bytes);
         if (received.includes('\x1b[1;1R')) signal(stage);
-        for (const name of ['active', 'shift', 'restored', 'abandoned', 'abandoned-shift']) {
+        for (const name of ['active', 'shift', 'restored', 'abandoned', 'abandoned-shift', 'interrupted', 'resumed']) {
           const marker = `hover-${name}\r`;
           if (!(name in hoverReports) && received.includes(marker)) {
             const preceding = received.slice(0, received.indexOf(marker));
@@ -46,6 +46,11 @@ const server = new Server({ hostKeys: [key] }, client => {
             const segment = previousMarker < 0 ? preceding : preceding.slice(preceding.indexOf('\r', previousMarker) + 1);
             hoverReports[name] = segment.match(/\x1b\[<\d+;\d+;\d+[mM]|\x1b\[M[\s\S]{3}/g) || [];
             if (name === 'abandoned') signal('abandoned-input');
+            if (name === 'interrupted') {
+              // The TUI may resume after cancelling a task and explicitly enable reporting again.
+              stream.write('\x1b[?1003h\x1b[?1006h'); signal('resume');
+            }
+            if (name === 'resumed') signal('resumed-input');
           }
         }
         for (const kind of ['normal', 'preferred', 'shift', 'toggled', 'restored', 'abandoned']) {
@@ -72,6 +77,11 @@ const server = new Server({ hostKeys: [key] }, client => {
           // A TUI returns to the normal screen without resetting any-event reporting.
           // Cover both printable legacy coordinates and extended SGR reports.
           stream.write('\x1b[?1049h\x1b[?1003h' + (alternateScreen ? '\x1b[?1006l' : '\x1b[?1006h') + '\x1b[?1049l'); screen();
+        }
+        else if (stage === 'abandoned' && fs.existsSync(path.join(artifact, 'mouse-interrupt.request'))) {
+          stage = 'interrupt'; received = '';
+          // Reproduce stale reporting in the normal buffer, with no 1049l cleanup.
+          stream.write('\x1b[?1003h\x1b[?1006h'); screen();
         }
       }, 30);
     });
@@ -122,7 +132,11 @@ const server = new Server({ hostKeys: [key] }, client => {
     assert.deepEqual(hoverReports.shift, [], 'Shift must suppress passive movement as well as clicks');
     assert.deepEqual(hoverReports.restored, [], 'No movement reports after normal TUI cleanup');
     assert.deepEqual(hoverReports.abandoned, [], 'Returning from the TUI must stop stale mouse reports with either preference');
-    assert.deepEqual(hoverReports['abandoned-shift'], [], 'Shift must also suppress movement when the TUI leaves mouse reporting enabled');
+    assert.deepEqual(hoverReports['abandoned-shift', 'interrupted', 'resumed'], [], 'Shift must also suppress movement when the TUI leaves mouse reporting enabled');
+    assert.deepEqual(hoverReports.interrupted, [], 'Ctrl+C stops Ctrl-modified mouse motion without a screen exit');
+    assert.equal((received.match(/\x03/g) || []).length, 1, 'Ctrl+C reaches SSH exactly once');
+    assert.equal(hoverReports.resumed.length, applicationMouse ? 0 : 10, 'Explicit server enable restores the chosen mouse policy');
+    assert.ok(received.includes('51;66;13M51;66;12M51;65;12M\r'), 'Literal user text is not filtered');
     assert.ok(received.includes('35;68;23M\r'), 'Do not remove literal report-looking keyboard input');
     console.log('Mouse capture, Shift override, focus return and bracketed paste checks passed.');
   } finally {

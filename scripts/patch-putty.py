@@ -68,6 +68,22 @@ CONF_OPTION(no_mouse_rep,''')
         ("void term_keyinput(Terminal *term, int codepage, const void *str, int len)", "2, codepage, str, len"),
         ("void term_do_paste(Terminal *term, const wchar_t *data, size_t len)", "3, 0, data, (int)len")]:
         terminal = replace(terminal, signature + "\n{", signature + "\n{\n    if (term->wshell_input) term->wshell_input(term->wshell_input_context, " + notify + ");")
+    # Ctrl+C can return to a shell without an alternate-screen exit. Stop the
+    # producer at the actual ETX input boundary, including mirrored input.
+    # Preserve encoding flags; a later explicit mouse enable resumes reporting.
+    terminal = replace(terminal, "void term_keyinputw(Terminal *term, const wchar_t *widebuf, int len)", """static void wshellInterruptMouse(Terminal *term)
+{
+    term->xterm_mouse = 0;
+    term->mouse_is_down = 0;
+    term->raw_mouse_reported_x = term->raw_mouse_reported_y = -1;
+    term_update_raw_mouse_mode(term);
+}
+
+void term_keyinputw(Terminal *term, const wchar_t *widebuf, int len)""")
+    terminal = replace(terminal, "void term_keyinputw(Terminal *term, const wchar_t *widebuf, int len)\n{",
+                       "void term_keyinputw(Terminal *term, const wchar_t *widebuf, int len)\n{\n    if (len == 1 && widebuf[0] == 3) wshellInterruptMouse(term);")
+    terminal = replace(terminal, "void term_keyinput(Terminal *term, int codepage, const void *str, int len)\n{",
+                       "void term_keyinput(Terminal *term, int codepage, const void *str, int len)\n{\n    if (len == 1 && ((const unsigned char *)str)[0] == 3) wshellInterruptMouse(term);")
     # Keep buttons and pointer motion local in clipboard-priority mode.
     # Only the wheel reaches a live alternate-screen application; Shift
     # continues to scroll terminal history. Explicit opt-out stays upstream.

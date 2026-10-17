@@ -62,11 +62,11 @@ template<typename Check> bool testTerminalMouse(App &app, Check require) {
         require(focus().hwndFocus == terminal(), "Right-click must focus the clicked single terminal");
         SendMessageW(terminal(), WM_RBUTTONUP, shift ? MK_SHIFT : 0, point(12));
     };
-    auto hover = [&](bool shift, const wchar_t *probe) {
+    auto hover = [&](bool shift, const wchar_t *probe, bool control = false) {
         for (int column = 67; column <= 76; ++column) {
             auto position = MAKELPARAM(cell.left + (cell.right - cell.left) * column,
                                       cell.top + (cell.bottom - cell.top) * 22);
-            SendMessageW(terminal(), WM_MOUSEMOVE, shift ? MK_SHIFT : 0, position);
+            SendMessageW(terminal(), WM_MOUSEMOVE, (shift ? MK_SHIFT : 0) | (control ? MK_CONTROL : 0), position);
         }
         // A keyboard marker fences all preceding mouse messages on the SSH stream.
         for (auto p = probe; *p; ++p) SendMessageW(terminal(), WM_CHAR, *p, 1);
@@ -147,6 +147,15 @@ template<typename Check> bool testTerminalMouse(App &app, Check require) {
         for (auto c : std::wstring(L"35;68;23M\r")) SendMessageW(terminal(), WM_CHAR, c, 1);
         setClipboard(L"abandoned-paste-한글"); paste(true); step = 17; waits = 0;
     } else if (step == 17 && std::filesystem::exists(file(L"mouse-abandoned-paste.ready"))) {
+        std::ofstream(file(L"mouse-interrupt.request")) << "interrupt\n"; step = 18; waits = 0;
+    } else if (step == 18 && std::filesystem::exists(file(L"mouse-interrupt.ready"))) {
+        // WM_CHAR exercises the Unicode key path with exactly one ETX.
+        SendMessageW(terminal(), WM_CHAR, 3, 1);
+        hover(false, L"hover-interrupted", true); step = 19; waits = 0;
+    } else if (step == 19 && std::filesystem::exists(file(L"mouse-resume.ready"))) {
+        for (auto c : std::wstring(L"51;66;13M51;66;12M51;65;12M\r35;68;23M\r")) SendMessageW(terminal(), WM_CHAR, c, 1);
+        hover(false, L"hover-resumed"); step = 20; waits = 0;
+    } else if (step == 20 && std::filesystem::exists(file(L"mouse-resumed-input.ready"))) {
         restoreMouseTestClipboard(app.hwnd);
         app.closeTab(0, true); return true;
     }
