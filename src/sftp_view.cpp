@@ -87,8 +87,7 @@ struct Browser {
     std::wstring progressText() {
         std::lock_guard lock(progressLock);
         if (cancelRequested || !busy || current.empty()) return status;
-        wchar_t speed[64];swprintf(speed,64,L"%.1f KB/s",kbps);
-        return std::wstring(speed)+L" · "+wook::formatInteger(done.load())+L" / "+wook::formatInteger(total.load())+L" bytes\n"+current;
+        return wook::formatTransferSpeed(kbps)+L" KB/s · "+wook::formatInteger(done.load())+L" / "+wook::formatInteger(total.load())+L" bytes\n"+current;
     }
     void start(const std::function<void(Result &)> &operation);
     void connect();
