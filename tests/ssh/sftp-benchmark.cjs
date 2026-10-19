@@ -12,9 +12,12 @@ const payload = crypto.randomBytes(8 * 1024 * 1024 + 3);
 fs.writeFileSync(path.join(remote, 'payload.bin'), payload);
 const key = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' });
 const pin = 'SHA256:' + crypto.createHash('sha256').update(utils.parseKey(key).getPublicSSH()).digest('base64').replace(/=+$/, '');
+const rekey = process.argv.includes('--rekey');
 const clients = new Set();
+let handshakes = 0;
 let scenario;
 const server = new Server({ hostKeys: [key] }, client => {
+    client.on('handshake', () => ++handshakes);
     clients.add(client); client.on('close', () => clients.delete(client)); client.on('error', () => {});
     client.on('authentication', ctx => ctx.username === 'none' && ctx.method === 'none' ? ctx.accept() : ctx.reject());
     client.on('ready', () => client.on('session', accept => attach(accept(), remote, scenario)));
@@ -26,6 +29,7 @@ const server = new Server({ hostKeys: [key] }, client => {
         { name: 'short', readLimit: 17003, readDelay: 40 },
         { name: 'delayed-blocks', readLimit: 32768, readDelay: offset => offset % (64 * 32768) === 0 ? 300 : 40 },
     ]) {
+        const previousHandshakes = handshakes;
         scenario = { ...condition, writeDelay: 40 };
         fs.rmSync(path.join(remote, 'benchmark-upload.bin'), { force: true });
         const local = path.join(artifact, condition.name); fs.mkdirSync(local);
@@ -33,11 +37,13 @@ const server = new Server({ hostKeys: [key] }, client => {
             ...process.env, WOOK_DATA_DIR: path.join(local, 'data'), WOOK_SFTP_LOCAL: local,
             WOOK_SFTP_ENGINE: path.join(root, 'build/native/wShell.exe'), WOOK_TEST_PORT: String(server.address().port),
             WOOK_TEST_FINGERPRINT: pin, WOOK_SFTP_BENCHMARK: '1',
+            WOOK_SFTP_REKEY: rekey ? '1' : '',
         } });
         let output = ''; child.stdout.on('data', data => output += data); child.stderr.pipe(process.stderr);
         const timer = setTimeout(() => child.kill(), 120000);
         const code = await new Promise((resolve, reject) => { child.on('error', reject); child.on('close', resolve); });
         clearTimeout(timer); assert.equal(code, 0);
+        if (rekey) assert.ok(handshakes - previousHandshakes > 2, 'Repeated key exchanges must complete during transfer');
         assert.ok(scenario.initialWindow >= 2 * 1024 * 1024, 'SFTP must start with a bulk-transfer SSH window');
         assert.deepEqual(fs.readFileSync(path.join(local, 'benchmark.bin')), payload);
         assert.deepEqual(fs.readFileSync(path.join(remote, 'benchmark-upload.bin')), payload);

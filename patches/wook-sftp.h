@@ -18,6 +18,13 @@ static void wookSftpSent(Seat *seat, size_t backlog) {
     (void)seat;
     if (wookSftpInput) handle_unthrottle(wookSftpInput, backlog);
 }
+/* A transport queue can drain after the last Seat.sent notification (notably
+ * after rekey). Match Plink's post-loop backlog check so a paused pipe wakes
+ * even when no further channel/window or socket notification is generated. */
+static void wookSftpResumeInput(WinGuiSeat *wgs) {
+    if (wookSftp && wookSftpInput && wgs->backend)
+        handle_unthrottle(wookSftpInput, backend_sendbuffer(wgs->backend));
+}
 static void wookSftpStarted(Seat *seat) {
     if (!wookSftp || wookSftpReady) return;
     WinGuiSeat *wgs = container_of(seat, WinGuiSeat, seat);

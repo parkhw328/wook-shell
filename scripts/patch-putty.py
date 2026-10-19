@@ -177,6 +177,8 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,''')
                      "                wgs->pending_surrogate = 0;\n                term_keyinputw(wgs->term, pair, 2);")
     window = replace(window, "                term_keyinputw(wgs->term, &c, 1);",
                      "                wgs->pending_surrogate = 0;\n                term_keyinputw(wgs->term, &c, 1);")
+    window = replace(window, "        run_toplevel_callbacks();",
+                     "        run_toplevel_callbacks();\n        wookSftpResumeInput(wgs);")
     window = replace(window, "    dll_hijacking_protection();", "    dll_hijacking_protection();\n    wookWindowInit();")
     window = replace(window, "    ShowWindow(wgs->term_hwnd, show);\n    SetForegroundWindow(wgs->term_hwnd);",
                      "    if (!wookParent && !wookSftp) {\n        ShowWindow(wgs->term_hwnd, show);\n        SetForegroundWindow(wgs->term_hwnd);\n    }")
