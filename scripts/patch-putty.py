@@ -59,7 +59,7 @@ CONF_OPTION(no_mouse_rep,''')
     DEFAULT_INT(SHARROW_BITMAP),
     SAVE_KEYWORD("WookShiftedArrowKeys"),''')
     (SOURCE / "conf.h").write_text(conf_header, encoding="utf-8")
-    terminal_header = replace(original("terminal/terminal.h"), "struct terminal_tag {", "struct terminal_tag {\n    void (*wshell_input)(void *, int, int, const void *, int);\n    void *wshell_input_context;")
+    terminal_header = replace(original("terminal/terminal.h"), "struct terminal_tag {", "struct terminal_tag {\n    uint64_t wshell_paste_epoch;\n    size_t wshell_local_paste_pending;\n    void (*wshell_input)(void *, int, int, const void *, int);\n    void *wshell_input_context;")
     terminal_header = replace(terminal_header, "void term_release_line(termline *line);",
                               "void term_release_line(termline *line);\n\nbool wshellApplicationMouse(Terminal *term);")
     (SOURCE / "terminal/terminal.h").write_text(terminal_header, encoding="utf-8")
@@ -84,6 +84,9 @@ CONF_OPTION(no_mouse_rep,''')
     # Preserve encoding flags; a later explicit mouse enable resumes reporting.
     terminal = replace(terminal, "void term_keyinputw(Terminal *term, const wchar_t *widebuf, int len)", """static void wshellInterruptMouse(Terminal *term)
 {
+    /* Invalidate clipboard reads that have not arrived yet, too. */
+    term->wshell_paste_epoch++;
+    term->wshell_local_paste_pending = 0;
     term->xterm_mouse = 0;
     term->mouse_is_down = 0;
     term->raw_mouse_reported_x = term->raw_mouse_reported_y = -1;
@@ -95,6 +98,12 @@ void term_keyinputw(Terminal *term, const wchar_t *widebuf, int len)""")
                        "void term_keyinputw(Terminal *term, const wchar_t *widebuf, int len)\n{\n    if (len == 1 && widebuf[0] == 3) wshellInterruptMouse(term);")
     terminal = replace(terminal, "void term_keyinput(Terminal *term, int codepage, const void *str, int len)\n{",
                        "void term_keyinput(Terminal *term, int codepage, const void *str, int len)\n{\n    if (len == 1 && ((const unsigned char *)str)[0] == 3) wshellInterruptMouse(term);")
+    terminal = replace(terminal,
+                       "    term_do_paste(term, term->last_selected_text, term->last_selected_len);",
+                       "    if (!term->wshell_local_paste_pending) return;\n    term->wshell_local_paste_pending--;\n    term_do_paste(term, term->last_selected_text, term->last_selected_len);")
+    terminal = replace(terminal,
+                       "        queue_toplevel_callback(paste_from_clip_local, term);",
+                       "        term->wshell_local_paste_pending++;\n        queue_toplevel_callback(paste_from_clip_local, term);")
     # Keep buttons and pointer motion local in clipboard-priority mode.
     # Only the wheel reaches a live alternate-screen application; Shift
     # continues to scroll terminal history. Explicit opt-out stays upstream.
@@ -161,6 +170,20 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,''')
     window = replace(window, "int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)",
                      "int WINAPI wshellTerminalMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)")
     window = replace(window, "HINSTANCE hinst;", '#include "wook-window.h"\n\nHINSTANCE hinst;')
+    # Reading the clipboard may block on another process. A request made before
+    # Ctrl+C must not turn into a new paste after the foreground command exits.
+    window = replace(window, "    HWND hwnd = (HWND)param;", "    WsClipboardRequest *request = param;\n    HWND hwnd = request->hwnd;")
+    for unicode in ("true", "false"):
+        window = replace(window,
+                         f"            SendMessage(hwnd, WM_GOT_CLIPDATA,\n                        (WPARAM){unicode}, (LPARAM)clipdata);",
+                         f"            request->data = clipdata;\n            SendMessage(hwnd, WM_GOT_CLIPDATA,\n                        (WPARAM){unicode}, (LPARAM)request);")
+    window = replace(window, "        CloseClipboard();\n    }\n\n    return 0;\n}",
+                     "        CloseClipboard();\n    }\n\n    sfree(request);\n    return 0;\n}")
+    window = replace(window, "      case WM_GOT_CLIPDATA:\n        process_clipdata(wgs, (HGLOBAL)lParam, wParam);\n        return 0;",
+                     "      case WM_GOT_CLIPDATA: {\n        const WsClipboardRequest *request = (const WsClipboardRequest *)lParam;\n        if (wookClipboardCurrent(wgs, request))\n            process_clipdata(wgs, request->data, wParam);\n        return 0;\n      }")
+    window = replace(window, "    DWORD in_threadid; /* required for Win9x */", "    WsClipboardRequest *request = snew(WsClipboardRequest);\n    request->hwnd = wgs->term_hwnd;\n    request->epoch = wgs->term->wshell_paste_epoch;\n    request->data = NULL;\n    DWORD in_threadid; /* required for Win9x */")
+    window = replace(window, "                                  wgs->term_hwnd, 0, &in_threadid);", "                                  request, 0, &in_threadid);")
+    window = replace(window, "        CloseHandle(hThread);          /* we don't need the thread handle */", "        CloseHandle(hThread);          /* we don't need the thread handle */\n    else\n        sfree(request);")
     window = replace(window, "    SetWindowLongPtr(wgs->term_hwnd, GWLP_USERDATA, (LONG_PTR)wgs);",
                      "    SetWindowLongPtr(wgs->term_hwnd, GWLP_USERDATA, (LONG_PTR)wgs);\n    wgs->wshell_ime = wsImeCreate(wgs->term_hwnd, wookImeSend, mk_wcwidth, wgs);\n    SetWindowLongPtr(wgs->term_hwnd, GWL_STYLE, GetWindowLongPtr(wgs->term_hwnd, GWL_STYLE) | WS_CLIPCHILDREN);")
     window = replace(window, "static void wgs_cleanup(WinGuiSeat *wgs)\n{",

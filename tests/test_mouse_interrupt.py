@@ -32,7 +32,10 @@ class MouseInterruptTest(unittest.TestCase):
         cls.temp = tempfile.TemporaryDirectory(prefix='mouse-interrupt-', dir=ROOT / 'build')
         folder = Path(cls.temp.name)
         (folder / 'test.c').write_text('''#include <stddef.h>
-typedef struct { int xterm_mouse, updates, mouse_is_down, raw_mouse_reported_x, raw_mouse_reported_y; } Terminal;
+#include <stdint.h>
+#include <stdbool.h>
+typedef struct { int xterm_mouse, updates, mouse_is_down, raw_mouse_reported_x, raw_mouse_reported_y;
+    uint64_t wshell_paste_epoch; size_t wshell_local_paste_pending; } Terminal;
 static void term_update_raw_mouse_mode(Terminal *term) { term->updates++; }
 ''' + helper + '\n'.join(probes))
         subprocess.run([compiler, '-shared', '-fPIC', '-Wall', '-Wextra', '-Werror',

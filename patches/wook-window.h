@@ -2,6 +2,17 @@
 #include "wshell-credentials.h"
 #include "wshell-ime.h"
 #include "wshell-theme.h"
+/* Owned by the clipboard reader until its synchronous window message returns. */
+typedef struct WsClipboardRequest {
+    HWND hwnd;
+    uint64_t epoch;
+    HGLOBAL data;
+} WsClipboardRequest;
+
+static bool wookClipboardCurrent(WinGuiSeat *wgs, const WsClipboardRequest *request) {
+    return request->epoch == wgs->term->wshell_paste_epoch;
+}
+
 static void wookImeSend(void *context, const wchar_t *text, int length) {
     WinGuiSeat *wgs = context;
     if (wgs->ldisc) term_keyinputw(wgs->term, text, length);

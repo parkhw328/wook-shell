@@ -130,3 +130,27 @@ CLI 일반 드래그 복사 변경과 실행/미실행 범위는 [1.2.8 릴리�
 ## 1.2.9 검증 인계
 
 Ctrl+C 직후 좌표 보고 중단과 SFTP 취소·숫자 표시는 [1.2.9 릴리스 노트](releases/1.2.9.md)를 확인하세요. Windows에서는 마우스 기본·`--application-mouse`·`--alternate-screen`·두 옵션 조합과 `node tests/ssh/sftp-cancel-integration.cjs`를 실행하고 생성된 SFTP 취소 화면 캡처를 확인해야 합니다. 기존 SFTP 오류·인증·끌어 놓기 검사와 실제 SSH 안의 Codex Ctrl+C 후 포인터 이동도 함께 확인하세요. Linux 교차 빌드는 Windows UI 실행 검증을 대신하지 않습니다.
+
+## 로컬 CMD Ctrl+C 재현 검사
+
+2026-10-20 제공된 `resources/tail.exe`와 `tcping.exe`는 PE32 콘솔 프로그램입니다. 정적 import·코드 검사에서 tail은 CRT 파일 읽기/쓰기를, tcping은 `SetConsoleCtrlHandler`로 등록한 중단 핸들러를 사용합니다. 직접 클립보드를 읽어 입력하는 경로는 확인되지 않았습니다. 이것만으로 사용자 증상의 원인을 확정하지 않습니다. 샘플은 Git·배포에 포함하지 않습니다.
+
+wShell의 시스템 클립보드 읽기는 별도 스레드에서 수행됩니다. 기존에는 Ctrl+C가 진행 중인 붙여넣기를 취소해도, 아직 읽는 중인 요청이 나중에 도착하면 새로운 붙여넣기로 처리됐습니다. 수정본은 중단 시 요청 세대를 변경해 이전 결과를 버리고, 내부 클립보드 콜백도 취소합니다. 이후의 새 요청과 일반 타이핑은 유지합니다. 이미 콘솔 입력 버퍼로 전달된 문자를 되돌리는 수정은 아닙니다. 우클릭 없는 증상과 실제 샘플에서의 해결 여부는 Windows 검증이 남아 있습니다.
+
+호스트 회귀 검사는 실제 패치된 입력 함수와 전달 분기를 실행하며, 바이트/유니코드 ETX 한 번 전달, 지연된 ANSI/유니코드 클립보드 무시, 내부 요청 취소, 새 요청·여러 요청 보존을 확인합니다. OS 클립보드·스레드·ConPTY 실행 검증을 대신하지 않습니다.
+
+```sh
+python3 scripts/patch-putty.py
+python3 -m unittest discover -s tests -p 'test_*interrupt.py' -v
+```
+
+Windows에서는 잠기지 않은 데스크톱과 텍스트 클립보드 상태에서 다음 검사를 실행합니다. 샘플은 `resources/`에 두고 외부 서버 대신 테스트가 여는 루프백 TCP 포트를 사용합니다.
+
+```powershell
+python tests/local-interrupt.py --exe build/native/wShell.exe
+# Linux 교차 빌드 EXE를 Windows로 옮겨 검사할 때도 --exe로 지정 가능
+```
+
+이 검사는 배포 앱의 독립 터미널 엔진을 실행해 각 샘플의 우클릭 없는 경우와 우클릭한 경우를 비교합니다. 명령 입력·우클릭은 Win32 메시지, Ctrl+C는 전경 창을 확인한 `SendInput`을 사용합니다. 작업 공간 내 임베디드 포커스 검사를 대체하지 않습니다. `build/local-interrupt-*/result.json`에 실제 EXE·샘플 해시, CMD 복귀, 출력 실행 여부, 클립보드 유지와 붙여넣기 명령 실행 시점을 기록하고 각 하위 폴더에 합성 출력 로그를 남깁니다. 우클릭은 명시적인 붙여넣기이므로 그 명령의 실행 여부는 별도 관찰값입니다. `passed`만으로 우클릭 후 버퍼에 남은 입력 문제까지 해결됐다고 해석하지 마세요. 텍스트 클립보드는 복원하지만 다른 형식은 보존하지 않으므로 이미지·파일 클립보드로 실행하지 마세요.
+
+2026-10-20 Linux에서 호스트 Python 회귀 34개, Windows 교차 빌드와 PE·ZIP 정적 검사, 진단 스크립트 문법·도움말, `git diff --check`를 통과했습니다. 샘플 EXE 실행과 이 Windows 검사는 수행하지 않았습니다. Windows에서 원본·수정 EXE에 같은 검사를 실행하고, 기존 SSH 마우스 검사와 실제 CMD 탭의 Ctrl+C도 확인해야 합니다.

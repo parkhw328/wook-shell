@@ -17,7 +17,7 @@ build/
 !/release/*/macos-universal/wshell-*-macos-universal.zip
 !/release/*/macos-universal/wshell-*-macos-universal.zip.sha256
 data/
-# Local SSH keys supplied for connection troubleshooting; never distribute.
+# Local troubleshooting samples and SSH keys; never commit or distribute.
 /resources/
 __pycache__/
 *.user
