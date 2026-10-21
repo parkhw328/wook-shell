@@ -1,33 +1,74 @@
 {
-  "version": "1.2.14",
+  "version": "1.2.15",
   "createdBy": "Hyunwook Park",
   "artifacts": [
     {
       "platform": "windows-x64",
       "file": "windows-x64/wShell.exe",
-      "bytes": 3657216,
-      "sha256": "99ceb88084f7a6d9cbd2a50d90c3340bde15cc140fcb35a0376ea80997a9081f"
+      "bytes": 3654656,
+      "sha256": "3d44bacc4c17cff3e150746453af6be59893976840e9f60310361e6069bdfdd7"
     },
     {
       "platform": "windows-x64",
       "file": "windows-x64/wshell-windows-x64.zip",
-      "bytes": 1661737,
-      "sha256": "2d3e3895eefb7dbecbe03175025bd658fa0c284d64dc48842bf8687582c51e1f"
+      "bytes": 1661513,
+      "sha256": "71a71afc90011104517690bec01fffa418e3a6ceeaa4f63bc78ab2512ab15f68"
     }
   ],
-  "sourceCommit": "18f608ec075359832f4cb449aa9fc01b19967158",
+  "sourceCommit": "cf0292510b52a06f88e354bb7ce889ce3d9aefce",
   "sourceDirty": false,
   "buildHost": "windows",
+  "build": {
+    "version": "1.2.15",
+    "sourceCommit": "cf0292510b52a06f88e354bb7ce889ce3d9aefce",
+    "sourceDirty": false,
+    "host": "windows",
+    "compiler": "clang version 23.1.2 (https://github.com/llvm/llvm-project.git 85ac560262434c9ccfc0c183ec22d4138ed647fb)",
+    "linker": "LLD 23.1.2 (https://github.com/llvm/llvm-project.git 85ac560262434c9ccfc0c183ec22d4138ed647fb) (compatible with GNU linkers)",
+    "cmake": "cmake version 4.4.4",
+    "profileSha256": "9392dd60d9a05c0c5866a53fa02560f75dabd7a374352a44ff65ca699b826361",
+    "configuredFlags": {
+      "CMAKE_BUILD_TYPE": "Release",
+      "CMAKE_C_FLAGS": "",
+      "CMAKE_CXX_FLAGS": "",
+      "CMAKE_RC_FLAGS": "",
+      "CMAKE_C_FLAGS_RELEASE": "-O3 -DNDEBUG",
+      "CMAKE_CXX_FLAGS_RELEASE": "-O3 -DNDEBUG",
+      "CMAKE_EXE_LINKER_FLAGS": "-static -Wl,--nxcompat,--dynamicbase,--high-entropy-va,--no-insert-timestamp",
+      "CMAKE_EXE_LINKER_FLAGS_RELEASE": "",
+      "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "OFF"
+    },
+    "puttyAssertions": "enabled",
+    "runtimeSha256": {
+      "libc++.a": "1821ba13f3a21ae360fcfd84f74efb0875dea556d77d4479a14e51e3335d99fa",
+      "libc++abi.a": "b521278cf1808b7172e3a7656e8f5dc52da9fea7dada073d853f2cb0aa74d771",
+      "libunwind.a": "a438def643ce3816b8ec3e596034591e544a6e06a004c734cea67784f69c983f",
+      "libmingw32.a": "6d5bc14ef6512f14086cb6363c9eb84a0abf01f78e7eac862b79f939c4dd7e06",
+      "libmingwex.a": "eb6aa4217b92a0d261f618abe92bb4807c6d230fbf50d33267651f5dbf84cf63"
+    },
+    "binarySha256": "3d44bacc4c17cff3e150746453af6be59893976840e9f60310361e6069bdfdd7"
+  },
   "validation": {
     "staticPackage": "passed",
     "core": "passed",
     "python": "passed",
-    "localConsoleInterrupt": "passed-on-rerun",
-    "mouse": "passed-on-rerun",
+    "localConsoleInterrupt": "passed",
+    "mouse": "passed",
     "scroll": "passed",
     "fontLaunchKeysDialogs": "passed",
     "windowsRuntime": "partial",
     "fullSshUi": "incomplete-input-target-check",
-    "ngs": "not-run"
+    "ngs": "not-run",
+    "crossHostExecutable": "byte-identical-windows-linux",
+    "crossHostComparison": {
+      "executableBytes": 3654656,
+      "executableSha256": "3d44bacc4c17cff3e150746453af6be59893976840e9f60310361e6069bdfdd7",
+      "sameCompilerAndRuntime": true,
+      "windowsZipBytes": 1661513,
+      "linuxZipBytes": 1662756,
+      "windowsCompression": "Python 3.14.7 / zlib 1.3.1.zlib-ng",
+      "linuxCompression": "Python 3.13.16 / zlib 1.2.13",
+      "zipContents": "identical-executable-different-deflate-stream"
+    }
   }
 }
