@@ -8,6 +8,7 @@ import re
 import struct
 import subprocess
 import zipfile
+from pe_resources import read_resource
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
@@ -30,6 +31,10 @@ with zipfile.ZipFile(archive) as bundle:
     assert bundle.read("wShell.exe") == binary.read_bytes(), "ZIP and standalone executable differ"
     assert hashlib.sha256(binary.read_bytes()).hexdigest() == binary.with_suffix(".exe.sha256").read_text().split()[0], "EXE checksum mismatch"
 
+manifest = (ROOT / "build/app.manifest").read_bytes()
+assert b"\r" not in manifest, "Generated application manifest must use LF on every build host"
+assert read_resource(binary.read_bytes(), 24, 1) == manifest, "Embedded application manifest changed"
+
 # Ensure every shipped executable is x64 and imports only Windows system DLLs.
 allowed = {"advapi32.dll", "comctl32.dll", "comdlg32.dll", "crypt32.dll", "dwmapi.dll", "gdi32.dll", "gdiplus.dll",
            "imm32.dll", "kernel32.dll", "msvcrt.dll", "netapi32.dll", "normaliz.dll", "ole32.dll", "oleaut32.dll",
@@ -45,7 +50,6 @@ for binary in folder.glob("*.exe"):
         assert library.lower() in allowed or library.lower().startswith("api-ms-win-crt-"), f"External runtime required: {binary.name}: {library}"
 
 if sys.platform != "win32":
-    from pe_resources import read_resource
     data = (folder / "wShell.exe").read_bytes()
     payload = read_resource(data, 14, 101)
     count = struct.unpack_from("<H", payload, 4)[0]
