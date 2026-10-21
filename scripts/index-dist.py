@@ -70,7 +70,7 @@ def manifest_for(release, artifacts, provenance=None):
         return manifest
     manifest.update(version=release.name, createdBy="Hyunwook Park", artifacts=artifacts)
     if provenance is not None:
-        for key in ("sourceCommit", "sourceDirty", "workflow", "buildHost", "validation"):
+        for key in ("sourceCommit", "sourceDirty", "workflow", "buildHost", "validation", "build"):
             manifest.pop(key, None)
         manifest.update(provenance)
     return manifest
@@ -92,6 +92,15 @@ def validation_note(manifest):
     if manifest.get("validation", {}).get("windowsRuntime") == "not-run":
         return "Linux cross-build; static package checks passed. Windows runtime / NGS testing has not been run."
     return ""
+
+
+def verified_build_info(path, provenance, version, artifacts):
+    info = json.loads(path.read_text(encoding="utf-8"))
+    executable = next(item for item in artifacts if item["file"] == "windows-x64/wShell.exe")
+    if (info["version"] != version or info["sourceCommit"] != provenance["sourceCommit"] or
+            info["sourceDirty"] != provenance["sourceDirty"] or info["binarySha256"] != executable["sha256"]):
+        raise ValueError("Build info does not match the release source and executable")
+    return info
 
 
 def refresh_latest(release, manifest):
@@ -117,7 +126,9 @@ def refresh_latest(release, manifest):
     (target / "manifest.json").write_text(json.dumps(latest_manifest, indent=2) + "\n", encoding="utf-8")
 
 
-def index(catalog_only=False, cross_built=False):
+def index(catalog_only=False, cross_built=False, build_info=None):
+    if catalog_only and build_info is not None:
+        raise ValueError("Catalog-only refresh must preserve the original build info")
     version = (ROOT / "VERSION").read_text().strip()
     folders = [path for path in (ROOT / "release").iterdir() if path.is_dir() and re.fullmatch(r"\d+\.\d+\.\d+", path.name)]
     folders.sort(key=lambda path: tuple(map(int, path.name.split("."))), reverse=True)
@@ -127,6 +138,9 @@ def index(catalog_only=False, cross_built=False):
     for release in folders:
         artifacts = artifacts_for(release)
         provenance = build_provenance() if release.name == version and not catalog_only else None
+        if provenance is not None and build_info is not None:
+            info = verified_build_info(build_info, provenance, version, artifacts)
+            provenance.update(buildHost=info["host"], build=info)
         if provenance is not None and cross_built:
             if provenance["sourceDirty"]:
                 raise ValueError("Commit source changes before indexing a cross-built release")
@@ -188,7 +202,7 @@ def index(catalog_only=False, cross_built=False):
                "\n\nmacOS and iPad builds are paused. These older artifacts do not include newer Windows changes. "
                "The macOS app is ad-hoc signed, without Developer ID notarization. "
                "The unsigned IPA requires separate Apple-account signing before installation; it is not a directly installable release.\n\n"
-               "Manifests record file sizes and SHA-256 values; new builds also record the source commit, plus the CI run when built on Actions. "
+               "Manifests record file sizes and SHA-256 values; new Windows builds also record the source commit, compiler, linker, release settings and runtime hashes, plus the CI run when built on Actions. "
                "Historical manifests retain known metadata only. Build tools, caches, passwords and private keys are excluded.\n")
     (ROOT / "release/README.md").write_text(catalog, encoding="utf-8")
     print(f"Verified and indexed {len(folders)} desktop releases; verified {ipad_count} iPad test archives.")
@@ -199,5 +213,6 @@ if __name__ == "__main__":
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--catalog-only", action="store_true", help="Verify downloads without changing build provenance")
     mode.add_argument("--cross-built", action="store_true", help="Record Linux static verification and unrun Windows runtime tests")
+    parser.add_argument("--build-info", type=Path, help="Attach tool/settings evidence matched to this source and executable")
     args = parser.parse_args()
-    index(args.catalog_only, args.cross_built)
+    index(args.catalog_only, args.cross_built, args.build_info)

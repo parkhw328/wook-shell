@@ -47,6 +47,10 @@ python3 -m unittest discover -s tests -p 'test_*.py'
 
 ## Windows에서 빌드와 실행 검증
 
+Windows 네이티브와 Linux 교차 빌드는 `scripts/windows-release.cmake`에서 동일한 Release 옵션을 읽습니다. 재사용한 CMake 캐시나 호스트의 `CFLAGS`·`CXXFLAGS`가 배포 설정을 바꾸지 않도록 공통 옵션을 고정하며, PuTTY C 코드의 assertion은 유지합니다. 라이선스 리소스는 UTF-8/LF로 생성하고 PE 타임스탬프와 ZIP 항목의 시각·속성을 고정합니다. 최적화 수준은 기존과 같은 `-O3`이며 리소스·기능을 제거하거나 실행파일 압축기를 사용하지 않습니다.
+
+각 빌드 디렉터리의 `build-info.json`에는 실제 컴파일러·링커·CMake 버전, 설정 옵션, 정적 런타임 해시와 EXE 해시가 기록됩니다. 배포 스크립트는 소스 커밋·변경 상태·버전·EXE 해시가 일치하는 기록만 manifest의 `build`에 넣습니다. 배포 후 재색인은 `python scripts/index-dist.py --catalog-only`를 사용해 원래 기록을 보존하세요. 서로 다른 PC의 용량 비교는 동일 소스·도구·옵션으로 수행하며, 자세한 조사 결과는 [1.2.15 릴리스 노트](releases/1.2.15.md)에 기록합니다.
+
 빌드 환경은 Windows x64, Python 3.10 이상, PowerShell입니다. C++ 컴파일러·CMake·Ninja·PuTTY 소스는 다음 명령이 저장소 내부로 다운로드하고 SHA-256을 확인합니다.
 
 ```powershell

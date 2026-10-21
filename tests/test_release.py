@@ -63,13 +63,34 @@ class ReleaseTest(unittest.TestCase):
 
     def test_catalog_preserves_build_provenance(self):
         artifacts = release.artifacts_for(self.folder)
-        manifest = release.manifest_for(self.folder, artifacts, {"sourceCommit": "fixture", "sourceDirty": False, "workflow": "fixture-run"})
+        manifest = release.manifest_for(self.folder, artifacts, {"sourceCommit": "fixture", "sourceDirty": False,
+            "workflow": "fixture-run", "build": {"compiler": "fixture compiler", "configuredFlags": {"release": "-O3"}}})
         (self.folder / "manifest.json").write_text(json.dumps(manifest))
         self.assertEqual(release.manifest_for(self.folder, artifacts), manifest)
         changed = [dict(item) for item in artifacts]
         changed[0]["sha256"] = "invalid"
         with self.assertRaisesRegex(ValueError, "Published manifest mismatch"):
             release.manifest_for(self.folder, changed)
+
+    def test_build_info_matches_source_and_executable(self):
+        artifacts = release.artifacts_for(self.folder)
+        provenance = {"sourceCommit": "fixture", "sourceDirty": False}
+        info = dict(provenance, version=self.folder.name, binarySha256=artifacts[0]["sha256"], host="windows")
+        path = self.folder / "build-info.json"
+        path.write_text(json.dumps(info))
+        self.assertEqual(release.verified_build_info(path, provenance, self.folder.name, artifacts), info)
+
+    def test_stale_build_info_is_rejected(self):
+        artifacts = release.artifacts_for(self.folder)
+        provenance = {"sourceCommit": "fixture", "sourceDirty": False}
+        original = dict(provenance, version=self.folder.name, binarySha256=artifacts[0]["sha256"], host="linux")
+        path = self.folder / "build-info.json"
+        for key, value in (("sourceCommit", "old"), ("sourceDirty", True),
+                           ("version", "0.0.0"), ("binarySha256", "old-executable")):
+            with self.subTest(key=key):
+                path.write_text(json.dumps(dict(original, **{key: value})))
+                with self.assertRaisesRegex(ValueError, "does not match"):
+                    release.verified_build_info(path, provenance, self.folder.name, artifacts)
 
     def test_cross_build_status_survives_catalog_refresh(self):
         artifacts = release.artifacts_for(self.folder)

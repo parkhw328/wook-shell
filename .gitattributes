@@ -18,6 +18,7 @@ VERSION text eol=lf
 *.yml text eol=lf
 *.json text eol=lf
 *.cjs text eol=lf
+*.cmake text eol=lf
 *.rc text eol=lf
 *.manifest text eol=lf
 *.png binary

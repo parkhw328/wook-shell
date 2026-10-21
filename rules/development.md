@@ -37,6 +37,8 @@
 - Python 빌드 도구 회귀 검증: `python3 -m unittest discover -s tests -p 'test_*.py'`. Linux 호스트 런타임 호환 설정은 [상세 개발 안내](../docs/development.md)의 교차 빌드 절차를 따른다.
 - 최초 빌드: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 -Bootstrap`.
 - 이후 빌드: `scripts/build.ps1`; CTest의 `core-tests`와 배포 ZIP 생성까지 수행한다.
+- Windows 네이티브·Linux 교차 빌드는 `scripts/windows-release.cmake`의 공통 Release 옵션을 사용한다. 최적화·정적 링크·보호 옵션을 호스트별로 복제하지 않는다. PuTTY의 C assertion과 암호 연산 최적화 경계를 유지하며, 내장 고지는 UTF-8/LF, PE·ZIP의 빌드 시각 메타데이터는 고정한다.
+- `scripts/record-windows-build.py`로 실제 컴파일러·링커·CMake 버전, 설정 옵션, 정적 런타임 해시와 EXE 해시를 기록한다. 배포 manifest에는 해당 소스·EXE와 일치하는 기록만 `--build-info`로 포함하고 `--catalog-only`로 보존한다. 과거 배포의 기록되지 않은 빌드 조건을 현재 환경으로 추정해 채우지 않는다.
 - SSH/UI: `npm --prefix tests/ssh ci --ignore-scripts --omit=optional` 후 `node tests/ssh/integration.cjs`.
 - 폰트 캐시: `node tests/ssh/font-integration.cjs`. 폰트 선택·탐색 UI와 실제 분할 입력은 SSH/UI 테스트에 포함한다.
 - 알림·확인·About: `node tests/ssh/message-integration.cjs`. 기본 버튼·Enter/Esc·긴 한글 본문·스크롤·DPI·중첩 모달과 실제 SSH 호스트 키 취소/일회 연결/저장 동작을 격리 검증한다. Win32 메시지 검사는 실제 OS 입력 라우팅 검사와 구분한다.

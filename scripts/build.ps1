@@ -10,7 +10,7 @@ try {
     $ninja = (Join-Path $repoRoot '.tools/ninja/ninja.exe').Replace('\', '/')
     if (!(Test-Path -LiteralPath $cmake)) { throw 'Run python scripts/bootstrap.py first.' }
     $env:PATH = "$llvmBin;$env:PATH"
-    $commonArgs = @('-G', 'Ninja', "-DCMAKE_MAKE_PROGRAM=$ninja", "-DCMAKE_C_COMPILER=$llvmBin/x86_64-w64-mingw32-gcc.exe", "-DCMAKE_RC_COMPILER=$llvmBin/llvm-windres.exe", '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_EXE_LINKER_FLAGS=-static -Wl,--nxcompat,--dynamicbase,--high-entropy-va')
+    $commonArgs = @('-C', 'scripts/windows-release.cmake', '-G', 'Ninja', "-DCMAKE_MAKE_PROGRAM=$ninja", "-DCMAKE_C_COMPILER=$llvmBin/x86_64-w64-mingw32-gcc.exe", "-DCMAKE_RC_COMPILER=$llvmBin/llvm-windres.exe")
     python scripts/patch-putty.py
     if ($LASTEXITCODE) { throw 'PuTTY integration patch failed' }
     python scripts/embed-notices.py
@@ -19,6 +19,8 @@ try {
     if ($LASTEXITCODE) { throw 'Engine configure failed' }
     & $cmake --build build/native --target WookShell ui-smoke-tests core-tests ime-tests sftp-tests sftp-codec-tests launch-relay-tests local-input-probe plink -j 8
     if ($LASTEXITCODE) { throw 'Engine build failed' }
+    python scripts/record-windows-build.py --build build/native
+    if ($LASTEXITCODE) { throw 'Build provenance recording failed' }
     if (!$EngineOnly) {
         if (!$SkipTests) {
             & $ctest --test-dir build/native/workspace --output-on-failure
@@ -28,7 +30,7 @@ try {
         if ($LASTEXITCODE) { throw 'Packaging failed' }
         python scripts/verify-package.py
         if ($LASTEXITCODE) { throw 'Portable package verification failed' }
-        python scripts/index-dist.py
+        python scripts/index-dist.py --build-info build/native/build-info.json
         if ($LASTEXITCODE) { throw 'Release manifest verification failed' }
     }
 } finally { Pop-Location }

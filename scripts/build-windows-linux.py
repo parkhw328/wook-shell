@@ -52,16 +52,17 @@ def main():
     build = ROOT / "build/windows-linux"
     run(sys.executable, ROOT / "scripts/patch-putty.py")
     run(sys.executable, ROOT / "scripts/embed-notices.py")
-    run(cmake, "-S", ROOT / ".deps/putty", "-B", build, "-G", "Ninja",
+    run(cmake, "-C", ROOT / "scripts/windows-release.cmake",
+        "-S", ROOT / ".deps/putty", "-B", build, "-G", "Ninja",
         "-DCMAKE_SYSTEM_NAME=Windows", "-DCMAKE_SYSTEM_PROCESSOR=AMD64",
         f"-DCMAKE_MAKE_PROGRAM={ninja}",
         f"-DCMAKE_C_COMPILER={llvm}/x86_64-w64-mingw32-gcc",
         f"-DCMAKE_CXX_COMPILER={llvm}/x86_64-w64-mingw32-g++",
         f"-DCMAKE_RC_COMPILER={llvm}/x86_64-w64-mingw32-windres",
-        "-DCMAKE_BUILD_TYPE=Release", f"-DWSHELL_ROOT={ROOT}",
-        "-DCMAKE_EXE_LINKER_FLAGS=-static -Wl,--nxcompat,--dynamicbase,--high-entropy-va")
+        f"-DWSHELL_ROOT={ROOT}")
     run(cmake, "--build", build, "--target", "WookShell", "ui-smoke-tests", "core-tests",
-        "ime-tests", "sftp-tests", "sftp-codec-tests", "launch-relay-tests", "plink", "--parallel", args.jobs)
+        "ime-tests", "sftp-tests", "sftp-codec-tests", "launch-relay-tests", "local-input-probe", "plink", "--parallel", args.jobs)
+    run(sys.executable, ROOT / "scripts/record-windows-build.py", "--build", build)
     output = ROOT / "build/packages" / version / "windows-x64"
     run(sys.executable, ROOT / "scripts/package.py", "--binary", build / "wShell.exe", "--output", output)
     run(sys.executable, ROOT / "scripts/verify-package.py", "--folder", output,
@@ -70,7 +71,7 @@ def main():
     if args.dist:
         check_release_source()
         shutil.copytree(output, destination)
-        run(sys.executable, ROOT / "scripts/index-dist.py", "--cross-built")
+        run(sys.executable, ROOT / "scripts/index-dist.py", "--cross-built", "--build-info", build / "build-info.json")
         print(f"Collected in {destination}; Windows runtime tests remain unrun.", flush=True)
     print("NOT RUN: Windows executable tests, SSH/UI/IME/DPAPI runtime validation.")
 
