@@ -4,6 +4,7 @@ The clock models SFTP response latency, not SSH, Windows, disk or real throughpu
 All packets are replies to actual requests; a blocked window cannot read ahead.
 """
 import ctypes
+import os
 import gzip
 import hashlib
 import heapq
@@ -172,6 +173,10 @@ class SftpPipelineTest(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        if os.name == 'nt':
+            import _ctypes
+            _ctypes.FreeLibrary(cls.library._handle)
+            del cls.library
         cls.temp.cleanup()
 
     def test_delayed_blocks_do_not_drain_the_request_window(self):

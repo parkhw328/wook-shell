@@ -1,5 +1,6 @@
 """Check the patched default and execute PuTTY's actual key-event scroll path."""
 import ctypes
+import os
 from pathlib import Path
 import re
 import shutil
@@ -50,6 +51,12 @@ int probe(int enabled, int position) {
             subprocess.run([compiler, '-shared', '-fPIC', '-Wall', '-Wextra', '-Werror',
                             str(folder / 'test.c'), '-o', str(folder / 'test.so')], check=True)
             library = ctypes.CDLL(str(folder / 'test.so'))
-            for enabled in (0, 1):
-                for position in (-100, -1, 0):
-                    self.assertEqual(library.probe(enabled, position), 1)
+            try:
+                for enabled in (0, 1):
+                    for position in (-100, -1, 0):
+                        self.assertEqual(library.probe(enabled, position), 1)
+            finally:
+                if os.name == 'nt':
+                    import _ctypes
+                    _ctypes.FreeLibrary(library._handle)
+                    del library

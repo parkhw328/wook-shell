@@ -1,8 +1,9 @@
-"""Run the patched PuTTY mouse-routing predicate on the Linux host.
+"""Run the patched PuTTY mouse-routing predicate on the build host.
 
 This checks dispatch policy, not the Windows clipboard or OS event routing.
 """
 import ctypes
+import os
 from pathlib import Path
 import re
 import shutil
@@ -56,6 +57,10 @@ int report(int braw, int preference, int screen, int history, int mode,
 
     @classmethod
     def tearDownClass(cls):
+        if os.name == 'nt':
+            import _ctypes
+            _ctypes.FreeLibrary(cls.library._handle)
+            del cls.library
         cls.temp.cleanup()
 
     def report(self, button, preference=1, screen=1, history=0, mode=3, blocked=0, shift=0, override=1):

@@ -1,5 +1,6 @@
 """Execute patched alternate-screen mode handlers; Windows UI is tested separately."""
 import ctypes
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -57,6 +58,10 @@ int probe(int mode, bool state, int alternate, bool disabled) {
 
     @classmethod
     def tearDownClass(cls):
+        if os.name == 'nt':
+            import _ctypes
+            _ctypes.FreeLibrary(cls.library._handle)
+            del cls.library
         cls.temp.cleanup()
 
     def test_abandoned_mouse_reporting_stops_on_each_screen_exit(self):

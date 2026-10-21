@@ -3,6 +3,7 @@
 Run scripts/patch-putty.py first. This tests wire bytes, not Windows key routing.
 """
 import ctypes
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -20,7 +21,8 @@ class ArrowKeysTest(unittest.TestCase):
             raise unittest.SkipTest("Host C compiler required for encoder tests")
         source = (ROOT / ".deps/putty/terminal/terminal.c").read_text()
         encoder = source[source.index("static int shift_bitmap("):source.index("int format_function_key(")]
-        cls.temp = tempfile.TemporaryDirectory()
+        (ROOT / "build").mkdir(exist_ok=True)
+        cls.temp = tempfile.TemporaryDirectory(prefix="arrow-keys-", dir=ROOT / "build")
         folder = Path(cls.temp.name)
         harness = '''#include <stdbool.h>
 #include <stdio.h>
@@ -41,6 +43,10 @@ int encode(char *buf, int key, int modifiers, int app, int disabled, int vt52, i
 
     @classmethod
     def tearDownClass(cls):
+        if os.name == 'nt':
+            import _ctypes
+            _ctypes.FreeLibrary(cls.library._handle)
+            del cls.library
         cls.temp.cleanup()
 
     def encode(self, key="D", modifiers=0, app=0, disabled=0, vt52=0, legacy=0):
