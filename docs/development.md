@@ -159,4 +159,6 @@ python tests/local-interrupt.py --exe release/1.2.13/windows-x64/wShell.exe --mo
 
 기존 진단의 Windows 줄바꿈 때문에 세션 설정을 읽지 못하던 문제와 우클릭 뒤 입력이 실행되어도 통과하던 조건을 함께 수정했습니다. 2026-10-21 수정 개발 빌드에서 기본 13개 사례를 통과했습니다. 이전 Linux 검사와 배포 이력은 [1.2.13 릴리스 노트](releases/1.2.13.md)에 보존하며, 이번 개발 빌드의 검증을 기존 배포본의 결과로 해석하지 않습니다.
 
+수정 사항을 포함한 Windows 1.2.14 배포 EXE의 재검증 결과와 미완료 항목은 [1.2.14 릴리스 노트](releases/1.2.14.md)를 확인하세요.
+
 같은 Windows 검증에서 CTest 4개, 클립보드·ETX 호스트 테스트 4개와 SSH 마우스 기본·application·alternate·두 옵션 조합을 통과했습니다. 기존 SSH 테스트의 Shift 검사 대상 오타와 호스트 테스트의 Windows DLL 해제 누락도 수정했습니다. 분할 포커스 검사는 두 번 모두 초기 제목 표시줄 좌표에서 테스트 창 대신 탐색기 창이 감지되어 입력 전에 중단됐으며 통과로 표시하지 않습니다. 별도의 잠기지 않은 데스크톱에서 `node tests/ssh/focus-integration.cjs` 재검증이 남아 있습니다. macOS·iPad·GitHub Actions는 실행하지 않았습니다.

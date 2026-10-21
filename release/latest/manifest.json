@@ -1,26 +1,33 @@
 {
-  "version": "1.2.13",
+  "version": "1.2.14",
   "createdBy": "Hyunwook Park",
   "artifacts": [
     {
       "platform": "windows-x64",
       "file": "windows-x64/wShell.exe",
-      "bytes": 4111872,
-      "sha256": "0bf4e8ea57c030fcb31b491abfd73f60ca13309f415ce393533a6f6dcfab29a7"
+      "bytes": 3657216,
+      "sha256": "99ceb88084f7a6d9cbd2a50d90c3340bde15cc140fcb35a0376ea80997a9081f"
     },
     {
       "platform": "windows-x64",
       "file": "windows-x64/wshell-windows-x64.zip",
-      "bytes": 1701146,
-      "sha256": "0e68b94d62f22d89a6498209db8c337ea2f624eefb3d5acebaa0a1f149f5bf60"
+      "bytes": 1661737,
+      "sha256": "2d3e3895eefb7dbecbe03175025bd658fa0c284d64dc48842bf8687582c51e1f"
     }
   ],
-  "sourceCommit": "e0277c0150a7ee9a15be968c41c61a1b1cb82274",
+  "sourceCommit": "18f608ec075359832f4cb449aa9fc01b19967158",
   "sourceDirty": false,
-  "buildHost": "linux",
+  "buildHost": "windows",
   "validation": {
     "staticPackage": "passed",
-    "windowsRuntime": "not-run",
+    "core": "passed",
+    "python": "passed",
+    "localConsoleInterrupt": "passed-on-rerun",
+    "mouse": "passed-on-rerun",
+    "scroll": "passed",
+    "fontLaunchKeysDialogs": "passed",
+    "windowsRuntime": "partial",
+    "fullSshUi": "incomplete-input-target-check",
     "ngs": "not-run"
   }
 }
