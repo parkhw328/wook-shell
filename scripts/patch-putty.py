@@ -135,6 +135,55 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,''')
             }
 """ + call)
     (SOURCE / "terminal/terminal.c").write_text(terminal, encoding="utf-8")
+    conpty = original("windows/conpty.c")
+    conpty = replace(conpty, "    HANDLE outpipe, inpipe, hprocess;",
+                     "    HANDLE outpipe, inpipe, hprocess;\n    HANDLE consoleInput;\n    bool consoleAttached;")
+    conpty = replace(conpty, "static void conpty_terminate(ConPTY *conpty)", '''static BOOL WINAPI wookConsoleControl(DWORD event)
+{
+    /* The engine hosts the console; only its clients handle these signals. */
+    return event == CTRL_C_EVENT || event == CTRL_BREAK_EVENT;
+}
+
+static void wookConsoleDetach(ConPTY *conpty)
+{
+    if (conpty->consoleInput != INVALID_HANDLE_VALUE) {
+        CloseHandle(conpty->consoleInput);
+        conpty->consoleInput = INVALID_HANDLE_VALUE;
+    }
+    if (conpty->consoleAttached) {
+        FreeConsole();
+        conpty->consoleAttached = false;
+    }
+}
+
+static void conpty_terminate(ConPTY *conpty)''')
+    conpty = replace(conpty, "static void conpty_terminate(ConPTY *conpty)\n{",
+                     "static void conpty_terminate(ConPTY *conpty)\n{\n    wookConsoleDetach(conpty);")
+    conpty = replace(conpty, "    conpty->exited = true;", "    conpty->exited = true;\n    wookConsoleDetach(conpty);")
+    conpty = replace(conpty, "    conpty->pseudoconsole = pcon;", '''    conpty->pseudoconsole = pcon;
+    /* Each local tab has its own engine process. Do not retain the launcher's
+     * console. The child is not necessarily attached until its first output. */
+    conpty->consoleInput = INVALID_HANDLE_VALUE;
+    FreeConsole();''')
+    conpty = replace(conpty, "    conpty->bufsize = handle_write(conpty->out, buf, len);", '''    if (len == 1 && buf[0] == 3) {
+        /* Attach only to our own live child. Ignore Ctrl+C in the engine,
+         * after child creation so CMD does not inherit the ignored signal. */
+        if (!conpty->consoleAttached && !conpty->exited &&
+            AttachConsole(GetProcessId(conpty->hprocess))) {
+            conpty->consoleAttached = true;
+            if (SetConsoleCtrlHandler(wookConsoleControl, TRUE))
+                conpty->consoleInput = CreateFileW(L"CONIN$", GENERIC_READ | GENERIC_WRITE,
+                    FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+            if (conpty->consoleInput == INVALID_HANDLE_VALUE)
+                wookConsoleDetach(conpty);
+        }
+        DWORD mode;
+        if (GetConsoleMode(conpty->consoleInput, &mode) &&
+            (mode & ENABLE_PROCESSED_INPUT))
+            FlushConsoleInputBuffer(conpty->consoleInput);
+    }
+    conpty->bufsize = handle_write(conpty->out, buf, len);''')
+    (SOURCE / "windows/conpty.c").write_text(conpty, encoding="utf-8")
     window = original("windows/window.c")
     window = replace(window, "                if (wgs->send_raw_mouse &&", '''                if ((wgs->send_raw_mouse ||
                      (wshellApplicationMouse(wgs->term) && !shift_pressed)) &&''')

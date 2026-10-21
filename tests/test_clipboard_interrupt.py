@@ -3,6 +3,7 @@
 Clipboard reads and key translation are stubbed; this is not a Windows UI test.
 """
 import ctypes
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -112,6 +113,10 @@ int probe(int wide, int unicode, int interrupt) {
 
     @classmethod
     def tearDownClass(cls):
+        if os.name == 'nt':
+            import _ctypes
+            _ctypes.FreeLibrary(cls.library._handle)
+            del cls.library
         cls.temp.cleanup()
 
     def test_delayed_paste_is_cancelled_but_new_paste_is_allowed(self):

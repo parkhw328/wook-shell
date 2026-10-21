@@ -132,7 +132,7 @@ const server = new Server({ hostKeys: [key] }, client => {
     assert.deepEqual(hoverReports.shift, [], 'Shift must suppress passive movement as well as clicks');
     assert.deepEqual(hoverReports.restored, [], 'No movement reports after normal TUI cleanup');
     assert.deepEqual(hoverReports.abandoned, [], 'Returning from the TUI must stop stale mouse reports with either preference');
-    assert.deepEqual(hoverReports['abandoned-shift', 'interrupted', 'resumed'], [], 'Shift must also suppress movement when the TUI leaves mouse reporting enabled');
+    assert.deepEqual(hoverReports['abandoned-shift'], [], 'Shift must also suppress movement when the TUI leaves mouse reporting enabled');
     assert.deepEqual(hoverReports.interrupted, [], 'Ctrl+C stops Ctrl-modified mouse motion without a screen exit');
     assert.equal((received.match(/\x03/g) || []).length, 1, 'Ctrl+C reaches SSH exactly once');
     assert.equal(hoverReports.resumed.length, applicationMouse ? 0 : 10, 'Explicit server enable restores the chosen mouse policy');

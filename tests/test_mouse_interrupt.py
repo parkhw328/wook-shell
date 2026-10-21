@@ -1,5 +1,6 @@
 """Run actual patched keyboard entry checks without a Windows desktop."""
 import ctypes
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -44,6 +45,10 @@ static void term_update_raw_mouse_mode(Terminal *term) { term->updates++; }
 
     @classmethod
     def tearDownClass(cls):
+        if os.name == 'nt':
+            import _ctypes
+            _ctypes.FreeLibrary(cls.library._handle)
+            del cls.library
         cls.temp.cleanup()
 
     def test_etx_stops_reports_for_both_keyboard_paths(self):
