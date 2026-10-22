@@ -4,16 +4,55 @@
 #include <memory>
 #include <algorithm>
 #include <objbase.h>
+#ifdef WOOK_SFTP_TEST
+#include <cstdio>
+#endif
 
 namespace sftp {
 namespace fs = std::filesystem;
 namespace {
+// Test builds report long blocking calls without logging paths or credentials.
+struct TransferTiming {
+#ifdef WOOK_SFTP_TEST
+    const char *phase;
+    uint64_t offset;
+    ULONGLONG started=GetTickCount64();
+    TransferTiming(const char *p,uint64_t o=0):phase(p),offset(o){}
+    ~TransferTiming() {
+        auto elapsed=GetTickCount64()-started;
+        if(elapsed>=500)std::printf("SFTP wait: %s offset=%llu milliseconds=%llu\n",phase,
+            (unsigned long long)offset,(unsigned long long)elapsed);
+    }
+#else
+    TransferTiming(const char *,uint64_t=0){}
+#endif
+};
 struct Handle {
     HANDLE value{};
     ~Handle() { if (value && value != INVALID_HANDLE_VALUE) CloseHandle(value); }
     HANDLE release() { auto out = value; value = nullptr; return out; }
 };
 void require(bool ok, const char *message) { if (!ok) throw std::runtime_error(message); }
+void reserveDownloadSpace(HANDLE file, uint64_t size) {
+    require(size <= INT64_MAX, "The remote file is too large for a Windows file.");
+    // Reserve space once, before READ requests are in flight. Growing the
+    // allocation for each 32 KiB reply can stall the entire receive pipeline
+    // on a fragmented or nearly full volume. This does not mark unwritten
+    // bytes valid or change EOF; only verified responses become file data.
+    FILE_ALLOCATION_INFO allocation{};
+    allocation.AllocationSize.QuadPart=(LONGLONG)size;
+    DWORD allocationError=ERROR_SUCCESS;
+    { TransferTiming timing("disk-allocation");
+        if(size && !SetFileInformationByHandle(file,FileAllocationInfo,&allocation,sizeof(allocation)))
+            allocationError=GetLastError();
+    }
+    if(allocationError!=ERROR_SUCCESS) {
+        // Some redirectors/filesystems cannot reserve space. Keep their
+        // existing incremental-write path, but surface real disk failures.
+        require(allocationError==ERROR_INVALID_FUNCTION || allocationError==ERROR_NOT_SUPPORTED || allocationError==ERROR_INVALID_PARAMETER,
+            "Cannot reserve space for the download. Check disk space and permissions.");
+    }
+}
 std::vector<wchar_t> environment(HWND owner, const std::wstring &session, bool saved, const std::wstring &passwordSession) {
     wchar_t *block = GetEnvironmentStringsW();
     require(block != nullptr, "Cannot read the process environment.");
@@ -38,6 +77,7 @@ struct Transfer {
     uint64_t position{};
     static int read(void *p, void *data, int size) { if(((Transfer *)p)->cancelled->load())return -1; DWORD count{}; return ReadFile(((Transfer *)p)->file, data, size, &count, nullptr) ? (int)count : -1; }
     static int writeAt(void *p, uint64_t offset, const void *data, int size) {
+        TransferTiming timing("disk-write",offset);
         auto t = (Transfer *)p;
         if (t->cancelled->load() || offset > INT64_MAX) return -1;
         if (offset != t->position) {
@@ -101,6 +141,7 @@ Client::Client(HWND owner, HANDLE job, const std::wstring &session, bool saved, 
 Client::~Client() { cancel(); if (process) CloseHandle(process); if (input) CloseHandle(input); if (output) CloseHandle(output); if (readEvent) CloseHandle(readEvent); wsftp_free(codec); }
 void Client::cancel() { cancelled = true; std::lock_guard lock(processLock); if (process) TerminateProcess(process, 0); }
 int Client::read(void *context, void *data, int size) {
+    TransferTiming timing("transport-read");
     auto self = (Client *)context;
     if (self->cancelled) return -1;
     OVERLAPPED operation{};operation.hEvent=self->readEvent;
@@ -118,6 +159,7 @@ int Client::read(void *context, void *data, int size) {
     return -1;
 }
 int Client::write(void *context, const void *data, int size) {
+    TransferTiming timing("transport-write");
     auto self = (Client *)context; DWORD count{};
     return !self->cancelled && WriteFile(self->input, data, size, &count, nullptr) ? (int)count : -1;
 }
@@ -168,9 +210,13 @@ void Client::download(const std::wstring &remote, const std::wstring &local, boo
     try {
         Handle file{CreateFileW(temp.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr)};
         require(file.value != INVALID_HANDLE_VALUE, "Cannot create the local transfer file. Check folder permissions.");
+        reserveDownloadSpace(file.value,a.size);
+        require(!cancelled, "Transfer cancelled.");
         Transfer transfer{file.value, &progress, &cancelled};
         check(wsftp_download_at(codec, wook::utf8(remote).c_str(), a.size, Transfer::writeAt, Transfer::progress, &transfer));
-        require(FlushFileBuffers(file.value), "Cannot save the downloaded file. Check disk space.");
+        { TransferTiming timing("disk-flush",a.size);
+            require(FlushFileBuffers(file.value), "Cannot save the downloaded file. Check disk space.");
+        }
         CloseHandle(file.release());
         require(!cancelled, "Transfer cancelled.");
         require(MoveFileExW(temp.c_str(), local.c_str(), MOVEFILE_WRITE_THROUGH | (replace ? MOVEFILE_REPLACE_EXISTING : 0)), "Cannot finish the download. The existing destination has been kept.");

@@ -11,7 +11,8 @@ int wmain() {
         GetEnvironmentVariableW(L"WOOK_TEST_PORT",port,32);GetEnvironmentVariableW(L"WOOK_TEST_FINGERPRINT",pin,256);GetEnvironmentVariableW(L"WOOK_SFTP_LOCAL",root,32768);
         auto path=wsPath(L"sessions","SFTP fixture");auto store=wsOpen(path,true);free(path);
         wsSet(store,"HostName","127.0.0.1");wsSet(store,"UserName","none");wsSet(store,"Protocol","ssh");
-        if (GetEnvironmentVariableW(L"WOOK_SFTP_REKEY", nullptr, 0)) wsSet(store, "RekeyBytes", "256K");
+        wchar_t rekey[32]{};
+        if (GetEnvironmentVariableW(L"WOOK_SFTP_REKEY", rekey, 32)) wsSet(store, "RekeyBytes", wook::utf8(rekey).c_str());
         wsSet(store,"PortNumber",wook::utf8(port).c_str());wsSet(store,"SSHManualHostKeys",wook::utf8(pin).c_str());require(wsSave(store),"save fixture");wsClose(store);
         for(auto name:{"../x","a/b","a\\b","NUL","con.txt","COM1.log","COM\xc2\xb9.txt","x:","x.","x "})require(!wsftp_local_name(name),"unsafe name accepted");
         require(wsftp_local_name("한글-🙂.txt"),"UTF-8 safe name rejected");
@@ -23,7 +24,10 @@ int wmain() {
             client.download(L"/payload.bin",(fs::path(root)/L"benchmark.bin").wstring(),false,[&](uint64_t done,uint64_t){
                 auto now=GetTickCount64();
                 if(!done)lastProgress=now;
-                if(done>previous){longestGap=std::max(longestGap,now-lastProgress);lastProgress=now;previous=done;}
+                if(done>previous){
+                    if(now-lastProgress>=1000)std::cout<<"Download progress gap: offset="<<previous<<" milliseconds="<<now-lastProgress<<'\n';
+                    longestGap=std::max(longestGap,now-lastProgress);lastProgress=now;previous=done;
+                }
             });
             std::cout<<"Download milliseconds: "<<GetTickCount64()-started<<'\n';
             std::cout<<"Download longest progress gap milliseconds: "<<longestGap<<'\n';

@@ -1,6 +1,7 @@
 #include "file_drag.hpp"
 #include <shlobj.h>
 #include <shlwapi.h>
+#include <shldisp.h>
 #include <shellapi.h>
 #include <cstring>
 #include <stdexcept>
@@ -22,20 +23,43 @@ HRESULT copyMedium(const void *data, SIZE_T size, STGMEDIUM *medium) {
     medium->tymed = TYMED_HGLOBAL; medium->hGlobal = memory; medium->pUnkForRelease = nullptr;
     return S_OK;
 }
-class Data final : public IDataObject {
+class Data final : public IDataObject, public IDataObjectAsyncCapability {
     LONG refs = 1;
 public:
+    bool asyncMode=false, inOperation=false;
+    HRESULT operationResult=S_OK;
     std::vector<std::wstring> names;
     std::vector<File> files;
     Read read;
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void **out) override {
         if (!out) return E_POINTER;
         *out = nullptr;
-        if (iid != IID_IUnknown && iid != IID_IDataObject) return E_NOINTERFACE;
-        *out = static_cast<IDataObject *>(this); AddRef(); return S_OK;
+        if (iid == IID_IUnknown || iid == IID_IDataObject)
+            *out = static_cast<IDataObject *>(this);
+        else if (iid == IID_IDataObjectAsyncCapability && !files.empty())
+            *out = static_cast<IDataObjectAsyncCapability *>(this);
+        else return E_NOINTERFACE;
+        AddRef(); return S_OK;
     }
     ULONG STDMETHODCALLTYPE AddRef() override { return InterlockedIncrement(&refs); }
     ULONG STDMETHODCALLTYPE Release() override { auto n=InterlockedDecrement(&refs); if (!n) delete this; return n; }
+    HRESULT STDMETHODCALLTYPE SetAsyncMode(BOOL enabled) override {
+        if(inOperation)return E_UNEXPECTED;
+        asyncMode=enabled!=FALSE;return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE GetAsyncMode(BOOL *enabled) override {
+        if(!enabled)return E_POINTER;*enabled=asyncMode;return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE StartOperation(IBindCtx *) override {
+        if(!asyncMode || inOperation || !read)return E_UNEXPECTED;
+        inOperation=true;operationResult=S_OK;return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE InOperation(BOOL *active) override {
+        if(!active)return E_POINTER;*active=inOperation;return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE EndOperation(HRESULT result,IBindCtx *,DWORD) override {
+        operationResult=result;inOperation=false;return S_OK;
+    }
     HRESULT STDMETHODCALLTYPE QueryGetData(FORMATETC *f) override {
         if (!f) return E_POINTER;
         if (f->dwAspect != DVASPECT_CONTENT) return DV_E_DVASPECT;
@@ -73,7 +97,7 @@ public:
             std::vector<BYTE> buffer(FIELD_OFFSET(FILEGROUPDESCRIPTORW,fgd)+files.size()*sizeof(FILEDESCRIPTORW));
             auto group=(FILEGROUPDESCRIPTORW *)buffer.data(); group->cItems=(UINT)files.size();
             for (size_t i=0;i<files.size();++i) {
-                auto &d=group->fgd[i]; d.dwFlags=FD_ATTRIBUTES|FD_FILESIZE|FD_PROGRESSUI;
+                auto &d=group->fgd[i]; d.dwFlags=FD_ATTRIBUTES|FD_FILESIZE;
                 d.dwFileAttributes=FILE_ATTRIBUTE_NORMAL;
                 d.nFileSizeHigh=(DWORD)(files[i].size>>32); d.nFileSizeLow=(DWORD)files[i].size;
                 if (files[i].name.size()>=MAX_PATH) return DV_E_FORMATETC;
@@ -174,13 +198,37 @@ public:
 };
 }
 IDataObject *local(const std::vector<std::wstring> &paths) { auto d=std::make_unique<Data>();d->names=paths;return d.release(); }
-IDataObject *remote(const std::vector<File> &files,Read read) { auto d=std::make_unique<Data>();d->files=files;d->read=std::move(read);return d.release(); }
+IDataObject *remote(const std::vector<File> &files,Read read) { auto d=std::make_unique<Data>();d->files=files;d->read=std::move(read);d->SetAsyncMode(TRUE);return d.release(); }
 HRESULT run(IDataObject *data) {
+    auto object=static_cast<Data *>(data);
+    HRESULT hr;
 #ifdef WOOK_UI_TEST
-    if(probe) {auto result=probe(data);static_cast<Data *>(data)->read={};return result;}
+    if(probe) hr=probe(data);
+    else
 #endif
-    auto source=new Source();DWORD effect=0;auto hr=DoDragDrop(data,source,DROPEFFECT_COPY,&effect);
-    source->Release();static_cast<Data *>(data)->read={};return hr;
+    {
+        auto source=new Source();DWORD effect=0;hr=DoDragDrop(data,source,DROPEFFECT_COPY,&effect);
+        source->Release();
+    }
+    // Explorer can request contents on its copy worker after Drop returns.
+    // Keep the Browser's guarded drag scope and callback alive until it ends.
+    // These COM interfaces remain apartment-bound: dispatch marshalled calls
+    // and UI messages on the owning thread, never access Browser on a worker.
+    while(object->inOperation) {
+        MsgWaitForMultipleObjectsEx(0,nullptr,100,QS_ALLINPUT,MWMO_INPUTAVAILABLE);
+        MSG msg{};
+        while(PeekMessageW(&msg,nullptr,0,0,PM_REMOVE)) {
+            if(msg.message==WM_QUIT) {
+                PostQuitMessage((int)msg.wParam);
+                object->read={};return E_ABORT;
+            }
+            TranslateMessage(&msg);DispatchMessageW(&msg);
+        }
+    }
+    if(object->operationResult==E_ABORT || object->operationResult==HRESULT_FROM_WIN32(ERROR_CANCELLED))
+        hr=DRAGDROP_S_CANCEL;
+    else if(FAILED(object->operationResult))hr=object->operationResult;
+    object->read={};return hr;
 }
 bool hasPaths(IDataObject *data) { FORMATETC f{CF_HDROP,nullptr,DVASPECT_CONTENT,-1,TYMED_HGLOBAL};return data && data->QueryGetData(&f)==S_OK; }
 std::vector<std::wstring> paths(IDataObject *data) {

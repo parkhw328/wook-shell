@@ -25,6 +25,8 @@
 #include <vector>
 #ifdef WOOK_UI_TEST
 #include <functional>
+#include <exception>
+#include <shldisp.h>
 #include "../tests/capture.hpp"
 #include "keys.h"
 #include "ime.h"

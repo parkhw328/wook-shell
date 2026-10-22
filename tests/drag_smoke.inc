@@ -62,22 +62,47 @@ void runDragSmoke(App &app) {
             require(SendMessageW(view,WM_APP+123,1,(LPARAM)data)!=0,"Explorer file drop must start an upload");data->Release();phase=4;
         } else if(phase==4&&ready()){
             selectFile(15,L"upload-한글.bin");
+            static std::function<void()> extract;
+            static std::exception_ptr extractionError;
+            extractionError=nullptr;
             fileDrag::probe=[&](IDataObject *data)->HRESULT {
-                FORMATETC format{(CLIPFORMAT)RegisterClipboardFormatW(CFSTR_FILEDESCRIPTORW),nullptr,DVASPECT_CONTENT,-1,TYMED_HGLOBAL};STGMEDIUM medium{};
-                require(SUCCEEDED(data->GetData(&format,&medium)),"Remote drag must expose file descriptors");
-                auto group=(FILEGROUPDESCRIPTORW *)GlobalLock(medium.hGlobal);
-                require(group->cItems==1&&std::wstring(group->fgd[0].cFileName)==L"upload-한글.bin","Virtual filename must match the selected remote file");
-                GlobalUnlock(medium.hGlobal);ReleaseStgMedium(&medium);
-                format={(CLIPFORMAT)RegisterClipboardFormatW(CFSTR_FILECONTENTS),nullptr,DVASPECT_CONTENT,0,TYMED_ISTREAM};
-                require(SUCCEEDED(data->GetData(&format,&medium)),"Remote drag must supply an Explorer-compatible stream");
-                retainedStream=medium.pstm;retainedStream->AddRef();
-                std::ofstream out(output/L"export.bin",std::ios::binary);char buffer[8192];ULONG read=0;HRESULT hr;
-                do {hr=medium.pstm->Read(buffer,sizeof(buffer),&read);out.write(buffer,read);}while(hr==S_OK);
-                require(hr==S_FALSE,"Remote stream must terminate cleanly");
-                LARGE_INTEGER zero{};require(SUCCEEDED(medium.pstm->Seek(zero,STREAM_SEEK_SET,nullptr)),"Explorer stream must support rewind");
-                ReleaseStgMedium(&medium);return DRAGDROP_S_DROP;
+                IDataObjectAsyncCapability *async=nullptr;
+                require(SUCCEEDED(data->QueryInterface(IID_IDataObjectAsyncCapability,(void **)&async)),
+                    "Remote files must support asynchronous Explorer extraction");
+                BOOL enabled=FALSE;
+                require(SUCCEEDED(async->GetAsyncMode(&enabled))&&enabled,"Async extraction must be enabled");
+                require(SUCCEEDED(async->StartOperation(nullptr)),"Explorer must be able to start extraction");
+                require(SUCCEEDED(async->InOperation(&enabled))&&enabled,"Extraction must keep the drag scope alive");
+                extract=[&,data,async] {
+                    try {
+                        FORMATETC format{(CLIPFORMAT)RegisterClipboardFormatW(CFSTR_FILEDESCRIPTORW),nullptr,DVASPECT_CONTENT,-1,TYMED_HGLOBAL};STGMEDIUM medium{};
+                        require(SUCCEEDED(data->GetData(&format,&medium)),"Remote drag must expose file descriptors");
+                        auto group=(FILEGROUPDESCRIPTORW *)GlobalLock(medium.hGlobal);
+                        require(group->cItems==1&&std::wstring(group->fgd[0].cFileName)==L"upload-한글.bin","Virtual filename must match the selected remote file");
+                        require(!(group->fgd[0].dwFlags&FD_PROGRESSUI),"Remote drag must not force a duplicate Windows progress dialog");
+                        GlobalUnlock(medium.hGlobal);ReleaseStgMedium(&medium);
+                        format={(CLIPFORMAT)RegisterClipboardFormatW(CFSTR_FILECONTENTS),nullptr,DVASPECT_CONTENT,0,TYMED_ISTREAM};
+                        require(SUCCEEDED(data->GetData(&format,&medium)),"Remote drag must supply an Explorer-compatible stream");
+                        retainedStream=medium.pstm;retainedStream->AddRef();
+                        std::ofstream out(output/L"export.bin",std::ios::binary);char buffer[8192];ULONG read=0;HRESULT hr;
+                        do {hr=medium.pstm->Read(buffer,sizeof(buffer),&read);out.write(buffer,read);}while(hr==S_OK);
+                        require(hr==S_FALSE,"Remote stream must terminate cleanly");
+                        LARGE_INTEGER zero{};require(SUCCEEDED(medium.pstm->Seek(zero,STREAM_SEEK_SET,nullptr)),"Explorer stream must support rewind");
+                        ReleaseStgMedium(&medium);
+                    } catch(...) {extractionError=std::current_exception();}
+                    async->EndOperation(extractionError?E_FAIL:S_OK,nullptr,DROPEFFECT_COPY);
+                    BOOL active=TRUE;async->InOperation(&active);
+                    if(active&&!extractionError)extractionError=std::make_exception_ptr(std::runtime_error("Extraction must end"));
+                    async->Release();
+                };
+                auto timer=SetTimer(nullptr,0,50,[](HWND,UINT,UINT_PTR id,DWORD){
+                    KillTimer(nullptr,id);auto operation=std::move(extract);operation();
+                });
+                require(timer!=0,"Deferred extraction timer must start");
+                return DRAGDROP_S_DROP;
             };
             SendMessageW(view,WM_APP+124,1,0);fileDrag::probe={};
+            if(extractionError)std::rethrow_exception(extractionError);
             require(retainedStream!=nullptr,"Explorer must receive a stream");
             char byte{};ULONG bytes=0;
             require(SUCCEEDED(retainedStream->Read(&byte,1,&bytes))&&bytes==1,"Export stream must remain readable after the drag ends");
@@ -130,6 +155,16 @@ void runDragSmoke(App &app) {
             fileDrag::probe=[&](IDataObject *)->HRESULT {return DRAGDROP_S_CANCEL;};
             SendMessageW(view,WM_APP+124,1,0);fileDrag::probe={};
             require(ready(),"Cancelling a drag before content retrieval must keep SFTP connected");
+            fileDrag::probe=[&](IDataObject *data)->HRESULT {
+                IDataObjectAsyncCapability *async=nullptr;
+                require(SUCCEEDED(data->QueryInterface(IID_IDataObjectAsyncCapability,(void **)&async)),"Async cancellation interface");
+                require(SUCCEEDED(async->StartOperation(nullptr)),"Async cancellation start");
+                require(SUCCEEDED(async->EndOperation(E_ABORT,nullptr,DROPEFFECT_NONE)),"Async cancellation end");
+                async->Release();return DRAGDROP_S_DROP;
+            };
+            auto cancelledData=fileDrag::remote({{L"cancel.bin",1}},[](size_t,IStream **){return E_UNEXPECTED;});
+            auto cancelledResult=fileDrag::run(cancelledData);cancelledData->Release();fileDrag::probe={};
+            require(cancelledResult==DRAGDROP_S_CANCEL,"Explorer cancellation must not become a failure alert");
             selectFile(15,L"projects");
             auto timer=SetTimer(nullptr,0,80,[](HWND,UINT,UINT_PTR,DWORD){
                 EnumThreadWindows(GetCurrentThreadId(),[](HWND window,LPARAM)->BOOL {
