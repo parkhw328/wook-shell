@@ -16,7 +16,7 @@ Windows는 설치 없이 `wShell.exe` 하나로 실행합니다. Flexoki Dark �
 - SFTP 파일 전송과 SSH 개인키 관리
 - CMD·PowerShell 로컬 터미널
 
-Windows 10 1903 이상·Windows 11 x64에서 사용할 수 있습니다. 현재 Windows 배포는 로컬 Windows 빌드이며 검증 범위는 릴리스 노트에서 확인할 수 있습니다. macOS는 기존 배포를 유지하고, macOS·iPad 새 빌드는 중단되어 있습니다.
+Windows 10 1903 이상·Windows 11 x64에서 사용할 수 있습니다. 현재 Windows 배포는 Linux 교차 빌드이며 정적 검사를 통과했습니다. Windows 실행 검증 범위는 릴리스 노트에서 확인할 수 있습니다. macOS는 기존 배포를 유지하고, macOS·iPad 새 빌드는 중단되어 있습니다.
 
 ## 문서
 
