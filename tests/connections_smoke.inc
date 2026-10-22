@@ -95,6 +95,23 @@ void runConnectionsSmoke(App &app) {
         }
         auto moved = std::find_if(app.profiles.begin(), app.profiles.end(), [](const auto &p) { return p.name == L"API 03"; });
         require(moved != app.profiles.end() && moved->group.empty() && app.tabs.back().get() == tab, "Deleting a folder retains its hosts and open tabs");
+        select(L"host:API 03");
+        auto deletedHost = *app.selectedHost();
+        for (WPARAM choice : {WPARAM('N'), WPARAM('Y')}) {
+            messageTestTicks = 0; messageTestError.clear();
+            messageTestAction = [&](HWND dialog) {
+                require(ui::value(dialog) == L"Delete host", "Del on a host must open host deletion");
+                require(GetFocus() == GetDlgItem(dialog, IDNO), "Host deletion must default to No");
+                captureTestWindow(dialog, L"ui-host-delete-shortcuts.bmp");
+                PostMessageW(GetFocus(), WM_KEYDOWN, choice, 1);
+            };
+            messageTestTimer = SetTimer(nullptr, 0, 120, driveMessageTest);
+            key(VK_DELETE); KillTimer(nullptr, messageTestTimer); messageTestAction = {};
+            require(messageTestError.empty(), "Host deletion keyboard confirmation must respond");
+            require(app.profiles.size() == (choice == 'N' ? 4u : 3u), "N preserves the host and Y deletes exactly one host");
+            require(app.tabs.back().get() == tab, "Host deletion preserves open tabs");
+        }
+        wook::saveProfile(deletedHost); app.refresh();
         select(L"host:API 02"); app.refresh();
         require(app.selectedHost() && app.selectedHost()->name == L"API 02", "Refresh preserves the selected host instead of its old row index");
         for (int i = 0; i < 90; ++i) {

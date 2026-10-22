@@ -10,7 +10,7 @@ extern "C" int (*wshellMessageBoxIndirect)(const MSGBOXPARAMSW *);
 
 namespace {
 constexpr int bodyId = 1000, detailsId = 1001, emailId = 1010, sourceId = 1012;
-struct Choice { int id; const wchar_t *label; };
+struct Choice { int id; const wchar_t *label; WPARAM key = 0; };
 struct Message {
     HWND body{};
     std::wstring title, text, details;
@@ -18,7 +18,7 @@ struct Message {
     MSGBOXPARAMSW params{};
     UINT dpi = 96;
     int result = 0, defaultId = IDOK, cancelId = IDCANCEL;
-    bool done = false, about = false, hostKey = false, yesNoShortcuts = false;
+    bool done = false, about = false, hostKey = false;
     int wheel = 0, dragY = 0, dragTop = 0;
     bool dragging = false;
 };
@@ -81,7 +81,7 @@ void layout(HWND hwnd, Message &p) {
     }
     int x = width - 28;
     for (auto it = p.choices.rbegin(); it != p.choices.rend(); ++it) {
-        int buttonWidth = p.hostKey && it->id == IDNO ? 150 : 108;
+        int buttonWidth = p.hostKey && it->id == IDNO ? 150 : 140;
         x -= buttonWidth;
         ui::place(GetDlgItem(hwnd, it->id), x, footer + 20, buttonWidth, 36); x -= 12;
     }
@@ -237,10 +237,15 @@ int show(HWND owner, Message &p) {
         int next = GetMessageW(&msg, nullptr, 0, 0);
         if (next <= 0) { quit = next == 0; break; }
         bool ours = msg.hwnd == dialog || IsChild(dialog, msg.hwnd);
-        if (ours && p.yesNoShortcuts && msg.message == WM_KEYDOWN &&
-            (msg.wParam == 'Y' || msg.wParam == 'N') && !(msg.lParam & (1LL << 30)) &&
-            !(GetKeyState(VK_CONTROL) & 0x8000) && !(GetKeyState(VK_MENU) & 0x8000)) {
-            SendMessageW(dialog, WM_COMMAND, msg.wParam == 'Y' ? IDYES : IDNO, 0); continue;
+        if (ours && (msg.message == WM_KEYDOWN || msg.message == WM_SYSKEYDOWN) &&
+            !(GetKeyState(VK_CONTROL) & 0x8000)) {
+            bool matched = false;
+            for (auto choice : p.choices) if (choice.key && msg.wParam == choice.key) {
+                // Consume repeats too, so dialog navigation cannot activate a held key.
+                if (!(msg.lParam & (1LL << 30))) SendMessageW(dialog, WM_COMMAND, choice.id, 0);
+                matched = true; break;
+            }
+            if (matched) continue;
         }
         if (ours && msg.message == WM_KEYDOWN && msg.wParam == VK_ESCAPE) {
             SendMessageW(dialog, WM_CLOSE, 0, 0); continue;
@@ -272,13 +277,13 @@ extern "C" int wsMessageBoxIndirectW(const MSGBOXPARAMSW *params) {
         Message p; p.params = *params; p.title = params->lpszCaption ? params->lpszCaption : L"wShell";
         p.text = params->lpszText ? params->lpszText : L"";
         switch (params->dwStyle & MB_TYPEMASK) {
-        case MB_OKCANCEL: p.choices = {{IDOK,L"OK"},{IDCANCEL,L"Cancel"}}; break;
-        case MB_YESNO: p.choices = {{IDYES,L"Yes"},{IDNO,L"No"}}; break;
-        case MB_YESNOCANCEL: p.choices = {{IDYES,L"Yes"},{IDNO,L"No"},{IDCANCEL,L"Cancel"}}; break;
-        case MB_RETRYCANCEL: p.choices = {{IDRETRY,L"Retry"},{IDCANCEL,L"Cancel"}}; break;
-        case MB_ABORTRETRYIGNORE: p.choices = {{IDABORT,L"Abort"},{IDRETRY,L"Retry"},{IDIGNORE,L"Ignore"}}; break;
-        case MB_CANCELTRYCONTINUE: p.choices = {{IDCANCEL,L"Cancel"},{IDTRYAGAIN,L"Try again"},{IDCONTINUE,L"Continue"}}; break;
-        default: p.choices = {{IDOK,L"OK"}}; break;
+        case MB_OKCANCEL: p.choices = {{IDOK,L"OK (O)",'O'},{IDCANCEL,L"Cancel (C)",'C'}}; break;
+        case MB_YESNO: p.choices = {{IDYES,L"Yes (Y)",'Y'},{IDNO,L"No (N)",'N'}}; break;
+        case MB_YESNOCANCEL: p.choices = {{IDYES,L"Yes (Y)",'Y'},{IDNO,L"No (N)",'N'},{IDCANCEL,L"Cancel (C)",'C'}}; break;
+        case MB_RETRYCANCEL: p.choices = {{IDRETRY,L"Retry (R)",'R'},{IDCANCEL,L"Cancel (C)",'C'}}; break;
+        case MB_ABORTRETRYIGNORE: p.choices = {{IDABORT,L"Abort (A)",'A'},{IDRETRY,L"Retry (R)",'R'},{IDIGNORE,L"Ignore (I)",'I'}}; break;
+        case MB_CANCELTRYCONTINUE: p.choices = {{IDCANCEL,L"Cancel (C)",'C'},{IDTRYAGAIN,L"Try again (T)",'T'},{IDCONTINUE,L"Continue (U)",'U'}}; break;
+        default: p.choices = {{IDOK,L"OK (O)",'O'}}; break;
         }
         p.cancelId = p.choices.size() == 1 ? IDOK : 0;
         for (auto choice : p.choices) if (choice.id == IDCANCEL) p.cancelId = IDCANCEL;
@@ -290,8 +295,8 @@ extern "C" int wsMessageBoxIndirectW(const MSGBOXPARAMSW *params) {
 static int confirmYesNo(HWND owner, LPCWSTR text, LPCWSTR title, UINT icon) {
     try {
         Message p; p.title = title; p.text = text;
-        p.params.dwStyle = icon; p.yesNoShortcuts = true;
-        p.choices = {{IDYES,L"Yes (Y)"},{IDNO,L"No (N)"}};
+        p.params.dwStyle = icon;
+        p.choices = {{IDYES,L"Yes (Y)",'Y'},{IDNO,L"No (N)",'N'}};
         p.defaultId = p.cancelId = IDNO; return show(owner, p);
     } catch (...) { return IDNO; }
 }
@@ -329,7 +334,8 @@ extern "C" void wsShowShortcuts(HWND owner) {
     wsMessageBoxW(owner, L"Ctrl+Shift+T  New connection\r\nCtrl+Shift+D  Duplicate tab\r\nCtrl+Tab  Next tab\r\nCtrl+Shift+W  Close tab\r\n"
         L"Ctrl+Shift+H  Show / hide hosts\r\nCtrl+Shift+P  Search connections\r\nCtrl+Shift+C / V  Copy / paste\r\n"
         L"Alt+1…9  Switch tabs\r\nF11  Full screen\r\n\r\n"
-        L"Connection list\r\nCtrl+Up / Down  Move host or folder (clear search first)\r\nF2  Edit host / rename folder\r\nEnter  Connect / expand or collapse folder\r\nLeft / Right  Collapse / expand folder\r\n\r\n"
+        L"Connection list\r\nCtrl+Up / Down  Move host or folder (clear search first)\r\nF2  Edit host / rename folder\r\nDelete  Delete host / folder (confirm first)\r\nEnter  Connect / expand or collapse folder\r\nLeft / Right  Collapse / expand folder\r\n\r\n"
+        L"Confirmation dialogs\r\nUse the letter shown in parentheses, with or without Alt.\r\n\r\n"
         L"SFTP file lists\r\nF2  Rename selected item\r\nDelete  Delete selected items (confirm first)\r\nY / N  Confirm / cancel deletion\r\nEsc  Cancel deletion\r\nF5  Refresh both lists",
         L"Keyboard shortcuts", MB_OK | MB_ICONINFORMATION);
 }

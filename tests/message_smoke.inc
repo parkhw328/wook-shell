@@ -102,6 +102,32 @@ template<typename Check> void testMessageDialogs(App &app, Check require) {
         inspect(dialog); require(GetFocus() == GetDlgItem(dialog, IDNO), "Destructive confirmation must retain the No default");
         captureTestWindow(dialog, L"ui-confirm.bmp"); PostMessageW(GetFocus(), WM_KEYDOWN, VK_RETURN, 0);
     }, IDNO);
+    struct ShortcutCase { UINT flags; WPARAM key; int result; const wchar_t *label; };
+    const ShortcutCase shortcuts[] = {
+        {MB_OK, 'O', IDOK, L"OK (O)"},
+        {MB_OKCANCEL, 'C', IDCANCEL, L"Cancel (C)"},
+        {MB_YESNO | MB_DEFBUTTON2, 'Y', IDYES, L"Yes (Y)"},
+        {MB_YESNO, 'N', IDNO, L"No (N)"},
+        {MB_YESNOCANCEL, 'C', IDCANCEL, L"Cancel (C)"},
+        {MB_RETRYCANCEL, 'R', IDRETRY, L"Retry (R)"},
+        {MB_ABORTRETRYIGNORE, 'A', IDABORT, L"Abort (A)"},
+        {MB_ABORTRETRYIGNORE, 'I', IDIGNORE, L"Ignore (I)"},
+        {MB_CANCELTRYCONTINUE, 'T', IDTRYAGAIN, L"Try again (T)"},
+        {MB_CANCELTRYCONTINUE, 'U', IDCONTINUE, L"Continue (U)"}
+    };
+    for (const auto &test : shortcuts) for (UINT message : {UINT(WM_KEYDOWN), UINT(WM_SYSKEYDOWN)}) {
+        int shortcutStage = 0;
+        run([&] { return wsMessageBoxW(app.hwnd, L"Keyboard shortcut fixture", L"Confirmation", test.flags); }, [&](HWND dialog) {
+            inspect(dialog);
+            require(ui::value(GetDlgItem(dialog, test.result)) == test.label, "Every common choice must display its shortcut");
+            SetFocus(GetDlgItem(dialog, 1000));
+            if (!shortcutStage++) {
+                PostMessageW(GetFocus(), message, test.key, 1 | (1LL << 30)); return;
+            }
+            require(IsWindow(dialog), "Repeated shortcut must not choose an action");
+            PostMessageW(GetFocus(), message, test.key, 1);
+        }, test.result);
+    }
     int stage = 0;
     run([&] { return wsMessageBoxW(app.hwnd, L"Choose Yes or No.", L"Choice semantics", MB_YESNO | MB_DEFBUTTON2); }, [&](HWND dialog) {
         if (!stage++) { PostMessageW(GetFocus(), WM_KEYDOWN, VK_ESCAPE, 0); return; }

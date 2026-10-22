@@ -37,7 +37,7 @@ using wook::Profile;
 extern "C" int WINAPI wshellTerminalMain(HINSTANCE, HINSTANCE, LPSTR, int);
 namespace {
 enum { Search = 100, HostList, NewHost, ConnectHost, EditHost, Quick, QuickConnect, Preview,
-       Advanced, Duplicate, Reconnect, SessionSettings, Tools, Shortcuts, About, SaveCurrent, HomeNew, HomePreview, LocalCmd, LocalPowerShell, FilesHost, FilesSession, Split, CommandText, SendCommand, SendAll, SyncInput, Targets, NavigationToggle, TabsPrevious, TabsNext, TabsList, NewFolder, MoveHostUp, MoveHostDown, ControlEnd, ToggleFolder, RenameFolder, DeleteFolder };
+       Advanced, Duplicate, Reconnect, SessionSettings, Tools, Shortcuts, About, SaveCurrent, HomeNew, HomePreview, LocalCmd, LocalPowerShell, FilesHost, FilesSession, Split, CommandText, SendCommand, SendAll, SyncInput, Targets, NavigationToggle, TabsPrevious, TabsNext, TabsList, NewFolder, MoveHostUp, MoveHostDown, ControlEnd, ToggleFolder, RenameFolder, DeleteFolder, DeleteHost };
 constexpr int sidebarExpanded = 252, sidebarCollapsed = 48, appBarHeight = 48;
 enum class CloseTabs { all, others, right };
 struct Tab {
@@ -125,6 +125,7 @@ struct App {
     void poll();
     void toolsMenu();
     void hostMenu(POINT point);
+    void deleteHost(Profile host);
     void tabMenu(int index, POINT point);
     void splitMenu();
     void setSplit(int count);
@@ -936,6 +937,9 @@ void App::action(int id) {
         }
         break;
     }
+    case DeleteHost:
+        if (auto host = selectedHost()) deleteHost(*host);
+        break;
     case DeleteFolder: {
         auto name = selectedFolder();
         if (name.empty()) break;
@@ -1085,6 +1089,12 @@ void App::allTabsMenu(POINT point) {
     else if (choice == 100) closeTabs(CloseTabs::others, anchor);
     else if (choice == 101) closeTabs(CloseTabs::all);
 }
+void App::deleteHost(Profile host) {
+    if (wsMessageBoxW(hwnd, L"Delete this saved host? Existing terminal tabs will stay open.", L"Delete host", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) == IDYES) {
+        for (const auto &group : folders) if (group.name == host.group) { wook::collapseFolder(group.name, group.collapsed); break; }
+        wook::deleteProfile(host.name); refreshConnections();
+    }
+}
 void App::hostMenu(POINT point) {
     auto selected = selectedHost();
     auto folder = selectedFolder();
@@ -1115,20 +1125,17 @@ void App::hostMenu(POINT point) {
     AppendMenuW(menu, MF_STRING | (canMoveConnection(-1) ? 0 : MF_GRAYED), MoveHostUp, L"Move up\tCtrl+Up");
     AppendMenuW(menu, MF_STRING | (canMoveConnection(1) ? 0 : MF_GRAYED), MoveHostDown, L"Move down\tCtrl+Down");
     if (selected || !folder.empty()) AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    if (selected) AppendMenuW(menu, MF_STRING, 5, L"Delete host");
-    else if (!folder.empty()) AppendMenuW(menu, MF_STRING, DeleteFolder, L"Delete folder…");
+    if (selected) AppendMenuW(menu, MF_STRING, DeleteHost, L"&Delete host\tDel");
+    else if (!folder.empty()) AppendMenuW(menu, MF_STRING, DeleteFolder, L"&Delete folder…\tDel");
     int choice = TrackPopupMenu(menu, TPM_RETURNCMD, point.x, point.y, 0, hwnd, nullptr); DestroyMenu(menu);
     if (choice >= 1000 && choice <= 1000 + (int)choices.size() && selected) {
         wook::moveProfile(host.name, choice == 1000 ? L"" : choices[choice - 1001].name);
         refreshConnections(L"host:" + host.name); return;
     }
+    if (choice == DeleteHost && selected) { deleteHost(host); return; }
     if (choice >= NewFolder || choice == NewHost) { action(choice); return; }
     if (choice == 1) action(ConnectHost); else if (choice == 2) action(EditHost); else if (choice == 4) action(Advanced);
     else if (choice == 3) { Profile p = host; p.name += L" copy"; if (editHost(hwnd, p, false)) refreshConnections(L"host:" + p.name); }
-    else if (choice == 5 && wsMessageBoxW(hwnd, L"Delete this saved host? Existing terminal tabs will stay open.", L"Delete host", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) == IDYES) {
-        for (const auto &group : folders) if (group.name == host.group) { wook::collapseFolder(group.name, group.collapsed); break; }
-        wook::deleteProfile(host.name); refreshConnections();
-    }
 }
 void App::tabMenu(int index, POINT point) {
     if (index < 0 || index >= (int)tabs.size()) return;
@@ -1178,7 +1185,12 @@ LRESULT CALLBACK editProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, D
     }
     if (GetDlgCtrlID(hwnd) == HostList && msg == WM_KEYDOWN) {
         if (wp == VK_F2) { PostMessageW(app->hwnd, WM_COMMAND, app->selectedFolder().empty() ? EditHost : RenameFolder, 0); return 0; }
-        if (wp == VK_DELETE && !app->selectedFolder().empty()) { PostMessageW(app->hwnd, WM_COMMAND, DeleteFolder, 0); return 0; }
+        if (wp == VK_DELETE && !(GetKeyState(VK_CONTROL) & 0x8000) &&
+            !(GetKeyState(VK_SHIFT) & 0x8000) && !(GetKeyState(VK_MENU) & 0x8000)) {
+            if (!(lp & (1LL << 30)))
+                PostMessageW(app->hwnd, WM_COMMAND, app->selectedFolder().empty() ? DeleteHost : DeleteFolder, 0);
+            return 0;
+        }
         if ((GetKeyState(VK_CONTROL) & 0x8000) && (wp == VK_UP || wp == VK_DOWN)) {
             PostMessageW(app->hwnd, WM_COMMAND, wp == VK_UP ? MoveHostUp : MoveHostDown, 0); return 0;
         }
