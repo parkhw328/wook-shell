@@ -1,0 +1,56 @@
+{
+  "version": "1.2.17",
+  "createdBy": "Hyunwook Park",
+  "artifacts": [
+    {
+      "platform": "windows-x64",
+      "file": "windows-x64/wShell.exe",
+      "bytes": 3715584,
+      "sha256": "fddf6a06a124a981ba03e8266c79d027dfa7e5587e83b1b2a615548293846774"
+    },
+    {
+      "platform": "windows-x64",
+      "file": "windows-x64/wshell-1.2.17-windows-x64.zip",
+      "bytes": 1701091,
+      "sha256": "97e34b839fb2bb1c66652d475066b092ea8c8952c338d26c4f6b1c7aaf567311"
+    }
+  ],
+  "sourceCommit": "94500c15be0bea1d7f994d2d617afa4b4549c6c6",
+  "sourceDirty": false,
+  "buildHost": "linux",
+  "build": {
+    "version": "1.2.17",
+    "sourceCommit": "94500c15be0bea1d7f994d2d617afa4b4549c6c6",
+    "sourceDirty": false,
+    "host": "linux",
+    "compiler": "clang version 23.1.2 (https://github.com/llvm/llvm-project.git 85ac560262434c9ccfc0c183ec22d4138ed647fb)",
+    "linker": "LLD 23.1.2 (https://github.com/llvm/llvm-project.git 85ac560262434c9ccfc0c183ec22d4138ed647fb) (compatible with GNU linkers)",
+    "cmake": "cmake version 4.4.4",
+    "profileSha256": "9392dd60d9a05c0c5866a53fa02560f75dabd7a374352a44ff65ca699b826361",
+    "configuredFlags": {
+      "CMAKE_BUILD_TYPE": "Release",
+      "CMAKE_C_FLAGS": "",
+      "CMAKE_CXX_FLAGS": "",
+      "CMAKE_RC_FLAGS": "",
+      "CMAKE_C_FLAGS_RELEASE": "-O3 -DNDEBUG",
+      "CMAKE_CXX_FLAGS_RELEASE": "-O3 -DNDEBUG",
+      "CMAKE_EXE_LINKER_FLAGS": "-static -Wl,--nxcompat,--dynamicbase,--high-entropy-va,--no-insert-timestamp",
+      "CMAKE_EXE_LINKER_FLAGS_RELEASE": "",
+      "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "OFF"
+    },
+    "puttyAssertions": "enabled",
+    "runtimeSha256": {
+      "libc++.a": "1821ba13f3a21ae360fcfd84f74efb0875dea556d77d4479a14e51e3335d99fa",
+      "libc++abi.a": "b521278cf1808b7172e3a7656e8f5dc52da9fea7dada073d853f2cb0aa74d771",
+      "libunwind.a": "a438def643ce3816b8ec3e596034591e544a6e06a004c734cea67784f69c983f",
+      "libmingw32.a": "6d5bc14ef6512f14086cb6363c9eb84a0abf01f78e7eac862b79f939c4dd7e06",
+      "libmingwex.a": "eb6aa4217b92a0d261f618abe92bb4807c6d230fbf50d33267651f5dbf84cf63"
+    },
+    "binarySha256": "fddf6a06a124a981ba03e8266c79d027dfa7e5587e83b1b2a615548293846774"
+  },
+  "validation": {
+    "staticPackage": "passed",
+    "windowsRuntime": "not-run",
+    "ngs": "not-run"
+  }
+}
