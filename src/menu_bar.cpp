@@ -6,24 +6,57 @@
 #include <vector>
 
 namespace ui {
-void MenuBar::append(HMENU parent, unsigned id, const wchar_t *text, HMENU popup) {
-    if (!text) {
-        if (!AppendMenuW(parent, MF_SEPARATOR, 0, nullptr)) throw std::runtime_error("Cannot create a menu separator.");
-        return;
+namespace {
+const UINT paintPopupBorder = RegisterWindowMessageW(L"wShell.PaintMenuBorder");
+LRESULT CALLBACK popupBorderProc(HWND window, UINT message, WPARAM wp, LPARAM lp, UINT_PTR id, DWORD_PTR menu) {
+    if (message == WM_NCDESTROY) RemoveWindowSubclass(window, popupBorderProc, id);
+    auto result = message == paintPopupBorder ? 0 : DefSubclassProc(window, message, wp, lp);
+    if (message == WM_PAINT || message == WM_NCPAINT || message == paintPopupBorder) {
+        MENUBARINFO info{sizeof(info)};
+        if (GetMenuBarInfo(window, OBJID_CLIENT, 0, &info) && info.hMenu == (HMENU)menu) {
+            RECT rect{}; GetWindowRect(window, &rect); OffsetRect(&rect, -rect.left, -rect.top);
+            auto dc = GetWindowDC(window);
+            if (dc) {
+                SetDCBrushColor(dc, line); FrameRect(dc, &rect, (HBRUSH)GetStockObject(DC_BRUSH));
+                ReleaseDC(window, dc);
+            }
+        }
     }
+    return result;
+}
+}
+void MenuBar::themePopup() const {
+    // A popup has its own HWND and native frame. Discover it only on this UI
+    // thread and match its HMENU; unrelated dialogs/context menus are untouched.
+    EnumThreadWindows(GetCurrentThreadId(), [](HWND window, LPARAM data) -> BOOL {
+        wchar_t kind[32]{}; GetClassNameW(window, kind, 32);
+        if (wcscmp(kind, L"#32768")) return TRUE;
+        auto &bar = *(const MenuBar *)data;
+        MENUBARINFO info{sizeof(info)};
+        if (!GetMenuBarInfo(window, OBJID_CLIENT, 0, &info) || !bar.contains(info.hMenu)) return TRUE;
+        DWORD_PTR previous = 0;
+        if (!GetWindowSubclass(window, popupBorderProc, 1, &previous) || previous != (DWORD_PTR)info.hMenu) {
+            if (SetWindowSubclass(window, popupBorderProc, 1, (DWORD_PTR)info.hMenu))
+                PostMessageW(window, paintPopupBorder, 0, 0);
+        }
+        return TRUE;
+    }, (LPARAM)this);
+}
+void MenuBar::append(HMENU parent, unsigned id, const wchar_t *text, HMENU popup) {
     items.emplace_back();
     auto &entry = items.back();
-    entry.text = text; entry.parent = parent; entry.id = id; entry.heading = popup != nullptr;
+    entry.text = text ? text : L""; entry.parent = parent; entry.id = id;
+    entry.heading = popup != nullptr; entry.separator = text == nullptr;
     for (size_t i = 0; i < entry.text.size(); ++i) {
         if (entry.text[i] == L'&' && i + 1 < entry.text.size()) ++i;
         entry.name += entry.text[i];
     }
     entry.accessible = {MSAA_MENU_SIG, (DWORD)entry.name.size(), entry.name.data()};
     MENUITEMINFOW info{sizeof(info)};
-    info.fMask = MIIM_FTYPE | MIIM_DATA | MIIM_ID | MIIM_STRING;
-    info.fType = MFT_OWNERDRAW;
+    info.fMask = MIIM_FTYPE | MIIM_DATA | MIIM_ID;
+    info.fType = MFT_OWNERDRAW | (entry.separator ? MFT_SEPARATOR : 0);
     info.wID = id; info.dwItemData = (ULONG_PTR)&entry;
-    info.dwTypeData = entry.text.data();
+    if (!entry.separator) { info.fMask |= MIIM_STRING; info.dwTypeData = entry.text.data(); }
     if (popup) { info.fMask |= MIIM_SUBMENU; info.hSubMenu = popup; }
     if (!InsertMenuItemW(parent, GetMenuItemCount(parent), TRUE, &info))
         throw std::runtime_error("Cannot create a menu item.");
@@ -73,15 +106,19 @@ void MenuBar::check(unsigned id, bool value) {
 bool MenuBar::measure(MEASUREITEMSTRUCT &item) const {
     if (item.CtlType != ODT_MENU) return false;
     for (const auto &entry : items) if (item.itemData == (ULONG_PTR)&entry) {
-        auto dc = GetDC(owner); auto old = SelectObject(dc, font());
+        if (entry.separator) { item.itemWidth = 0; item.itemHeight = px(13); return true; }
+        // Windows fixes owner-drawn menu bar height to its menu metric. Use the
+        // shared caption font there so the glyphs retain vertical breathing room.
+        auto dc = GetDC(owner); auto old = SelectObject(dc, font(entry.heading ? TextSize::caption : TextSize::body));
         auto tab = entry.text.find(L'\t');
         RECT label{}; DrawTextW(dc, entry.text.c_str(), tab == std::wstring::npos ? -1 : (int)tab, &label, DT_CALCRECT | DT_SINGLELINE);
         RECT shortcut{};
         if (tab != std::wstring::npos) DrawTextW(dc, entry.text.c_str() + tab + 1, -1, &shortcut, DT_CALCRECT | DT_SINGLELINE | DT_NOPREFIX);
         SelectObject(dc, old); ReleaseDC(owner, dc);
-        item.itemWidth = label.right + (entry.heading ? px(20) : px(64)) +
+        item.itemWidth = label.right + (entry.heading ? px(36) : px(64)) +
             (shortcut.right ? shortcut.right + px(28) : 0);
-        item.itemHeight = std::max(px(entry.heading ? 30 : 32), (int)label.bottom + px(10));
+        item.itemHeight = entry.heading ? GetSystemMetricsForDpi(SM_CYMENUSIZE, dpi) :
+            std::max(px(38), (int)label.bottom + px(16));
         return true;
     }
     return false;
@@ -89,17 +126,26 @@ bool MenuBar::measure(MEASUREITEMSTRUCT &item) const {
 bool MenuBar::draw(const DRAWITEMSTRUCT &item) const {
     if (item.CtlType != ODT_MENU) return false;
     for (const auto &entry : items) if (item.itemData == (ULONG_PTR)&entry) {
+        if (!entry.heading) themePopup();
         bool selected = item.itemState & (ODS_SELECTED | ODS_HOTLIGHT);
         bool disabled = item.itemState & (ODS_DISABLED | ODS_GRAYED);
+        if (entry.separator) {
+            fill(item.hDC, item.rcItem, panel);
+            auto rect = item.rcItem;
+            rect.left += px(16); rect.right -= px(16);
+            rect.top += (rect.bottom - rect.top) / 2; rect.bottom = rect.top + 1;
+            fill(item.hDC, rect, line);
+            return true;
+        }
         fill(item.hDC, item.rcItem, selected ? raised : panel);
         if (selected && entry.heading) {
             auto lineRect = item.rcItem; lineRect.top = lineRect.bottom - px(2);
             fill(item.hDC, lineRect, accent);
         }
         auto rect = item.rcItem;
-        rect.left += px(entry.heading ? 10 : 32); rect.right -= px(entry.heading ? 10 : 20);
+        rect.left += px(entry.heading ? 18 : 32); rect.right -= px(entry.heading ? 18 : 20);
         auto tab = entry.text.find(L'\t'); auto label = entry.text.substr(0, tab);
-        auto old = SelectObject(item.hDC, font());
+        auto old = SelectObject(item.hDC, font(entry.heading ? TextSize::caption : TextSize::body));
         SetBkMode(item.hDC, TRANSPARENT); SetTextColor(item.hDC, disabled ? muted : selected ? bright : text);
         UINT flags = DT_SINGLELINE | DT_VCENTER | ((item.itemState & ODS_NOACCEL) ? DT_HIDEPREFIX : 0);
         DrawTextW(item.hDC, label.c_str(), -1, &rect, flags);
@@ -116,6 +162,33 @@ bool MenuBar::draw(const DRAWITEMSTRUCT &item) const {
         return true;
     }
     return false;
+}
+void MenuBar::drawBorder() const {
+    if (!menu || !IsWindow(owner) || IsIconic(owner) || GetMenu(owner) != menu) return;
+    RECT window{}, client{};
+    if (!GetWindowRect(owner, &window) || !GetClientRect(owner, &client)) return;
+    MapWindowPoints(owner, nullptr, (POINT *)&client, 2);
+    auto dc = GetWindowDC(owner);
+    if (!dc) return;
+    MENUBARINFO bar{sizeof(bar)};
+    if (GetMenuBarInfo(owner, OBJID_MENU, 0, &bar)) {
+        auto unused = bar.rcBar;
+        for (int i = 0; i < GetMenuItemCount(menu); ++i) {
+            RECT item{};
+            if (GetMenuItemRect(owner, menu, i, &item)) unused.left = std::max(unused.left, item.right);
+        }
+        OffsetRect(&unused, -window.left, -window.top);
+        fill(dc, unused, panel);
+        // The native bar also reserves a one-pixel top edge outside its items.
+        auto top = bar.rcBar; top.bottom = top.top + 1;
+        OffsetRect(&top, -window.left, -window.top); fill(dc, top, panel);
+        --top.top; --top.bottom; fill(dc, top, line);
+    }
+    // Replace the light non-client edge below HMENU, leaving the caption,
+    // resize frame and native hit testing intact.
+    RECT edge{client.left - window.left, client.top - window.top - 1,
+        client.right - window.left, client.top - window.top};
+    fill(dc, edge, line); ReleaseDC(owner, dc);
 }
 LRESULT MenuBar::mnemonic(HMENU popup, wchar_t key) const {
     std::vector<int> matches;

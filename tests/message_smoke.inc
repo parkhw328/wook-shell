@@ -83,7 +83,7 @@ template<typename Check> void testMessageDialogs(App &app, Check require) {
     auto helpMenu = GetSubMenu(GetMenu(app.hwnd), 5);
     require(helpMenu && GetMenuItemID(helpMenu, 0) == Shortcuts && GetMenuItemID(helpMenu, 3) == About,
             "Help must group keyboard shortcuts, licenses and About");
-    captureTestWindow(app.hwnd, L"ui-menu-bar.bmp");
+    captureTestWindow(app.hwnd, L"ui-menu-bar.bmp", true);
     run([&] { SendMessageW(app.hwnd, WM_COMMAND, Shortcuts, 0); return IDOK; }, [&](HWND dialog) {
         inspect(dialog);
         require(ui::value(dialog) == L"Keyboard shortcuts" && ui::value(GetDlgItem(dialog, 1000)).find(L"Ctrl+Shift+T") != std::wstring::npos,

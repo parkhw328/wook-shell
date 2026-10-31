@@ -1,6 +1,16 @@
 # Windows 메뉴바 사용과 검증
 
-Windows 1.2.19부터 상단 작업 버튼을 메뉴바로 제공합니다. 배포 파일과 검증 범위는 [1.2.19 릴리스 노트](releases/1.2.19.md)를 확인하세요. macOS·iPad UI는 변경하지 않았습니다.
+Windows 1.2.19부터 상단 작업 버튼을 메뉴바로 제공합니다. 1.2.20에서는 글자 주변 간격과 밝은 경계선을 다듬었습니다. 배포 파일과 검증 범위는 [1.2.20 릴리스 노트](releases/1.2.20.md)를 확인하세요. macOS·iPad UI는 변경하지 않았습니다.
+
+## 현재 화면
+
+![메뉴바와 연결 폴더](../assets/screenshots/workspace-menu-bar.png)
+
+![Host 메뉴의 여백과 구분선](../assets/screenshots/host-menu.png)
+
+위 이미지는 Windows 1.2.20 개발 빌드를 Linux의 Wine 8.0·Xvfb에서 96 DPI로 실행해 직접 캡처했습니다. 표시된 세 호스트는 `build/` 아래 격리 저장소에 만든 루프백 주소의 예시이며 서버에 접속하지 않았습니다. 메뉴·텍스트를 합성하거나 기존 스크린샷에 덧붙이지 않았습니다. 창 장식·글꼴 렌더링은 실제 Windows와 차이가 있을 수 있습니다.
+
+상단 메뉴는 OS의 네이티브 높이에 맞는 공통 9pt 글꼴과 좌우 18px 여백을 사용합니다. 하위 메뉴는 11pt 글꼴을 유지하며 최소 38px 행 높이로 넓혔습니다. 수치는 96 DPI 기준이며 배율에 맞춰 조정합니다. 구분선은 어두운 회색 1px로 그려 메뉴 그룹을 구별하고, 메뉴바 빈 영역과 경계·팝업 메뉴 외곽에도 같은 테마를 적용합니다.
 
 ## 명령 위치
 
@@ -40,6 +50,8 @@ node tests/ssh/message-integration.cjs
 node tests/ssh/integration.cjs
 ```
 
-`tests/workspace_smoke.inc`는 최소 크기 메뉴 배치·접근성 이름·호스트 상태별 활성 조건, `tests/focus_smoke.inc`는 내장 터미널의 F10·Alt+H·방향키·Esc와 취소 후 입력을 검사합니다. 테스트 화면에는 `ui-menu-bar.bmp`, `ui-host-menu.bmp`, `ui-navigation-minimum.bmp`가 포함됩니다. 실제 Windows 실행·다중 DPI 화면·스크린샷 확인은 Linux 빌드 통과와 별개입니다.
+`tests/workspace_smoke.inc`는 최소 크기 메뉴 배치·접근성 이름·호스트 상태별 활성 조건, `tests/focus_smoke.inc`는 내장 터미널의 F10·Alt+H·방향키·Esc와 취소 후 입력을 검사합니다. 메뉴 스타일 검사는 96·144·192 DPI의 측정·그리기 입력으로 여백과 구분선 픽셀을 검사하고, 프레임을 다시 그렸을 때 빈 공간과 경계 색상을 확인합니다. 이 입력별 검사는 실제 다중 DPI 모니터 이동 검사와 구분합니다.
 
-Linux 작업 환경이므로 위 Windows UI·SSH 검사와 화면 캡처 검토는 **미실행**입니다. 버전별 Python 회귀·교차 빌드·정적 검사 결과는 [릴리스 노트](releases/1.2.19.md)와 [배포 manifest](../release/1.2.19/manifest.json)에 기록합니다. GitHub Actions는 실행하지 않았습니다.
+`WOOK_TEST_MENU_STYLE_ONLY=1`로 `ui-smoke-tests.exe`를 실행하면 서버·인증 없이 이 스타일 검사와 실제 팝업의 네 면 경계색을 검사하고 종료합니다. 실행 파일 옆 `menu-style-result.txt`에 결과를 기록하고 `ui-menu-style.bmp`를 캡처합니다. 기존 `ui-menu-bar.bmp`도 비클라이언트 메뉴바를 포함하도록 수정했습니다. 실제 Windows 실행·다중 DPI 화면 확인은 Linux 빌드 및 Wine 검사 통과와 별개입니다.
+
+Linux 작업 환경이므로 Windows 실기의 전체 UI·SSH 검사는 **미실행**입니다. 이번 화면 갱신을 위해 Wine에서 스타일 검사와 직접 캡처를 수행했으며 Windows 실기 통과로 표시하지 않습니다. 버전별 결과와 캡처 도구 출처는 [릴리스 노트](releases/1.2.20.md), 배포 출처와 검증 상태는 [manifest](../release/1.2.20/manifest.json)에 기록합니다. GitHub Actions는 실행하지 않았습니다.

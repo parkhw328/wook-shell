@@ -204,7 +204,7 @@ static bool wookKey(HWND hwnd, UINT message, WPARAM key, LPARAM flags) {
     bool alt = (GetKeyState(VK_MENU) & 0x8000) != 0;
     // TranslateMessage may have queued WM_SYSCHAR before wookKey consumes the
     // keydown. Do not also send the menu mnemonic into the SSH/local session.
-    if (message == WM_SYSCHAR && wsMenuAccessKey((unsigned)key, control, shift, true) > 0) return true;
+    if (message == WM_SYSCHAR && wsMenuAccessChar((unsigned)key, control, shift) > 0) return true;
     if (message != WM_KEYDOWN && message != WM_SYSKEYDOWN && message != WM_KEYUP && message != WM_SYSKEYUP) return false;
     int menuKey = wsMenuAccessKey((unsigned)key, control, shift, alt);
     if (menuKey >= 0) {

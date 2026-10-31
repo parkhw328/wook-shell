@@ -63,7 +63,94 @@ template<typename Check> void testBundledFonts(App &app, Check require) {
     std::ofstream report(std::filesystem::path(app.directory) / L"font-picker.json");
     report << "{\"passed\":true,\"fontPresentBeforeLoad\":" << (fontPresentBeforeLoad ? "true" : "false") << ",\"sizes\":[13,9]}\n";
 }
+template<typename Check> void testMenuStyle(App &app, Check require) {
+    auto menu = GetMenu(app.hwnd);
+    auto originalDpi = ui::dpi;
+    auto dc = GetDC(app.hwnd), memory = CreateCompatibleDC(dc);
+    auto bitmap = CreateCompatibleBitmap(dc, 800, 160);
+    auto oldBitmap = SelectObject(memory, bitmap);
+    for (unsigned dpi : {96u, 144u, 192u}) {
+        ui::dpi = dpi;
+        for (int group = 0; group < GetMenuItemCount(menu); ++group) {
+            MENUITEMINFOW heading{sizeof(heading)}; heading.fMask = MIIM_DATA | MIIM_SUBMENU;
+            require(GetMenuItemInfoW(menu, group, TRUE, &heading) != FALSE, "Cannot inspect menu heading");
+            MEASUREITEMSTRUCT size{}; size.CtlType = ODT_MENU; size.itemData = heading.dwItemData;
+            require(app.menuBar.measure(size), "Menu must measure each native heading");
+            auto name = (MSAAMENUINFO *)heading.dwItemData;
+            auto oldFont = SelectObject(memory, ui::font(ui::TextSize::caption));
+            SIZE text{}; GetTextExtentPoint32W(memory, name->pszWText, name->cchWText, &text);
+            SelectObject(memory, oldFont);
+            require(size.itemWidth >= text.cx + ui::px(32), "Headings need at least 16 logical pixels on each side");
+            for (int index = 0; index < GetMenuItemCount(heading.hSubMenu); ++index) {
+                MENUITEMINFOW item{sizeof(item)}; item.fMask = MIIM_FTYPE | MIIM_DATA;
+                GetMenuItemInfoW(heading.hSubMenu, index, TRUE, &item);
+                size = {}; size.CtlType = ODT_MENU; size.itemData = item.dwItemData;
+                require(app.menuBar.measure(size), "Menu must measure commands and separators");
+                if (!(item.fType & MFT_SEPARATOR)) {
+                    require(size.itemHeight >= (UINT)ui::px(38), "Popup commands must have comfortable row spacing");
+                    continue;
+                }
+                require(item.fType & MFT_OWNERDRAW, "Separators must bypass the native etched white line");
+                DRAWITEMSTRUCT draw{}; draw.CtlType = ODT_MENU; draw.itemData = item.dwItemData;
+                draw.hDC = memory; draw.rcItem = {0, 0, ui::px(300), (LONG)size.itemHeight};
+                require(app.menuBar.draw(draw), "Menu must render its separators");
+                int center = size.itemHeight / 2;
+                require(GetPixel(memory, ui::px(150), center) == ui::line &&
+                        GetPixel(memory, ui::px(150), center - 1) == ui::panel &&
+                        GetPixel(memory, ui::px(150), center + 1) == ui::panel &&
+                        GetPixel(memory, ui::px(8), center) == ui::panel,
+                        "Separators must be one subdued pixel with inset ends at every DPI");
+            }
+        }
+    }
+    ui::dpi = originalDpi;
+    SelectObject(memory, oldBitmap); DeleteObject(bitmap); DeleteDC(memory); ReleaseDC(app.hwnd, dc);
+    for (UINT message : {WM_NCPAINT, WM_NCACTIVATE}) {
+        SendMessageW(app.hwnd, message, TRUE, 0);
+        RECT window{}; GetWindowRect(app.hwnd, &window);
+        POINT client{0, 0}; ClientToScreen(app.hwnd, &client);
+        dc = GetWindowDC(app.hwnd);
+        auto color = GetPixel(dc, client.x - window.left + ui::px(400), client.y - window.top - 1);
+        MENUBARINFO bar{sizeof(bar)};
+        require(GetMenuBarInfo(app.hwnd, OBJID_MENU, 0, &bar), "Native menu geometry must stay available");
+        auto unused = GetPixel(dc, bar.rcBar.right - window.left - 2,
+            (bar.rcBar.top + bar.rcBar.bottom) / 2 - window.top);
+        auto top = GetPixel(dc, bar.rcBar.left - window.left + ui::px(400), bar.rcBar.top - window.top - 1);
+        ReleaseDC(app.hwnd, dc);
+        require(color == ui::line, "The menu bar edge must stay subdued after frame painting and activation");
+        require(unused == ui::panel && top == ui::line, "Unused menu space and the upper edge must not retain system white");
+    }
+}
+struct MenuPopupCheck { HMENU menu; bool found = false, dark = false; };
+MenuPopupCheck *menuPopupCheck = nullptr;
+template<typename Check> void testMenuPopupBorder(App &app, Check require) {
+    MenuPopupCheck check{GetSubMenu(app.menuBar.handle(), 1)};
+    menuPopupCheck = &check;
+    auto timer = SetTimer(nullptr, 0, 250, [](HWND, UINT, UINT_PTR id, DWORD) {
+        KillTimer(nullptr, id);
+        EnumThreadWindows(GetCurrentThreadId(), [](HWND window, LPARAM) -> BOOL {
+            MENUBARINFO info{sizeof(info)};
+            if (!GetMenuBarInfo(window, OBJID_CLIENT, 0, &info) || info.hMenu != menuPopupCheck->menu) return TRUE;
+            menuPopupCheck->found = true;
+            RECT rect{}; GetWindowRect(window, &rect);
+            int width = rect.right - rect.left, height = rect.bottom - rect.top;
+            auto dc = GetWindowDC(window);
+            menuPopupCheck->dark = GetPixel(dc, width / 2, 0) == ui::line &&
+                GetPixel(dc, width / 2, height - 1) == ui::line &&
+                GetPixel(dc, 0, height / 2) == ui::line && GetPixel(dc, width - 1, height / 2) == ui::line;
+            ReleaseDC(window, dc);
+            return FALSE;
+        }, 0);
+        EndMenu();
+    });
+    require(timer != 0, "Cannot start popup appearance check");
+    RECT heading{}; GetMenuItemRect(app.hwnd, app.menuBar.handle(), 1, &heading);
+    TrackPopupMenuEx(check.menu, TPM_LEFTALIGN | TPM_TOPALIGN, heading.left, heading.bottom, app.hwnd, nullptr);
+    KillTimer(nullptr, timer); menuPopupCheck = nullptr;
+    require(check.found && check.dark, "The actual popup must have a subdued border on all four sides");
+}
 template<typename Check> void testWorkspaceChrome(App &app, Check require) {
+    testMenuStyle(app, require);
     auto rectangle = [&](HWND control) { RECT r{}; GetWindowRect(control, &r); MapWindowPoints(nullptr, app.hwnd, (POINT *)&r, 2); return r; };
     auto menu = GetMenu(app.hwnd);
     require(menu && menu == app.menuBar.handle() && GetMenuItemCount(menu) == 6,

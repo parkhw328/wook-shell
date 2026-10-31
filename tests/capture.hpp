@@ -33,10 +33,12 @@ inline bool testRepaintPreservesControl(HWND parent, HWND control) {
     return !before.empty() && before == after;
 }
 
-inline void captureTestWindow(HWND window, const wchar_t *name) {
+inline void captureTestWindow(HWND window, const wchar_t *name, bool includeFrame = false) {
     if (IsIconic(window)) { ShowWindow(window, SW_RESTORE); UpdateWindow(window); }
-    RECT r{}; GetClientRect(window, &r);
-    HDC source = GetDC(window), target = CreateCompatibleDC(source);
+    RECT r{};
+    if (includeFrame) { GetWindowRect(window, &r); OffsetRect(&r, -r.left, -r.top); }
+    else GetClientRect(window, &r);
+    HDC source = includeFrame ? GetWindowDC(window) : GetDC(window), target = CreateCompatibleDC(source);
     BITMAPINFO info{}; info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
     info.bmiHeader.biWidth = r.right; info.bmiHeader.biHeight = -r.bottom;
     info.bmiHeader.biPlanes = 1; info.bmiHeader.biBitCount = 32; info.bmiHeader.biCompression = BI_RGB;
@@ -47,7 +49,7 @@ inline void captureTestWindow(HWND window, const wchar_t *name) {
         throw std::runtime_error("Cannot capture the test window (" + std::to_string(r.right) + "x" + std::to_string(r.bottom) + ", Windows error " + std::to_string(error) + ").");
     }
     auto old = SelectObject(target, bitmap);
-    RedrawWindow(window, nullptr, nullptr, RDW_UPDATENOW | RDW_ALLCHILDREN | RDW_INVALIDATE);
+    RedrawWindow(window, nullptr, nullptr, RDW_UPDATENOW | RDW_ALLCHILDREN | RDW_INVALIDATE | (includeFrame ? RDW_FRAME : 0));
     BitBlt(target, 0,0,r.right,r.bottom,source,0,0,SRCCOPY);
     BITMAPFILEHEADER header{}; header.bfType = 0x4d42;
     header.bfOffBits = sizeof(header) + sizeof(BITMAPINFOHEADER);

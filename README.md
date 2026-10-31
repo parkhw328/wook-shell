@@ -7,9 +7,9 @@ Windows는 설치 없이 `wShell.exe` 하나로 실행합니다. Flexoki Dark �
 
 [Windows 다운로드](https://github.com/parkhw328/wook-shell/raw/refs/heads/main/release/latest/windows-x64/wShell.exe) · [전체 다운로드](release/README.md) · [상세 사용법](docs/usage.md) · [문제 신고](https://github.com/parkhw328/wook-shell/issues)
 
-![wShell 작업 공간](assets/screenshots/workspace.png)
+![wShell 메뉴바와 연결 폴더가 있는 작업 공간](assets/screenshots/workspace-menu-bar.png)
 
-위 화면은 이전 UI 예시입니다. 현재 Windows의 명령 위치는 [메뉴바 안내](docs/workspace-menu-bar.md)를 확인하세요.
+Windows 1.2.20 UI를 Wine에서 실행해 캡처한 화면입니다. 메뉴 사용법과 캡처·검증 범위는 [메뉴바 안내](docs/workspace-menu-bar.md)를 참고하세요.
 
 ## 주요 기능
 

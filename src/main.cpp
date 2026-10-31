@@ -1370,6 +1370,11 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_MEASUREITEM:
             if (app->menuBar.measure(*(MEASUREITEMSTRUCT *)lp)) return TRUE;
             break;
+        case WM_NCPAINT: case WM_NCACTIVATE: {
+            auto result = DefWindowProcW(hwnd, msg, wp, lp);
+            app->menuBar.drawBorder();
+            return result;
+        }
         case WM_ERASEBKGND: return 1;
         case WM_PAINT: {
             PAINTSTRUCT ps; HDC dc = BeginPaint(hwnd, &ps); RECT r; GetClientRect(hwnd, &r);

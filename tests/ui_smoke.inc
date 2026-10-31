@@ -52,6 +52,25 @@ template<typename Check> void testNativeKeys(const std::wstring &directory, Chec
     require(reopened && publicText(reopened.get()) == publicText(imported.get()), "Converted OpenSSH key changed");
 }
 void runUiSmoke(App &app) {
+    if (GetEnvironmentVariableW(L"WOOK_TEST_MENU_STYLE_ONLY", nullptr, 0)) {
+        KillTimer(app.hwnd, 1);
+        int checks = 0;
+        try {
+            auto require = [&](bool value, const char *message) {
+                if (!value) throw std::runtime_error(message);
+                ++checks;
+            };
+            testMenuStyle(app, require);
+            testMenuPopupBorder(app, require);
+            captureTestWindow(app.hwnd, L"ui-menu-style.bmp", true);
+            std::ofstream(std::filesystem::path(app.directory) / L"menu-style-result.txt") << "PASS " << checks << " checks\n";
+            PostMessageW(app.hwnd, WM_CLOSE, 0, 0);
+        } catch (const std::exception &error) {
+            std::ofstream(std::filesystem::path(app.directory) / L"menu-style-result.txt") << "FAIL " << error.what() << '\n';
+            PostQuitMessage(1);
+        }
+        return;
+    }
     if (GetEnvironmentVariableW(L"WOOK_TEST_CONNECTIONS_ONLY", nullptr, 0)) { runConnectionsSmoke(app); return; }
     if (GetEnvironmentVariableW(L"WOOK_TEST_DRAG_ONLY",nullptr,0)) {runDragSmoke(app);return;}
     static const bool focusOnly = GetEnvironmentVariableW(L"WOOK_TEST_FOCUS_ONLY", nullptr, 0) != 0;

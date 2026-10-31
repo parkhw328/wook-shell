@@ -17,13 +17,14 @@ class MenuBar {
         std::wstring text, name;
         HMENU parent = nullptr;
         unsigned id = 0;
-        bool heading = false;
+        bool heading = false, separator = false;
     };
     HWND owner = nullptr;
     HMENU menu = nullptr;
     HBRUSH background = nullptr;
     std::list<Item> items;
     void append(HMENU parent, unsigned id, const wchar_t *text, HMENU popup = nullptr);
+    void themePopup() const;
 public:
     MenuBar() = default;
     MenuBar(const MenuBar &) = delete;
@@ -38,6 +39,7 @@ public:
     void check(unsigned id, bool value);
     bool measure(MEASUREITEMSTRUCT &item) const;
     bool draw(const DRAWITEMSTRUCT &item) const;
+    void drawBorder() const;
     LRESULT mnemonic(HMENU popup, wchar_t key) const;
 };
 }
