@@ -9,6 +9,8 @@ Windows는 설치 없이 `wShell.exe` 하나로 실행합니다. Flexoki Dark �
 
 ![wShell 작업 공간](assets/screenshots/workspace.png)
 
+위 화면은 이전 UI 예시입니다. 현재 Windows의 명령 위치는 [메뉴바 안내](docs/workspace-menu-bar.md)를 확인하세요.
+
 ## 주요 기능
 
 - SSH 연결 저장·검색과 탭 관리

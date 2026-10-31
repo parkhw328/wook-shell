@@ -1,6 +1,6 @@
 # Windows 메뉴바 사용과 검증
 
-이 메뉴바는 2026-10-31 작업한 Windows 개발 소스에 적용됩니다. 공개된 1.2.18 배포 파일은 기존 버튼 UI를 유지합니다. macOS·iPad UI는 변경하지 않았습니다.
+Windows 1.2.19부터 상단 작업 버튼을 메뉴바로 제공합니다. 배포 파일과 검증 범위는 [1.2.19 릴리스 노트](releases/1.2.19.md)를 확인하세요. macOS·iPad UI는 변경하지 않았습니다.
 
 ## 명령 위치
 
@@ -42,4 +42,4 @@ node tests/ssh/integration.cjs
 
 `tests/workspace_smoke.inc`는 최소 크기 메뉴 배치·접근성 이름·호스트 상태별 활성 조건, `tests/focus_smoke.inc`는 내장 터미널의 F10·Alt+H·방향키·Esc와 취소 후 입력을 검사합니다. 테스트 화면에는 `ui-menu-bar.bmp`, `ui-host-menu.bmp`, `ui-navigation-minimum.bmp`가 포함됩니다. 실제 Windows 실행·다중 DPI 화면·스크린샷 확인은 Linux 빌드 통과와 별개입니다.
 
-2026-10-31 Linux 검사에서는 Python 회귀 57개와 Windows 앱·테스트 EXE 교차 빌드, 단일 EXE ZIP·내장 자산·시스템 DLL 정적 검사를 통과했습니다. 개발용 파일은 `build/packages/1.2.18/windows-x64/wShell.exe`입니다. Linux 작업 환경이므로 위 Windows UI·SSH 검사와 화면 캡처 검토는 **미실행**입니다. 새 버전 배포와 GitHub Actions는 실행하지 않았습니다.
+Linux 작업 환경이므로 위 Windows UI·SSH 검사와 화면 캡처 검토는 **미실행**입니다. 버전별 Python 회귀·교차 빌드·정적 검사 결과는 [릴리스 노트](releases/1.2.19.md)와 [배포 manifest](../release/1.2.19/manifest.json)에 기록합니다. GitHub Actions는 실행하지 않았습니다.

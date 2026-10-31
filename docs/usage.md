@@ -2,7 +2,7 @@
 
 [처음으로](../README.md) · [SFTP](sftp.md) · [분할 보기](split-view.md)
 
-Windows 중심의 기능별 사용법입니다. 버전 표시는 기능 도입 시점이며, 현재 배포의 검증 상태는 [릴리스 노트](releases/1.2.3.md)를 확인하세요.
+Windows 중심의 기능별 사용법입니다. 버전 표시는 기능 도입 시점이며, 현재 배포의 검증 상태는 [릴리스 노트](releases/1.2.19.md)를 확인하세요. 본문의 화면 예시는 이전 버전에서 촬영했으며, Windows 1.2.19의 상단 명령 위치는 [메뉴바 안내](workspace-menu-bar.md)를 따릅니다.
 
 ## 시작하기
 
@@ -11,9 +11,9 @@ Windows 중심의 기능별 사용법입니다. 버전 표시는 기능 도입 �
 ### Windows
 
 1. Windows 10 1903 이상 또는 Windows 11 x64에서 `wShell.exe`를 실행합니다. 설치·관리자 권한·별도 런타임이 필요하지 않습니다.
-2. **New host**에서 접속 정보를 저장하거나 빠른 연결 칸에 `user@hostname:22`를 입력합니다.
+2. **Host → New host**에서 접속 정보를 저장하거나 빠른 연결 칸에 `user@hostname:22`를 입력합니다.
 3. 처음 연결하는 서버의 SSH 키 지문을 확인하고 신뢰 여부를 선택합니다.
-4. 여러 연결을 연 뒤 **Split**으로 분할하거나, 호스트를 선택하고 **SFTP**로 파일을 전송합니다.
+4. 여러 연결을 연 뒤 **Split** 또는 **View** 메뉴로 분할하거나, 호스트를 선택하고 **Host → Open SFTP**로 파일을 전송합니다.
 
 현재 Windows EXE는 **미서명**입니다. 업데이트할 때는 기존 wShell 창을 모두 종료한 뒤 EXE를 교체하세요. 기존 창이 남아 있으면 추가 실행이 이전 창으로 전달될 수 있습니다.
 
@@ -23,7 +23,7 @@ macOS 13 이상에서 ZIP을 풀고 `wShell.app`을 실행합니다. Apple Silic
 
 ## 지원 플랫폼
 
-| 항목 | Windows 1.2.3 | macOS 0.11.0 |
+| 항목 | Windows 1.2.19 | macOS 0.11.0 |
 | --- | --- | --- |
 | SSH·탭·SFTP·분할·공통 입력 | 지원 | 지원 |
 | 로컬 셸 | CMD / PowerShell | 시스템 로그인 셸 |
@@ -72,11 +72,11 @@ Windows에서 **Sync keyboard** 또는 `Ctrl+Shift+B`를 누르면 활성 터미
 
 ## Windows 탐색과 상단 메뉴
 
-**개발 소스 안내:** 다음 Windows 개발 빌드는 상단 버튼을 `File · Host · Session · View · Tools · Help` 메뉴바로 전환합니다. 아래 기존 버튼 설명은 공개된 1.2.18 기준이며, 개발 빌드의 명령 위치·키보드 사용법·검증 범위는 [메뉴바 안내](workspace-menu-bar.md)를 확인하세요.
+Windows **1.2.19부터 `File · Host · Session · View · Tools · Help` 메뉴바**를 제공합니다. 새 연결·로컬 셸·설정 백업은 File, 저장 호스트 작업은 Host, 활성 탭 작업은 Session, 탐색·분할은 View에 있습니다. 키 관리와 앱 설정은 Tools, 단축키·라이선스·About은 Help에서 엽니다. 전체 명령 위치와 검증 범위는 [메뉴바 안내](workspace-menu-bar.md)를 확인하세요.
 
-**CONNECTIONS 옆 ‹ 버튼** 또는 `Ctrl+Shift+H`로 왼쪽 목록을 접고 펼칩니다. 접어도 왼쪽의 좁은 탐색 영역에 **› 버튼**이 남아 바로 펼칠 수 있습니다. 버튼의 툴팁은 **Hide hosts / Show hosts**입니다. 다음 실행에도 표시 상태를 기억하며, 분할 창·명령 초안·키보드 동기화 대상과 옵션은 그대로 유지됩니다. `Ctrl+Shift+P`는 숨긴 탐색창을 펼치고 검색 칸으로 이동합니다.
+**CONNECTIONS 옆 ‹ 버튼**, **View → Hosts panel** 또는 `Ctrl+Shift+H`로 왼쪽 목록을 접고 펼칩니다. 접어도 왼쪽의 좁은 탐색 영역에 **› 버튼**이 남아 바로 펼칠 수 있습니다. 버튼의 툴팁은 **Hide hosts / Show hosts**입니다. 다음 실행에도 표시 상태를 기억하며, 분할 창·명령 초안·키보드 동기화 대상과 옵션은 그대로 유지됩니다. `Ctrl+Shift+P`는 숨긴 탐색창을 펼치고 검색 칸으로 이동합니다.
 
-**New host · Connect · SFTP · Edit · Host settings · Tools · About**은 상단에 고정됩니다. 호스트 작업은 목록에서 선택한 저장 연결을 대상으로 하며, 버튼에 마우스를 올리면 대상 이름과 주소를 확인할 수 있습니다. 세션 도구 모음의 **Files / Settings**는 현재 활성 탭에 적용됩니다.
+**Host → Connect / Open SFTP / Edit host / Host settings**는 목록에서 선택한 저장 연결을 대상으로 합니다. 상태 표시줄에서 호스트 이름·주소와 메뉴 명령의 적용 대상을 확인할 수 있습니다. **Session** 메뉴와 세션 도구 모음의 **Files / Settings**는 현재 활성 탭에 적용됩니다. `F10` 또는 `Alt+F/H/S/V/T/E`로 메뉴에 진입하고 방향키·Enter·Esc로 탐색·실행·취소합니다.
 
 검색 안내는 **Name, alias, address…**이며 이름·별칭·주소·그룹·사용자를 검색합니다. 선택할 결과가 없으면 Connect·SFTP·Edit이 비활성화됩니다. [0.10.0 변경 내역](../docs/releases/0.10.0.md), [작업 공간 UI 요구사항](../rules/requirements/workspace-ui.md)
 
@@ -126,18 +126,18 @@ Windows 1.2.7부터 [WinSCP 형식의 SFTP 실행 인자](sftp.md#실행-인자�
 
 ### 파일 전송
 
-**SFTP:** SSH 호스트를 선택하고 `SFTP`를 누르면 로컬·원격 파일 목록을 나란히 볼 수 있습니다. 여러 파일 전송, 진행률·취소, 폴더 생성·이름 변경·삭제를 지원합니다. Windows SSH 탭의 `Files`, macOS의 `Tools → Open SFTP`에서도 열 수 있습니다. 폴더 전체 재귀 전송·동기화는 아직 지원하지 않습니다. [사용법과 지원 범위](../docs/sftp.md)를 확인하세요.
+**SFTP:** Windows에서 SSH 호스트를 선택하고 `Host → Open SFTP`를 누르면 로컬·원격 파일 목록을 나란히 볼 수 있습니다. 여러 파일 전송, 진행률·취소, 폴더 생성·이름 변경·삭제를 지원합니다. Windows SSH 탭의 `Files` 또는 `Session → Open Files`, macOS의 `Tools → Open SFTP`에서도 열 수 있습니다. 폴더 전체 재귀 전송·동기화는 아직 지원하지 않습니다. [사용법과 지원 범위](../docs/sftp.md)를 확인하세요.
 
 ![wShell SFTP tab](../assets/screenshots/sftp.png)
 
 - **호스트 관리:** 저장·편집·복제·삭제, 이름/별칭/주소/그룹/사용자 검색, 더블 클릭으로 연결.
 - **탭:** 새 연결, 독립 세션 복제, 드래그 재정렬, 가운데 클릭으로 닫기, 연결 재시작.
 - **터미널:** UTF-8/한글, ANSI·256색·24비트 True Color, 선택/복사/붙여넣기, 10,000줄 스크롤백, 전체 화면.
-- **연결 설정:** 상단 `Host settings`에서 프록시, SSH 터널, X11 전달, 키 인증, 로깅, 키보드/터미널 설정을 사용합니다. 설정 이름이나 항목으로 검색할 수 있으며, 긴 페이지는 스크롤합니다. 연결 중에는 `Settings`에서 변경하고 `Apply changes`로 적용하거나 `Cancel`로 취소하세요.
+- **연결 설정:** `Host → Host settings`에서 프록시, SSH 터널, X11 전달, 키 인증, 로깅, 키보드/터미널 설정을 사용합니다. 설정 이름이나 항목으로 검색할 수 있으며, 긴 페이지는 스크롤합니다. 연결 중에는 `Settings`에서 변경하고 `Apply changes`로 적용하거나 `Cancel`로 취소하세요.
 - **프로토콜:** SSH, Telnet, Rlogin, Raw TCP, Serial. Serial은 `New host`에서 COM 포트와 전송 속도를 지정합니다.
 - **도구:** 자체 SSH 키 관리, 설정 내보내기/가져오기, 데이터 폴더 열기, 내장 라이선스 보기, 탭 목록 선택.
 - **미리 보기:** `Color preview`는 서버 연결 없이 실제 터미널 엔진의 색상을 보여 줍니다.
-- **로컬 셸:** 홈 또는 `Tools`에서 `Command Prompt` / `PowerShell`을 엽니다. `Ctrl+Shift+L`은 CMD를 열며, 탭 복제·전환·종료도 사용할 수 있습니다. ConPTY를 통해 이 PC의 명령을 실행하며 기본 작업 폴더는 현재 사용자의 홈입니다.
+- **로컬 셸:** 홈 또는 `File`에서 `Command Prompt` / `PowerShell`을 엽니다. `Ctrl+Shift+L`은 CMD를 열며, 탭 복제·전환·종료도 사용할 수 있습니다. ConPTY를 통해 이 PC의 명령을 실행하며 기본 작업 폴더는 현재 사용자의 홈입니다.
 
 ![Local Command Prompt](../assets/screenshots/local-cmd.png)
 
@@ -145,7 +145,7 @@ Windows 1.2.7부터 [WinSCP 형식의 SFTP 실행 인자](sftp.md#실행-인자�
 연결 설정·세션 설정·호스트 인증기관 관리 창은 wShell의 Flexoki Dark 화면을 사용합니다. 기존 엔진의 설정과 검증 로직을 유지하면서 탐색, 검색, 입력, 버튼과 스크롤을 새로 구성했습니다.
 
 앱의 글꼴은 **JetBrains Mono Regular/Bold**로 통일했습니다. 본문·입력·버튼 11pt, 보조 정보 9pt, 섹션 제목 13pt, 페이지 제목 20pt를 공통으로 적용합니다. Windows 새 터미널의 기본 크기는 **9pt**이며 호스트별로 조절할 수 있습니다. 기존 저장 크기는 유지합니다. macOS 기본 크기는 13pt입니다. Windows의 파일 선택창 등 시스템 대화상자는 OS 설정을 따릅니다.
-버튼·선택·포커스 강조색은 따뜻한 주황색 `#DA702C`입니다. 앱과 설정 화면의 왼쪽 상단에는 `wShell` 텍스트만 표시합니다. 실행파일 아이콘은 차콜 배경의 주황색 커맨드 창 안에 `>_` 프롬프트를 넣은 형태이며, 터미널의 ANSI·True Color 출력은 기존 색상을 유지합니다.
+버튼·선택·포커스 강조색은 따뜻한 주황색 `#DA702C`입니다. 작업 공간은 제목 표시줄에 `wShell`을 표시하고 바로 아래 메뉴바를 둡니다. 설정 화면의 왼쪽 상단에는 `wShell` 텍스트만 표시합니다. 실행파일 아이콘은 차콜 배경의 주황색 커맨드 창 안에 `>_` 프롬프트를 넣은 형태이며, 터미널의 ANSI·True Color 출력은 기존 색상을 유지합니다.
 
 ![wShell connection settings](../assets/screenshots/connection-settings.png)
 
@@ -244,6 +244,8 @@ Windows 공통 알림·확인창은 버튼에 표시된 괄호 안 문자로 실
 | `Ctrl+Shift+P` | 탐색창 펼치기 및 이름·주소 검색 |
 | `Ctrl+Shift+C` / `Ctrl+Shift+V` | 터미널 복사 / 붙여넣기 |
 | `Alt+1` / `Alt+2…9` | 작업 공간 / 연결 탭 1…8 |
+| `F10` | 메뉴바로 이동 |
+| `Alt+F/H/S/V/T/E` | File / Host / Session / View / Tools / Help 열기 |
 | `F11` | 전체 화면 |
 | `Delete` (Windows 연결 목록) | 선택한 호스트·폴더 삭제 확인 |
 | `F2` (Windows SFTP 목록) | 선택한 파일·폴더 이름 변경 |
@@ -272,9 +274,9 @@ Codex 등 원격 TUI의 색상 자동 감지는 해당 프로그램과 서버 �
 
 **실행에 필요한 파일은 EXE 하나이며, 설정은 현재 Windows 사용자의 AppData에 저장됩니다.** 일반적인 위치는 `C:\Users\<사용자>\AppData\Local\wShell`입니다. EXE 옆에 `data/`를 새로 만들지 않습니다. 같은 PC에서는 EXE를 옮기거나 교체해도 저장한 서버 목록을 그대로 사용합니다.
 
-1. `Tools → Export settings…`에서 `.wshell` 백업을 저장합니다.
-2. 다른 PC에 EXE와 백업을 가져간 뒤 `Tools → Import settings…`로 복원합니다.
-3. 현재 저장 위치는 `Tools → Open AppData folder`에서 확인합니다.
+1. `File → Export settings…`에서 `.wshell` 백업을 저장합니다.
+2. 다른 PC에 EXE와 백업을 가져간 뒤 `File → Import settings…`로 복원합니다.
+3. 현재 저장 위치는 `Tools → Open data folder`에서 확인합니다.
 
 **비밀번호는 Export/Import로 옮겨지지 않습니다. 암호화된 비밀번호도 백업에서 제외되며, 가져온 호스트의 비밀번호는 다시 입력해야 합니다.** 파일 선택 화면과 완료 안내에도 이를 표시합니다.
 
