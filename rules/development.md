@@ -44,7 +44,7 @@
 - 알림·확인·About: `node tests/ssh/message-integration.cjs`. 기본 버튼·Enter/Esc·긴 한글 본문·스크롤·DPI·중첩 모달과 실제 SSH 호스트 키 취소/일회 연결/저장 동작을 격리 검증한다. Win32 메시지 검사는 실제 OS 입력 라우팅 검사와 구분한다.
 - 터미널 마우스·스크롤: `node tests/ssh/mouse-integration.cjs`, `node tests/ssh/mouse-integration.cjs --application-mouse`, `node tests/ssh/scroll-integration.cjs`, `node tests/ssh/scroll-integration.cjs --follow-output`. 실제 루프백 SSH·클립보드·스크롤바와 Win32 메시지를 사용하며 OS의 실제 포커스 라우팅 검사와 구분한다.
 - 실행 인자: `node tests/ssh/launch-integration.cjs`. 배포 EXE로 실제 루프백 SSH 인증, 저장 호스트 재사용, UTF-8 파이프, 일회용 암호 정리와 자식 명령줄을 검증한다.
-- 개인키 등록: `node tests/ssh/key-import-integration.cjs`. 외부 형식 가져오기, 등록 파일 보호와 배포 EXE의 실제 키 인증·재사용을 검증한다.
+- SSH 키 선택·등록: `node tests/ssh/key-import-integration.cjs`. 공개키에서 개인키 찾기, 외부 형식 가져오기, 등록 파일 보호와 EXE의 실제 키 인증·재사용을 검증한다. Linux의 파서·검색 로직 검사는 [SSH 키 규칙](keys.md)을 따른다.
 - 테스트는 임시 루프백 SSH 서버와 `build/` 아래 격리 데이터만 사용한다. 테스트 창은 자동 종료한다.
 - 배포 산출물은 플랫폼별 기존 `release` 경로로 일원화하고 해시·manifest·다운로드 목록·설명서를 함께 갱신해 커밋·푸시한다. 실행파일과 ZIP 내부 이름은 항상 `wShell.exe`이며 NGS용 별도 이름의 파일은 제공하지 않는다. NGS 환경의 수동 이름 변경은 [상세 사용법](../docs/usage.md)에 안내한다. Linux 배포 manifest는 `--cross-built`로 생성하고 재검증은 `--catalog-only`로 기존 출처와 검증 상태를 보존한다.
 - 데스크톱 버전은 루트 `VERSION`에서 관리한다. 현재 배포 대상은 `release/<version>/windows-x64/`이며 `scripts/index-dist.py`로 해시 manifest를 생성한다. `release/<version>/macos-universal/`은 macOS 빌드를 명시적으로 요청받았을 때만 갱신한다.

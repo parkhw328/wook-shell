@@ -68,7 +68,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1
 npm --prefix tests/ssh ci --ignore-scripts --omit=optional
 node tests/ssh/font-integration.cjs
 node tests/ssh/launch-integration.cjs
-node tests/ssh/key-import-integration.cjs
+node tests/ssh/key-import-integration.cjs # 공개키 선택·개인키 일치·등록·재사용·실제 서명
 node tests/ssh/mouse-integration.cjs
 node tests/ssh/mouse-integration.cjs --application-mouse
 node tests/ssh/mouse-integration.cjs --alternate-screen
@@ -89,6 +89,8 @@ git diff --check
 ```
 
 호스트 C 컴파일러가 있는 환경에서는 `python3 -m unittest discover -s tests -p test_sftp_pipeline.py -v`로 공통 SFTP 코덱을 실행할 수 있습니다. 격리된 `build/` 디렉터리에 컴파일하고 실제 tar.gz 데이터에 가상 응답 지연을 적용해 요청 보충·진행률·바이트 일치를 검사합니다. Windows SSH 브리지·파일 I/O·UI 실행 검증을 대신하지 않습니다.
+
+공개키 선택의 구현 범위와 Linux·Windows 검증 절차는 [공개키 파일 선택 안내](public-key-selection.md)를 확인하세요. Linux의 `test_public_key.py`는 실제 PuTTY 라이브러리와 검색 로직을 실행하며, Windows 권한·대화상자·접속 검증은 별도로 수행합니다.
 
 분할 포커스만 빠르게 재검증하려면 빌드 후 `node tests/ssh/focus-integration.cjs`를 실행합니다. 전체 UI 통합 테스트에도 같은 검증이 포함됩니다. 이 테스트는 자체 창을 전경으로 가져와 실제 마우스·키보드 입력, 명령창에서의 포커스 복귀, 커서·테두리 깜빡임을 검사합니다. 실행 중에는 테스트 창의 입력이 끝날 때까지 기다려 주세요.
 

@@ -66,7 +66,7 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         for (auto label : {L"Password", L"Public key authentication"}) SendMessageW(form->auth, CB_ADDSTRING, 0, (LPARAM)label);
         SendMessageW(form->auth, CB_SETCURSEL, form->profile.keyFile.empty() ? 0 : 1, 0);
         add(FontSize, L"9", 402, 381, 106, std::to_wstring(form->profile.fontSize));
-        add(Key, L"PPK, OpenSSH or PEM private key", 32, 455, 381, form->profile.keyFile);
+        add(Key, L"Private key or matching public key (.pub)", 32, 455, 381, form->profile.keyFile);
         ui::place(ui::button(hwnd, L"Browse", Browse), 423, 448, 92, 38);
         form->password = ui::control(hwnd, L"EDIT", L"", Password, ES_PASSWORD | ES_AUTOHSCROLL | WS_TABSTOP);
         ui::place(form->password, 32, 455, 475, 25);
@@ -115,14 +115,14 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         const struct { const wchar_t *text; int x, y; } labels[] = {
             {L"NAME",28,61}, {L"ADDRESS / SERIAL PORT",28,135}, {L"PROTOCOL",28,206}, {L"PORT / BAUD",276,206},
             {L"USERNAME",28,278}, {L"FOLDER (BLANK = NONE)",276,278}, {L"AUTHENTICATION",28,351}, {L"FONT SIZE",398,351},
-            {passwordMode(form) ? L"PASSWORD" : L"PRIVATE KEY",28,425}, {L"ALIAS (OPTIONAL)",28,595}, {L"TAB COLOR",320,595}
+            {passwordMode(form) ? L"PASSWORD" : L"SSH KEY FILE",28,425}, {L"ALIAS (OPTIONAL)",28,595}, {L"TAB COLOR",320,595}
         };
         for (auto l : labels) ui::label(dc, l.text, ui::rect(l.x, l.y, 230, 20), ui::TextSize::caption, ui::muted, true);
         const RECT boxes[] = {ui::rect(27,83,489,41), ui::rect(27,157,489,41), ui::rect(275,228,241,41),
             ui::rect(27,300,239,41), ui::rect(275,300,241,41), ui::rect(397,373,119,41),
             ui::rect(27,447,passwordMode(form) ? 489 : 390,41), ui::rect(27,615,280,41)};
         for (auto b : boxes) ui::round(dc, b, ui::raised);
-        std::wstring hint = L"Register the matching public key (.pub) on the server. The private key signs in; a public key alone cannot authenticate.";
+        std::wstring hint = L"A .pub selects its matching private key from this folder or your key library. Register the public key on the server.";
         if (passwordMode(form)) {
             bool remember = SendMessageW(form->remember, BM_GETCHECK, 0, 0) == BST_CHECKED;
             hint = !remember ? L"Ask in the terminal each time. Saving removes any stored password." :
@@ -151,7 +151,7 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             if (!path.empty()) SetWindowTextW(form->fields[Key - Name], path.c_str());
         } else if (LOWORD(wp) == Browse) {
             wchar_t path[32768]{}; OPENFILENAMEW ofn{sizeof(ofn)}; ofn.hwndOwner = hwnd; ofn.lpstrFile = path;
-            ofn.nMaxFile = 32768; ofn.lpstrFilter = L"SSH private keys (*.ppk; *.pem; *.key; *.openssh; id_*)\0*.ppk;*.pem;*.key;*.openssh;id_*\0All files\0*.*\0";
+            ofn.nMaxFile = 32768; ofn.lpstrFilter = L"SSH keys (*.pub; *.ppk; *.pem; *.key; *.openssh; id_*)\0*.pub;*.ppk;*.pem;*.key;*.openssh;id_*\0All files\0*.*\0";
             ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
             if (GetOpenFileNameW(&ofn)) SetWindowTextW(form->fields[Key - Name], path);
         } else if (LOWORD(wp) == Save || LOWORD(wp) == IDOK) {
@@ -170,7 +170,7 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 p.keyFile = passwordMode(form) ? L"" : wook::trim(ui::value(form->fields[Key - Name]));
                 p.protocol = protocols[SendMessageW(form->fields[Protocol - Name], CB_GETCURSEL, 0, 0)];
                 if (p.protocol == L"ssh" && !passwordMode(form)) {
-                    if (p.keyFile.empty()) throw std::runtime_error("Public key authentication needs the matching private key. Choose or import a registered key below.");
+                    if (p.keyFile.empty()) throw std::runtime_error("Choose a private key or a public key whose matching private key is in the same folder or key library.");
                 }
                 auto portText = ui::value(form->fields[Port - Name]), fontText = ui::value(form->fields[FontSize - Name]);
                 if (portText.empty() || fontText.empty() || portText.find_first_not_of(L"0123456789") != std::wstring::npos || fontText.find_first_not_of(L"0123456789") != std::wstring::npos)

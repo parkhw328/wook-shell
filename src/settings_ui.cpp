@@ -385,7 +385,7 @@ extern "C" void wsSettingsAddPage(HWND window, const char *path, const char *des
         {"Connection/Proxy", L"Proxy", L"Reach your server through a proxy or jump host."},
         {"Connection/SSH", L"SSH session", L"Configure your encrypted connection and remote command."},
         {"Connection/SSH/Auth", L"Authentication", L"Choose how you authenticate to the server."},
-        {"Connection/SSH/Auth/Credentials", L"SSH keys", L"Choose a private key and optional SSH certificate."},
+        {"Connection/SSH/Auth/Credentials", L"SSH keys", L"Choose a private key or matching .pub, and an optional SSH certificate."},
         {"Connection/SSH/Auth/GSSAPI", L"GSSAPI", L"Configure integrated authentication for your environment."},
         {"Connection/SSH/Host keys", L"Host verification", L"Manage how wShell verifies the server's identity."},
         {"Connection/SSH/Tunnels", L"Port forwarding", L"Route local or remote ports through your SSH connection."},

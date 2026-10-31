@@ -19,7 +19,26 @@ const fixtures = [
 const names = ['oracle-ssh-key.key', 'encrypted-rsa.pem', 'encrypted-ed25519.openssh'];
 const keys = fixtures.map((file, i) => utils.parseKey(file, i ? passphrase : undefined));
 names.forEach((name, i) => fs.writeFileSync(path.join(artifact, name), fixtures[i]));
-fs.writeFileSync(path.join(artifact, 'public-only.key'), 'ssh-rsa ' + keys[0].getPublicSSH().toString('base64') + ' public-only\n');
+const publicText = (key, comment = 'fixture') => key.type + ' ' + key.getPublicSSH().toString('base64') + ' ' + comment + '\n';
+const publicNames = ['plain/identity.pub', 'rsa/identity.pub', 'ed/id_ed25519.PUB'];
+const privateNames = ['plain/different-name.key', 'rsa/identity.pem', 'ed/id_ed25519'];
+for (let i = 0; i < 3; ++i) {
+    const directory = path.join(artifact, path.dirname(publicNames[i])); fs.mkdirSync(directory);
+    fs.writeFileSync(path.join(artifact, publicNames[i]), publicText(keys[i], 'different public comment'));
+    fs.writeFileSync(path.join(artifact, privateNames[i]), fixtures[i]);
+}
+fs.writeFileSync(path.join(artifact, 'public-only.key'), publicText(keys[0], 'renamed public file'));
+const orphan = utils.parseKey(utils.generateKeyPairSync('ed25519').private);
+fs.mkdirSync(path.join(artifact, 'missing'));
+fs.writeFileSync(path.join(artifact, 'missing/identity.pub'), publicText(orphan));
+fs.writeFileSync(path.join(artifact, 'missing/identity.key'), fixtures[0]);
+fs.mkdirSync(path.join(artifact, 'mismatch'));
+fs.writeFileSync(path.join(artifact, 'mismatch/identity.pub'), publicText(orphan));
+fs.writeFileSync(path.join(artifact, 'mismatch/identity.pem'), fixtures[1]);
+fs.writeFileSync(path.join(artifact, 'malformed.pub'), 'ssh-rsa AAAAB3NzaC1yc2E= truncated\n');
+fs.writeFileSync(path.join(artifact, 'algorithm-mismatch.pub'), 'ssh-ed25519 ' + keys[0].getPublicSSH().toString('base64') + '\n');
+const rfcBlob = keys[2].getPublicSSH().toString('base64').match(/.{1,64}/g).join('\n');
+fs.writeFileSync(path.join(artifact, 'rfc4716.key'), '---- BEGIN SSH2 PUBLIC KEY ----\nComment: "RFC fixture"\n' + rfcBlob + '\n---- END SSH2 PUBLIC KEY ----\n');
 fs.writeFileSync(path.join(artifact, 'malformed.key'), 'invalid private key fixture\n');
 const originalHashes = fixtures.map(file => crypto.createHash('sha256').update(file).digest('hex'));
 const host = utils.generateKeyPairSync('ed25519').private;
@@ -104,14 +123,16 @@ async function releaseLogin(port) {
     }
     const count = () => fs.readdirSync(path.join(data, 'keys')).filter(file => file.endsWith('.ppk')).length;
     const initial = count(); await releaseLogin(port);
-    assert.equal(count(), initial + 1, 'A saved host with a PEM path must import it on its first connection');
+    assert.equal(count(), initial, 'A saved host with a public key path must reuse the matching registered key');
+    fs.renameSync(path.join(artifact, 'public-only.key'), path.join(artifact, 'public-only.moved'));
     await releaseLogin(port);
-    assert.equal(count(), initial + 1, 'The next connection must reuse the registered key');
+    assert.equal(count(), initial, 'The next connection must reuse the registered key');
+    privateNames.forEach((name, i) => assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(artifact, name))).digest('hex'), originalHashes[i], 'Public-key selection must preserve its source private key'));
     assert.deepEqual(signatures, ['key-0', 'key-1', 'key-2', 'oracle', 'oracle']);
     assert.ok(!fs.readFileSync(path.join(artifact, 'key-backup.wshell')).includes(Buffer.from('Private-Lines:')), 'Settings backup must exclude private key contents');
     assert.ok(!fs.readdirSync(path.join(data, 'keys')).some(file => file.endsWith('.tmp')), 'Key registration must leave no temporary key file');
     fs.writeFileSync(path.join(artifact, 'result.json'), JSON.stringify({ passed: true, ...report, signaturesVerified: signatures.length }, null, 2));
-    console.log('PASS: PEM RSA, encrypted PEM RSA and OpenSSH Ed25519 import, protected registration and 5 real SSH signatures. Evidence: ' + artifact);
+    console.log('PASS: public-key matching, PEM/OpenSSH import, mismatch/cancellation rejection, protected registration and 5 real SSH signatures. Evidence: ' + artifact);
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => {
     for (const child of children) child.kill(); for (const client of clients) client.end(); server.close();
 });

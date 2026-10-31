@@ -415,6 +415,9 @@ static void conpty_terminate(ConPTY *conpty)''')
 
     # Do not present switches for external agent/sharing features that wShell disables.
     config = original("config.c")
+    config = replace(config, '''ctrl_filesel(s, "Private key file for authentication:", 'k',
+                         FILTER_KEY_FILES, false, "Select private key file",''', '''ctrl_filesel(s, "Private key or matching public key (.pub):", 'k',
+                         FILTER_ALL_FILES, false, "Select SSH key file",''')
     config = replace(config, '''    ctrl_checkbox(s, "Shift overrides application's use of mouse", 'p',''', '''    ctrl_checkbox(s, "Prefer mouse copy and paste", NO_SHORTCUT,
                   HELPCTX(selection_shiftdrag), conf_checkbox_handler,
                   I(CONF_wshell_mouse_clipboard));

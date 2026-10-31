@@ -16,7 +16,7 @@ enum { Algorithm = 501, Generate, ImportKey, Passphrase, PublicKey, Fingerprint,
        Library, LoadRegistered, RegisterKey, UseKey };
 struct KeyForm {
     WsKey *key = nullptr, *next = nullptr;
-    bool busy = false, done = false, selectForHost = false, useWhenReady = false;
+    bool busy = false, done = false, selectForHost = false, useWhenReady = false, nextIsPublic = false;
     std::thread worker;
     std::wstring error, status, savedPath, nextPath, acceptedPath;
     std::vector<std::wstring> library;
@@ -29,7 +29,7 @@ std::wstring chooseFile(HWND hwnd, bool save, bool pub = false) {
     wchar_t path[32768]{};
     if (save) wcscpy_s(path, pub ? L"wshell-key.pub" : L"wshell-key.ppk");
     OPENFILENAMEW dialog{sizeof(dialog)}; dialog.hwndOwner = hwnd; dialog.lpstrFile = path; dialog.nMaxFile = 32768;
-    dialog.lpstrFilter = pub ? L"OpenSSH public key (*.pub)\0*.pub\0\0" : save ? L"PuTTY private key (*.ppk)\0*.ppk\0\0" : L"SSH private keys (*.ppk; *.pem; *.key; *.openssh; *.txt; id_*)\0*.ppk;*.pem;*.key;*.openssh;*.txt;id_*\0All files\0*.*\0\0";
+    dialog.lpstrFilter = pub ? L"OpenSSH public key (*.pub)\0*.pub\0\0" : save ? L"PuTTY private key (*.ppk)\0*.ppk\0\0" : L"SSH keys (*.pub; *.ppk; *.pem; *.key; *.openssh; *.txt; id_*)\0*.pub;*.ppk;*.pem;*.key;*.openssh;*.txt;id_*\0All files\0*.*\0\0";
     dialog.lpstrDefExt = pub ? L"pub" : L"ppk";
     dialog.Flags = OFN_NOCHANGEDIR | OFN_PATHMUSTEXIST | (save ? OFN_OVERWRITEPROMPT : OFN_FILEMUSTEXIST);
     return (save ? GetSaveFileNameW(&dialog) : GetOpenFileNameW(&dialog)) ? path : L"";
@@ -39,7 +39,7 @@ void setBusy(HWND hwnd, KeyForm *form, bool busy) {
     for (int id : {Algorithm, Generate, ImportKey, Passphrase, KeyClose, Library}) EnableWindow(GetDlgItem(hwnd, id), !busy);
     for (int id : {SavePrivate, SavePublic}) EnableWindow(GetDlgItem(hwnd, id), !busy && form->key);
     EnableWindow(GetDlgItem(hwnd, RegisterKey), !busy && form->key && form->savedPath.empty());
-    EnableWindow(GetDlgItem(hwnd, LoadRegistered), !busy && SendDlgItemMessageW(hwnd, Library, LB_GETCURSEL, 0, 0) != LB_ERR);
+    EnableWindow(GetDlgItem(hwnd, LoadRegistered), !busy && !form->savedPath.empty());
     EnableWindow(GetDlgItem(hwnd, UseKey), !busy && (form->key || !form->savedPath.empty()));
     InvalidateRect(hwnd, nullptr, TRUE);
 }
@@ -119,7 +119,7 @@ LRESULT CALLBACK keyProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (msg == WM_PAINT) {
         PAINTSTRUCT ps; auto dc = BeginPaint(hwnd, &ps); RECT r; GetClientRect(hwnd, &r); ui::fill(dc, r, ui::panel);
         ui::label(dc, L"SSH keys. Made here.", ui::rect(28, 20, 550, 34), ui::TextSize::title, ui::bright, true);
-        ui::label(dc, L"Import PPK, OpenSSH or PEM private keys and reuse them for your hosts.", ui::rect(28, 59, 788, 25), ui::TextSize::caption, ui::muted);
+        ui::label(dc, L"Import private keys, or select a .pub to find its matching private key on this PC.", ui::rect(28, 59, 788, 25), ui::TextSize::caption, ui::muted);
         ui::label(dc, L"REGISTERED KEYS", ui::rect(20, 103, 212, 23), ui::TextSize::caption, ui::muted, true);
         ui::label(dc, L"Stored on this PC", ui::rect(20, 126, 212, 20), ui::TextSize::caption, ui::muted);
         ui::fill(dc, ui::rect(248, 99, 1, 462), ui::line);
@@ -155,7 +155,7 @@ LRESULT CALLBACK keyProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
     if (msg == WM_APP + 80) {
         if (form->worker.joinable()) form->worker.join();
-        if (form->next) { wsKeyFree(form->key); form->key = form->next; form->next = nullptr; form->savedPath = form->nextPath; refreshKey(hwnd, form); }
+        if (form->next || form->nextIsPublic) { wsKeyFree(form->key); form->key = form->next; form->next = nullptr; form->savedPath = form->nextPath; refreshKey(hwnd, form); }
         else if (!form->nextPath.empty()) form->savedPath = form->nextPath;
         refreshLibrary(hwnd, form);
         setBusy(hwnd, form, false);
@@ -198,21 +198,34 @@ LRESULT CALLBACK keyProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 }
                 const int bits[] = {0, 3072, 4096};
                 int choice = (int)SendMessageW(GetDlgItem(hwnd, Algorithm), CB_GETCURSEL, 0, 0);
-                form->error.clear(); form->status.clear(); form->nextPath.clear(); setBusy(hwnd, form, true);
+                form->error.clear(); form->status.clear(); form->nextPath.clear(); form->nextIsPublic = false; setBusy(hwnd, form, true);
                 form->worker = std::thread([form, hwnd, id, path, rsaBits = bits[std::clamp(choice, 0, 2)], secret = std::move(secret)]() mutable {
                     try {
+                        bool publicInput = id == ImportKey && wsKeyInspect(path.c_str(), nullptr) == WS_KEY_PUBLIC;
                         if (id == Generate) form->next = wsKeyGenerate(rsaBits);
+                        else if (publicInput) {
+                            form->nextPath = preparePrivateKey(nullptr, path, secret.c_str());
+                            int encrypted = 0; wsKeyInspect(form->nextPath.c_str(), &encrypted);
+                            // An encrypted registered PPK can be attached without
+                            // decrypting it; the SSH engine asks when signing in.
+                            if (!encrypted || !secret.empty()) {
+                                form->next = wsKeyLoad(form->nextPath.c_str(), secret.c_str());
+                                if (!form->next) throw std::runtime_error(wsKeyError());
+                            }
+                        }
                         else if (id == ImportKey || id == LoadRegistered) form->next = wsKeyLoad(path.c_str(), secret.c_str());
-                        if ((id == Generate || id == ImportKey || id == LoadRegistered) && !form->next) throw std::runtime_error(wsKeyError());
+                        if ((id == Generate || (id == ImportKey && !publicInput) || id == LoadRegistered) && !form->next) throw std::runtime_error(wsKeyError());
                         if (id == SavePrivate && !wsKeySave(form->key, path.c_str(), secret.c_str())) throw std::runtime_error(wsKeyError());
-                        if (id == ImportKey || id == RegisterKey)
+                        if ((id == ImportKey && !publicInput) || id == RegisterKey)
                             form->nextPath = registerPrivateKey(id == ImportKey ? form->next : form->key, id == ImportKey ? path : L"SSH key", secret.c_str());
                         else if (id == SavePrivate || id == LoadRegistered) form->nextPath = path;
-                        form->status = id == ImportKey || id == RegisterKey ? L"Key registered on this PC. Private keys are excluded from settings backups." :
+                        form->nextIsPublic = publicInput;
+                        form->status = publicInput ? L"Matching private key selected. Load it to inspect, or use it for this host." :
+                            id == ImportKey || id == RegisterKey ? L"Key registered on this PC. Private keys are excluded from settings backups." :
                             id == SavePrivate ? (secret.empty() ? L"Private key exported without a passphrase." : L"Private key exported with passphrase encryption.") :
                             L"Key ready. Select and copy the public key above.";
                     } catch (const std::exception &error) {
-                        wsKeyFree(form->next); form->next = nullptr; form->error = wook::wide(error.what());
+                        wsKeyFree(form->next); form->next = nullptr; form->nextPath.clear(); form->error = wook::wide(error.what());
                     }
                     SecureZeroMemory(secret.data(), secret.size()); PostMessageW(hwnd, WM_APP + 80, 0, 0);
                 });

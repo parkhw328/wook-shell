@@ -17,7 +17,7 @@ Git에 저장된 `AGENTS.md`와 `rules/`를 모든 PC·작업 도구의 공통 �
 | 작업 공간·탐색·탭·폰트 | [workspace-ui.md](rules/workspace-ui.md) |
 | 분할 공통 입력·동기화 | [broadcast.md](rules/broadcast.md) |
 | SFTP | [sftp.md](rules/sftp.md) |
-| SSH 개인키 | [keys.md](rules/keys.md) |
+| SSH 공개키 선택·개인키 | [keys.md](rules/keys.md) |
 | 명령줄 접속·기존 창 전달 | [launch-arguments.md](rules/launch-arguments.md) |
 | 외부 코드·자산·라이선스 | [licensing.md](rules/licensing.md) |
 | iPad | [ipad.md](rules/ipad.md) |

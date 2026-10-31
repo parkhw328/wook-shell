@@ -24,6 +24,7 @@
 #include <stdexcept>
 #include <vector>
 #ifdef WOOK_UI_TEST
+#include <thread>
 #include <functional>
 #include <exception>
 #include <shldisp.h>

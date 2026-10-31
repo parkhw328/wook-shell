@@ -9,6 +9,7 @@
 #include <bcrypt.h>
 
 struct WsKey { ssh2_userkey *key; };
+struct WsPublicKey { strbuf *blob; };
 static char keyError[256];
 static void fail(const char *error) { snprintf(keyError, sizeof(keyError), "%s", error ? error : "Key operation failed."); }
 const char *wsKeyError(void) { return keyError; }
@@ -74,15 +75,18 @@ int wsKeyInspect(const wchar_t *path, int *encrypted) {
         sfree(comment);
     } else if (type == SSH_KEYTYPE_SSH2_PUBLIC_OPENSSH || type == SSH_KEYTYPE_SSH2_PUBLIC_RFC4716) {
         result = WS_KEY_PUBLIC;
-        fail("This file contains only a public key. Select the matching private key (.key, .pem, OpenSSH, or .ppk) to sign in.");
-    } else if (type == SSH_KEYTYPE_UNOPENABLE) fail("Cannot read the private key. Check its path and file permissions.");
-    else fail("Unsupported private key format. Select a PuTTY PPK, OpenSSH private key, or traditional PEM RSA/DSA/EC private key.");
+    } else if (type == SSH_KEYTYPE_UNOPENABLE) fail("Cannot read the SSH key. Check its path and file permissions.");
+    else fail("Unsupported SSH key format. Select a PPK, OpenSSH/PEM private key, or OpenSSH/RFC4716 public key.");
     filename_free(file);
     return result;
 }
 WsKey *wsKeyLoad(const wchar_t *path, const char *passphrase) {
     int kind = wsKeyInspect(path, NULL);
-    if (kind == WS_KEY_INVALID || kind == WS_KEY_PUBLIC) return NULL;
+    if (kind == WS_KEY_PUBLIC) {
+        fail("This file contains only a public key. Select its matching private key to inspect or export private material.");
+        return NULL;
+    }
+    if (kind == WS_KEY_INVALID) return NULL;
     Filename *file = filename_from_wstr(path);
     int type = key_type(file);
     const char *error = NULL;
@@ -95,6 +99,39 @@ WsKey *wsKeyLoad(const wchar_t *path, const char *passphrase) {
     filename_free(file);
     if (!key || key == SSH2_WRONG_PASSPHRASE) { fail(key == SSH2_WRONG_PASSPHRASE ? "The passphrase is incorrect." : error); return NULL; }
     return wrap(key);
+}
+WsPublicKey *wsPublicKeyLoad(const wchar_t *path) {
+    Filename *file = filename_from_wstr(path);
+    strbuf *blob = strbuf_new();
+    const char *error = NULL;
+    bool loaded = ppk_loadpub_f(file, NULL, BinarySink_UPCAST(blob), NULL, &error);
+    filename_free(file);
+    const ssh_keyalg *algorithm = loaded ? pubkey_blob_to_alg(ptrlen_from_strbuf(blob)) : NULL;
+    ssh_key *key = algorithm ? ssh_key_new_pub(algorithm, ptrlen_from_strbuf(blob)) : NULL;
+    if (!key) {
+        strbuf_free(blob); fail(error ? error : "Invalid or unsupported SSH public key."); return NULL;
+    }
+    // Compare canonical SSH blobs, never comments, file names or fingerprints.
+    strbuf *canonical = strbuf_new();
+    ssh_key_public_blob(key, BinarySink_UPCAST(canonical)); ssh_key_free(key);
+    bool valid = ptrlen_eq_ptrlen(ptrlen_from_strbuf(blob), ptrlen_from_strbuf(canonical));
+    strbuf_free(canonical);
+    if (!valid) { strbuf_free(blob); fail("Invalid SSH public key data."); return NULL; }
+    WsPublicKey *result = snew(WsPublicKey); result->blob = blob; return result;
+}
+int wsPublicKeyMatchesFile(const WsPublicKey *publicKey, const wchar_t *path) {
+    WsPublicKey *candidate = wsPublicKeyLoad(path);
+    int same = publicKey && candidate && ptrlen_eq_ptrlen(ptrlen_from_strbuf(publicKey->blob), ptrlen_from_strbuf(candidate->blob));
+    wsPublicKeyFree(candidate); return same;
+}
+int wsPublicKeyMatchesKey(const WsPublicKey *publicKey, WsKey *key) {
+    if (!publicKey || !key) return 0;
+    strbuf *blob = strbuf_new(); ssh_key_public_blob(key->key->key, BinarySink_UPCAST(blob));
+    int same = ptrlen_eq_ptrlen(ptrlen_from_strbuf(publicKey->blob), ptrlen_from_strbuf(blob));
+    strbuf_free(blob); return same;
+}
+void wsPublicKeyFree(WsPublicKey *key) {
+    if (key) { strbuf_free(key->blob); sfree(key); }
 }
 static PSECURITY_DESCRIPTOR privateDescriptor(void) {
     HANDLE token = NULL; DWORD size = 0; PSECURITY_DESCRIPTOR descriptor = NULL;
