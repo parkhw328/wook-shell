@@ -1,4 +1,6 @@
 #include "core.hpp"
+#include "navigation.hpp"
+#include <charconv>
 #include "credentials.hpp"
 #include <algorithm>
 #include <cwctype>
@@ -157,6 +159,26 @@ void saveNavigationVisible(bool visible) {
     auto path = wsPath(L"workspace", "layout");
     StorePtr store(wsOpen(path, true), wsClose); free(path);
     if (!store || !wsSet(store.get(), "NavigationVisible", visible ? "1" : "0") || !wsSave(store.get()))
+        throw std::runtime_error("Cannot save workspace preferences. Check folder permissions and disk space.");
+}
+int loadNavigationWidth() {
+    auto path = wsPath(L"workspace", "layout");
+    StorePtr store(wsOpen(path, false), wsClose); free(path);
+    if (!store) throw std::runtime_error("Cannot read workspace preferences.");
+    auto value = wsGet(store.get(), "NavigationWidth");
+    if (!value) return navigationDefaultWidth;
+    std::string_view text(value);
+    int width = 0;
+    auto result = std::from_chars(text.data(), text.data() + text.size(), width);
+    if (result.ec != std::errc() || result.ptr != text.data() + text.size() ||
+        width < navigationMinWidth || width > navigationMaxWidth) return navigationDefaultWidth;
+    return width;
+}
+void saveNavigationWidth(int width) {
+    auto value = std::to_string(std::clamp(width, navigationMinWidth, navigationMaxWidth));
+    auto path = wsPath(L"workspace", "layout");
+    StorePtr store(wsOpen(path, true), wsClose); free(path);
+    if (!store || !wsSet(store.get(), "NavigationWidth", value.c_str()) || !wsSave(store.get()))
         throw std::runtime_error("Cannot save workspace preferences. Check folder permissions and disk space.");
 }
 bool loadConfirmCloseTabs() {

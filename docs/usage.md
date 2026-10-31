@@ -76,17 +76,25 @@ Windows **1.2.19부터 `File · Host · Session · View · Tools · Help` 메뉴
 
 **CONNECTIONS 옆 ‹ 버튼**, **View → Hosts panel** 또는 `Ctrl+Shift+H`로 왼쪽 목록을 접고 펼칩니다. 접어도 왼쪽의 좁은 탐색 영역에 **› 버튼**이 남아 바로 펼칠 수 있습니다. 버튼의 툴팁은 **Hide hosts / Show hosts**입니다. 다음 실행에도 표시 상태를 기억하며, 분할 창·명령 초안·키보드 동기화 대상과 옵션은 그대로 유지됩니다. `Ctrl+Shift+P`는 숨긴 탐색창을 펼치고 검색 칸으로 이동합니다.
 
+**1.2.21부터 탐색창의 오른쪽 경계선을 좌우로 드래그하여 너비를 조절**할 수 있습니다. 놓은 너비를 다음 실행에도 기억합니다. 창이 작아지면 터미널 공간을 확보하도록 잠시 줄이고, 다시 넓히면 지정한 너비로 돌아갑니다. Tab으로 경계선에 포커스한 뒤 Left / Right로 조절하거나 Home으로 기본 너비를 복원할 수도 있습니다.
+
+이름이나 주소가 잘리면 해당 행에 마우스를 잠시 머물러 보세요. **툴팁에 전체 이름·주소·포트·폴더**가 표시됩니다. 폴더는 전체 이름·연결 개수·펼침 상태를 안내하며, 상단 탭·세션 제목과 작업 버튼에도 툴팁을 제공합니다.
+
 **Host → Connect / Open SFTP / Edit host / Host settings**는 목록에서 선택한 저장 연결을 대상으로 합니다. 상태 표시줄에서 호스트 이름·주소와 메뉴 명령의 적용 대상을 확인할 수 있습니다. **Session** 메뉴와 세션 도구 모음의 **Files / Settings**는 현재 활성 탭에 적용됩니다. `F10` 또는 `Alt+F/H/S/V/T/E`로 메뉴에 진입하고 방향키·Enter·Esc로 탐색·실행·취소합니다.
 
 검색 안내는 **Name, alias, address…**이며 이름·별칭·주소·그룹·사용자를 검색합니다. 선택할 결과가 없으면 Connect·SFTP·Edit이 비활성화됩니다. [0.10.0 변경 내역](../docs/releases/0.10.0.md), [작업 공간 UI 요구사항](../rules/requirements/workspace-ui.md)
 
-![Fixed actions and collapsible navigation](../assets/screenshots/navigation-expanded.png)
+![Resizable navigation with distinct folders and terminal connections](../assets/screenshots/navigation-folders-1.2.21.png)
 
 ### Windows 연결 폴더와 표시 순서
 
-![Connection folders and saved order](../assets/screenshots/connections-folders.png)
+![Full connection details in a tooltip when navigation is narrow](../assets/screenshots/navigation-tooltip-1.2.21.png)
+
+위 두 화면은 격리한 예시 연결로 실행한 Windows EXE를 Wine에서 캡처했습니다. Windows 실기의 창 장식·글꼴 렌더링과 차이가 있을 수 있습니다.
 
 왼쪽 목록의 **+ Folder**로 폴더를 만들고, 폴더 우클릭의 **Rename folder / Delete folder**로 이름을 바꾸거나 삭제합니다. 기존 호스트의 Group 값도 폴더로 표시됩니다. 폴더 화살표 또는 Enter·더블클릭으로 접고 펼치며, 빈 폴더와 접힘 상태도 저장됩니다. 폴더를 삭제하면 안의 호스트는 폴더 밖으로 이동하고 연결 설정과 열려 있는 터미널은 유지됩니다.
+
+폴더에는 **주황색 폴더 아이콘·배경·Folder 설명**을 표시합니다. 터미널에는 **`>_` 아이콘·프로토콜·접속 주소**를 표시하고, 폴더 안의 터미널은 들여쓰기와 연결선으로 묶어 보여줍니다.
 
 호스트 우클릭의 **Move to folder**에서 이동할 폴더를 선택합니다. **No folder**는 폴더 밖으로 옮깁니다. New host / Edit의 **Folder**에서도 기존 폴더를 선택하거나 새 이름을 입력할 수 있습니다. 폴더를 선택한 채 New host를 누르면 해당 폴더가 미리 선택됩니다. 폴더는 한 단계 그룹으로 관리합니다.
 

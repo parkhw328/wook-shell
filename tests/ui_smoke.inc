@@ -6,6 +6,7 @@
 #include "scroll_smoke.inc"
 #include "message_smoke.inc"
 #include "workspace_smoke.inc"
+#include "navigation_smoke.inc"
 #include "connections_smoke.inc"
 #include "tabs_smoke.inc"
 #include "sftp_shortcuts_smoke.inc"
@@ -52,6 +53,20 @@ template<typename Check> void testNativeKeys(const std::wstring &directory, Chec
     require(reopened && publicText(reopened.get()) == publicText(imported.get()), "Converted OpenSSH key changed");
 }
 void runUiSmoke(App &app) {
+    if (GetEnvironmentVariableW(L"WOOK_TEST_NAVIGATION_ONLY", nullptr, 0)) {
+        KillTimer(app.hwnd, 1);
+        int checks = 0;
+        try {
+            auto require = [&](bool value, const char *message) { if (!value) throw std::runtime_error(message); ++checks; };
+            testNavigationDetails(app, require);
+            std::ofstream(std::filesystem::path(app.directory) / L"navigation-result.txt") << "PASS " << checks << " checks\n";
+            PostMessageW(app.hwnd, WM_CLOSE, 0, 0);
+        } catch (const std::exception &error) {
+            std::ofstream(std::filesystem::path(app.directory) / L"navigation-result.txt") << "FAIL " << error.what() << '\n';
+            PostQuitMessage(1);
+        }
+        return;
+    }
     if (GetEnvironmentVariableW(L"WOOK_TEST_MENU_STYLE_ONLY", nullptr, 0)) {
         KillTimer(app.hwnd, 1);
         int checks = 0;

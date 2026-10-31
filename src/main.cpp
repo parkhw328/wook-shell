@@ -13,6 +13,7 @@
 #include "sftp_view.hpp"
 #include "split.hpp"
 #include "tab_strip.hpp"
+#include "navigation.hpp"
 #include "launch.hpp"
 #include "launch_relay.hpp"
 #include "broadcast.h"
@@ -40,12 +41,13 @@ using wook::Profile;
 extern "C" int WINAPI wshellTerminalMain(HINSTANCE, HINSTANCE, LPSTR, int);
 namespace {
 enum { Search = 100, HostList, NewHost, ConnectHost, EditHost, Quick, QuickConnect, Preview,
-       Advanced, Duplicate, Reconnect, SessionSettings, Tools, Shortcuts, About, SaveCurrent, HomeNew, HomePreview, LocalCmd, LocalPowerShell, FilesHost, FilesSession, Split, CommandText, SendCommand, SendAll, SyncInput, Targets, NavigationToggle, TabsPrevious, TabsNext, TabsList, NewFolder, MoveHostUp, MoveHostDown, ControlEnd, ToggleFolder, RenameFolder, DeleteFolder, DeleteHost,
+       Advanced, Duplicate, Reconnect, SessionSettings, Tools, Shortcuts, About, SaveCurrent, HomeNew, HomePreview, LocalCmd, LocalPowerShell, FilesHost, FilesSession, Split, CommandText, SendCommand, SendAll, SyncInput, Targets, NavigationToggle, TabsPrevious, TabsNext, TabsList, NewFolder, MoveHostUp, MoveHostDown, NavigationResize, ControlEnd, ToggleFolder, RenameFolder, DeleteFolder, DeleteHost,
        MenuNewConnection = 200, MenuCloseTab, MenuNextTab, MenuPreviousTab, MenuSearch,
        MenuFullscreen, MenuExit, MenuKeyManager, MenuApplicationSettings, MenuExport,
        MenuImport, MenuDataFolder, MenuLicenses, MenuSinglePane, MenuTwoPanes,
        MenuThreePanes, MenuFourPanes, MenuZoom, MenuSync, MenuCommandBar };
-constexpr int sidebarExpanded = 252, sidebarCollapsed = 48;
+constexpr int sidebarExpanded = wook::navigationDefaultWidth, sidebarCollapsed = 48;
+constexpr UINT_PTR connectionTip = 1, sessionTip = 1100, statusTip = 1101;
 enum class CloseTabs { all, others, right };
 struct Tab {
     static inline uint64_t nextId = 0;
@@ -76,6 +78,9 @@ struct App {
     std::wstring tooltipText;
     bool navigationVisible = true;
     int sidebar = sidebarExpanded;
+    int navigationPreferredWidth = sidebarExpanded, navigationStartWidth = sidebarExpanded, navigationDragOffset = 0;
+    bool navigationResizing = false, navigationHot = false;
+    int connectionHover = -1;
     HANDLE job = nullptr;
     std::wstring directory;
     std::vector<Profile> profiles;
@@ -120,6 +125,10 @@ struct App {
     void moveConnection(int direction);
     void activateConnection();
     void setNavigation(bool show);
+    void finishNavigationResize(bool save);
+    void clearConnectionTooltip();
+    void hoverConnection(POINT point);
+    std::wstring connectionTooltip() const;
     void hostActions();
     void select(int index);
     void focusActive();
@@ -199,6 +208,7 @@ void App::detachTab(int index, POINT point) {
         (!tabs[index]->ended && !IsWindow(tabs[index]->terminal))) return;
     auto next = std::make_unique<App>(); next->secondary = true; next->job = job;
     next->directory = directory; next->navigationVisible = navigationVisible; next->sidebar = sidebar;
+    next->navigationPreferredWidth = navigationPreferredWidth;
     RECT rect{}; GetWindowRect(hwnd, &rect);
     auto window = CreateWindowExW(0, L"WookShellMain", L"wShell", WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
         point.x - ui::px(100), point.y - ui::px(20), rect.right - rect.left, rect.bottom - rect.top,
@@ -358,13 +368,79 @@ void visible(HWND hwnd, bool show) { ShowWindow(hwnd, show ? SW_SHOWNA : SW_HIDE
 std::wstring lower(std::wstring text) { std::transform(text.begin(), text.end(), text.begin(), towlower); return text; }
 void App::setNavigation(bool show) {
     if (navigationVisible == show) return;
+    finishNavigationResize(false);
     wook::saveNavigationVisible(show);
     auto focus = GetFocus();
     bool restoreFocus = focus == control(NavigationToggle) || (!show && (focus == control(Search) || focus == control(HostList) ||
-        focus == control(NewFolder) || focus == control(MoveHostUp) || focus == control(MoveHostDown)));
-    navigationVisible = show; sidebar = show ? sidebarExpanded : sidebarCollapsed;
+        focus == control(NewFolder) || focus == control(MoveHostUp) || focus == control(MoveHostDown) || focus == control(NavigationResize)));
+    navigationVisible = show;
     layout();
     if (restoreFocus) { if (active < 0) SetFocus(control(Quick)); else focusActive(); }
+}
+void App::finishNavigationResize(bool save) {
+    if (!navigationResizing) return;
+    navigationResizing = false;
+    if (GetCapture() == control(NavigationResize)) ReleaseCapture();
+    int requested = navigationPreferredWidth;
+    navigationPreferredWidth = navigationStartWidth;
+    if (save && requested != navigationStartWidth) {
+        try { wook::saveNavigationWidth(requested); }
+        catch (...) { layout(); throw; }
+        navigationPreferredWidth = requested;
+    }
+    layout();
+}
+void App::clearConnectionTooltip() {
+    if (connectionHover < 0) return;
+    connectionHover = -1;
+    SendMessageW(tooltips, TTM_POP, 0, 0);
+    TOOLINFOW tip{sizeof(tip)}; tip.hwnd = control(HostList); tip.uId = connectionTip;
+    SendMessageW(tooltips, TTM_DELTOOLW, 0, (LPARAM)&tip);
+}
+void App::hoverConnection(POINT point) {
+    auto list = control(HostList);
+    RECT client{}, row{}; GetClientRect(list, &client);
+    auto item = SendMessageW(list, LB_ITEMFROMPOINT, 0, MAKELPARAM(point.x, point.y));
+    int index = -1;
+    if (navigationVisible && !GetCapture() && PtInRect(&client, point) && !HIWORD(item) &&
+        LOWORD(item) < connectionRows.size() && SendMessageW(list, LB_GETITEMRECT, LOWORD(item), (LPARAM)&row) != LB_ERR &&
+        PtInRect(&row, point)) index = LOWORD(item);
+    if (index != connectionHover) {
+        clearConnectionTooltip();
+        if (index >= 0) {
+            connectionHover = index;
+            TOOLINFOW tip{sizeof(tip)}; tip.hwnd = list; tip.uId = connectionTip;
+            IntersectRect(&tip.rect, &row, &client); tip.lpszText = LPSTR_TEXTCALLBACKW;
+            SendMessageW(tooltips, TTM_ADDTOOLW, 0, (LPARAM)&tip);
+        }
+    }
+    if (index >= 0) {
+        MSG event{}; event.hwnd = list; event.message = WM_MOUSEMOVE;
+        event.lParam = MAKELPARAM(point.x, point.y); event.time = GetMessageTime();
+        event.pt = point; ClientToScreen(list, &event.pt);
+        SendMessageW(tooltips, TTM_RELAYEVENT, 0, (LPARAM)&event);
+    }
+}
+std::wstring App::connectionTooltip() const {
+    if (connectionHover < 0 || (size_t)connectionHover >= connectionRows.size()) return {};
+    const auto &row = connectionRows[connectionHover];
+    if (row.profile < 0) {
+        auto folder = std::find_if(folders.begin(), folders.end(), [&](const auto &f) { return f.name == row.folder; });
+        bool collapsed = folder != folders.end() && folder->collapsed && connectionQuery.empty();
+        return L"Folder: " + row.folder + L"\n" + std::to_wstring(row.count) +
+            (row.count == 1 ? L" saved host" : L" saved hosts") + (connectionQuery.empty() ? L"" : L" matching search") +
+            L"\n" + (collapsed ? L"Collapsed" : L"Expanded") +
+            (connectionQuery.empty() ? L" · Click the arrow or press Enter to toggle" : L" · Clear search to collapse");
+    }
+    const auto &p = profiles[row.profile];
+    auto protocol = p.protocol; std::transform(protocol.begin(), protocol.end(), protocol.begin(), towupper);
+    auto address = p.host.find(L':') != std::wstring::npos ? L"[" + p.host + L"]" : p.host;
+    std::wstring text = p.displayName() + L"\n" + protocol + L" terminal";
+    if (p.displayName() != p.name) text += L"\nSaved name: " + p.name;
+    text += L"\n" + (p.user.empty() ? L"" : p.user + L"@") + address;
+    if (p.protocol != L"serial" && p.protocol != L"local") text += L":" + std::to_wstring(p.port);
+    text += L"\nFolder: " + (p.group.empty() ? L"No folder" : p.group);
+    return text;
 }
 void App::hostActions() {
     updateMenu();
@@ -384,6 +460,7 @@ std::wstring App::selectedFolder() const {
     return key.starts_with(L"folder:") ? key.substr(7) : L"";
 }
 void App::filter(std::wstring selection) {
+    clearConnectionTooltip();
     auto query = lower(ui::value(control(Search)));
     bool queryChanged = query != connectionQuery;
     bool reveal = !selection.empty();
@@ -413,9 +490,9 @@ void App::filter(std::wstring selection) {
         if (row.profile < 0) {
             key = L"folder:" + row.folder;
             auto folder = std::find_if(folders.begin(), folders.end(), [&](const auto &f) { return f.name == row.folder; });
-            text = row.folder + (folder->collapsed && query.empty() ? L", collapsed, " : L", expanded, ") + std::to_wstring(row.count) + L" hosts";
+            text = L"Folder: " + row.folder + (folder->collapsed && query.empty() ? L", collapsed, " : L", expanded, ") + std::to_wstring(row.count) + L" hosts";
         } else {
-            key = L"host:" + profiles[row.profile].name; text = profiles[row.profile].displayName();
+            key = L"host:" + profiles[row.profile].name; text = L"Terminal: " + profiles[row.profile].displayName();
             if (firstHost < 0) firstHost = (int)i;
         }
         if (key == selection) selected = (int)i;
@@ -473,7 +550,11 @@ void App::activateConnection() {
 void App::layout(bool revealTab) {
     ui::DpiScope dpiScope(hwnd);
     RECT client; GetClientRect(hwnd, &client);
+    int previousWidth = width, previousHeight = height, previousSidebar = sidebar;
     width = MulDiv(client.right, 96, ui::dpi); height = MulDiv(client.bottom, 96, ui::dpi);
+    sidebar = navigationVisible ? wook::navigationWidth(navigationPreferredWidth, width) : sidebarCollapsed;
+    bool navigationChanged = width != previousWidth || height != previousHeight || sidebar != previousSidebar;
+    if (navigationChanged) clearConnectionTooltip();
     int available = width - sidebar - 163 - 118;
     strip = wook::tabStrip(available, (int)tabs.size());
     revealTab |= tabArea != available || tabCount != (int)tabs.size() || tabSelection != active;
@@ -497,16 +578,23 @@ void App::layout(bool revealTab) {
                                 9, strip.width - 5, 35);
         SendMessageW(tooltips, TTM_NEWTOOLRECTW, 0, (LPARAM)&tip);
     }
+    ui::place(control(NavigationResize), sidebar - 7, 0, 7, height);
+    visible(control(NavigationResize), navigationVisible);
     ui::place(control(NavigationToggle), sidebar - 44, 12, 32, 32);
     SetWindowTextW(control(NavigationToggle), navigationVisible ? L"Hide hosts" : L"Show hosts");
-    ui::place(control(Search), 26, 64, sidebarExpanded - 52, 22);
-    ui::place(control(NewFolder), 18, 102, 130, 30);
-    ui::place(control(MoveHostUp), 156, 102, 34, 30);
-    ui::place(control(MoveHostDown), 198, 102, 34, 30);
-    ui::place(control(HostList), 10, 140, sidebarExpanded - 20, std::max(55, height - 178));
+    int navigationWidth = navigationVisible ? sidebar : navigationPreferredWidth;
+    ui::place(control(Search), 26, 64, navigationWidth - 52, 22);
+    ui::place(control(NewFolder), 18, 102, navigationWidth - 122, 30);
+    ui::place(control(MoveHostUp), navigationWidth - 96, 102, 34, 30);
+    ui::place(control(MoveHostDown), navigationWidth - 54, 102, 34, 30);
+    ui::place(control(HostList), 10, 140, navigationWidth - 24, std::max(55, height - 178));
     visible(control(Search), navigationVisible);
     visible(control(HostList), navigationVisible && !connectionRows.empty());
     for (int id : {NewFolder, MoveHostUp, MoveHostDown}) visible(control(id), navigationVisible);
+    // Shrinking an owner-drawn list does not invalidate its existing rows.
+    // Repaint all navigation children so text ellipses and moved buttons update.
+    if (navigationChanged) for (int id : {NavigationToggle, NavigationResize, Search, HostList, NewFolder, MoveHostUp, MoveHostDown})
+        InvalidateRect(control(id), nullptr, TRUE);
     int left = sidebar + 48, span = std::max(360, width - left - 48), card = (span - 17) / 2;
     ui::place(control(Quick), left + 17, 246, std::max(100, span - 166), 25);
     ui::place(control(QuickConnect), left + span - 123, 235, 123, 46);
@@ -519,6 +607,12 @@ void App::layout(bool revealTab) {
     ui::place(control(FilesSession), width - 522, 64, 80, 33);
     bool showFiles = active >= 0 && !tabs[active]->preview && !tabs[active]->files && tabs[active]->profile.protocol == L"ssh";
     toolbarLeft = width - (showFiles ? 522 : 434);
+    for (auto id : {sessionTip, statusTip}) {
+        TOOLINFOW tip{sizeof(tip)}; tip.hwnd = hwnd; tip.uId = id;
+        if (id == sessionTip && active >= 0) tip.rect = ui::rect(sidebar + 18, 60, std::max(1, toolbarLeft - sidebar - 24), 48);
+        if (id == statusTip) tip.rect = ui::rect(sidebar + 18, height - 30, std::max(1, width - sidebar - 230), 26);
+        SendMessageW(tooltips, TTM_NEWTOOLRECTW, 0, (LPARAM)&tip);
+    }
     ui::place(control(Reconnect), width - 226, 64, 102, 33);
     ui::place(control(SessionSettings), width - 115, 64, 95, 33);
     ui::place(control(SaveCurrent), width - 126, height - 30, 116, 27);
@@ -618,11 +712,11 @@ void App::paint(HDC dc) {
     if (navigationVisible) {
         ui::label(dc, L"CONNECTIONS", ui::rect(20, 18, 120, 23), ui::TextSize::caption, ui::muted, true);
         auto count = ui::value(control(Search)).empty() ? std::to_wstring(profiles.size()) : std::to_wstring(filtered.size()) + L" / " + std::to_wstring(profiles.size());
-        ui::label(dc, count, ui::rect(142, 18, 58, 23), ui::TextSize::caption, ui::muted, false, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+        ui::label(dc, count, ui::rect(138, 18, sidebar - 190, 23), ui::TextSize::caption, ui::muted, false, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
         ui::round(dc, ui::rect(18, 54, sidebar - 36, 40), ui::raised);
         if (connectionRows.empty()) {
-            ui::label(dc, profiles.empty() ? L"No saved connections." : L"No matching connections.", ui::rect(24, 154, 210, 25), ui::TextSize::body, ui::muted);
-            ui::label(dc, profiles.empty() ? L"Host → New host to add one." : L"Try another name or address.", ui::rect(24, 182, 210, 22), ui::TextSize::caption, ui::muted);
+            ui::label(dc, profiles.empty() ? L"No saved connections." : L"No matching connections.", ui::rect(24, 154, sidebar - 48, 25), ui::TextSize::body, ui::muted);
+            ui::label(dc, profiles.empty() ? L"Host → New host to add one." : L"Try another name or address.", ui::rect(24, 182, sidebar - 48, 22), ui::TextSize::caption, ui::muted);
         }
     }
     ui::fill(dc, ui::rect(sidebar + 1, 51, width - sidebar, 1), ui::line);
@@ -713,8 +807,8 @@ void App::paint(HDC dc) {
     ui::fill(dc, ui::rect(0, height - 32, width, 32), ui::panel);
     ui::fill(dc, ui::rect(0, height - 33, width, 1), ui::line);
     if (navigationVisible) {
-        ui::label(dc, L"●  LOCAL DATA", ui::rect(20, height - 30, 125, 26), ui::TextSize::caption, ui::accent, true);
-        ui::label(dc, std::to_wstring(tabs.size()) + L" tabs", ui::rect(158, height - 30, 75, 26), ui::TextSize::caption, ui::muted);
+        ui::label(dc, L"●  LOCAL DATA", ui::rect(20, height - 30, sidebar - 114, 26), ui::TextSize::caption, ui::accent, true);
+        ui::label(dc, std::to_wstring(tabs.size()) + L" tabs", ui::rect(sidebar - 94, height - 30, 75, 26), ui::TextSize::caption, ui::muted, false, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
     }
     auto status = menuHint;
     if (status.empty()) {
@@ -1241,6 +1335,18 @@ void App::tabMenu(int index, POINT point) {
 
 LRESULT CALLBACK editProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR data) {
     auto *app = (App *)data;
+    ui::DpiScope dpiScope(hwnd);
+    if (GetDlgCtrlID(hwnd) == HostList) {
+        if (msg == WM_NOTIFY && ((NMHDR *)lp)->hwndFrom == app->tooltips)
+            return SendMessageW(app->hwnd, msg, wp, lp);
+        if (msg == WM_MOUSEMOVE) {
+            app->hoverConnection({GET_X_LPARAM(lp), GET_Y_LPARAM(lp)});
+            TRACKMOUSEEVENT track{sizeof(track), TME_LEAVE, hwnd, 0}; TrackMouseEvent(&track);
+        }
+        if (msg == WM_MOUSELEAVE || msg == WM_MOUSEWHEEL || msg == WM_VSCROLL || msg == WM_KEYDOWN ||
+            msg == WM_LBUTTONDOWN || msg == WM_RBUTTONDOWN || msg == LB_SETTOPINDEX || msg == LB_SETCURSEL)
+            app->clearConnectionTooltip();
+    }
     if (msg == WM_GETDLGCODE && GetDlgCtrlID(hwnd) == HostList && wp == VK_RETURN)
         return DefSubclassProc(hwnd, msg, wp, lp) | DLGC_WANTMESSAGE;
     if (msg == WM_SETFOCUS || msg == WM_KILLFOCUS) PostMessageW(app->hwnd, WM_APP + 47, 0, 0);
@@ -1281,6 +1387,57 @@ LRESULT CALLBACK editProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, D
     if (msg == WM_NCDESTROY) RemoveWindowSubclass(hwnd, editProc, 1);
     return DefSubclassProc(hwnd, msg, wp, lp);
 }
+LRESULT CALLBACK navigationResizeProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR data) {
+    auto &app = *(App *)data;
+    ui::DpiScope dpiScope(hwnd);
+    try {
+        switch (msg) {
+        case WM_ERASEBKGND: return 1;
+        case WM_PAINT: {
+            PAINTSTRUCT ps{}; auto dc = BeginPaint(hwnd, &ps); RECT r{}; GetClientRect(hwnd, &r);
+            ui::fill(dc, r, app.navigationHot || app.navigationResizing ? ui::raised : ui::panel);
+            auto color = app.navigationResizing || GetFocus() == hwnd ? ui::accent : app.navigationHot ? ui::muted : ui::line;
+            RECT line{r.right / 2, 0, r.right / 2 + std::max(1, ui::px(1)), r.bottom}; ui::fill(dc, line, color);
+            RECT grip{r.right / 2 - ui::px(1), r.bottom / 2 - ui::px(18), r.right / 2 + ui::px(2), r.bottom / 2 + ui::px(18)};
+            ui::fill(dc, grip, app.navigationHot || app.navigationResizing ? ui::accent : ui::muted);
+            EndPaint(hwnd, &ps); return 0;
+        }
+        case WM_SETCURSOR: SetCursor(LoadCursorW(nullptr, IDC_SIZEWE)); return TRUE;
+        case WM_LBUTTONDOWN: {
+            if (!app.navigationVisible) return 0;
+            app.clearConnectionTooltip(); SendMessageW(app.tooltips, TTM_POP, 0, 0);
+            app.navigationStartWidth = app.navigationPreferredWidth;
+            POINT point{GET_X_LPARAM(lp), GET_Y_LPARAM(lp)}; MapWindowPoints(hwnd, app.hwnd, &point, 1);
+            app.navigationDragOffset = MulDiv(point.x, 96, ui::dpi) - app.sidebar;
+            app.navigationResizing = true; SetCapture(hwnd); InvalidateRect(hwnd, nullptr, FALSE); return 0;
+        }
+        case WM_MOUSEMOVE: {
+            if (!app.navigationHot) { app.navigationHot = true; InvalidateRect(hwnd, nullptr, FALSE); }
+            TRACKMOUSEEVENT track{sizeof(track), TME_LEAVE, hwnd, 0}; TrackMouseEvent(&track);
+            if (app.navigationResizing) {
+                POINT point{GET_X_LPARAM(lp), GET_Y_LPARAM(lp)}; MapWindowPoints(hwnd, app.hwnd, &point, 1);
+                int width = wook::navigationWidth(MulDiv(point.x, 96, ui::dpi) - app.navigationDragOffset, app.width);
+                if (width != app.sidebar) { app.navigationPreferredWidth = width; app.layout(); }
+            }
+            return 0;
+        }
+        case WM_MOUSELEAVE: app.navigationHot = false; InvalidateRect(hwnd, nullptr, FALSE); return 0;
+        case WM_LBUTTONUP: app.finishNavigationResize(true); return 0;
+        case WM_CAPTURECHANGED: case WM_CANCELMODE: app.finishNavigationResize(false); return 0;
+        case WM_GETDLGCODE: return DLGC_WANTARROWS;
+        case WM_KEYDOWN:
+            if (wp == VK_ESCAPE && app.navigationResizing) { app.finishNavigationResize(false); return 0; }
+            if (wp == VK_LEFT || wp == VK_RIGHT || wp == VK_HOME) {
+                int width = wp == VK_HOME ? sidebarExpanded : wook::navigationWidth(app.sidebar + (wp == VK_LEFT ? -16 : 16), app.width);
+                wook::saveNavigationWidth(width); app.navigationPreferredWidth = width; app.layout(); return 0;
+            }
+            break;
+        case WM_SETFOCUS: case WM_KILLFOCUS: InvalidateRect(hwnd, nullptr, FALSE); break;
+        case WM_NCDESTROY: RemoveWindowSubclass(hwnd, navigationResizeProc, 1); break;
+        }
+    } catch (const std::exception &error) { ui::error(app.hwnd, error); return 0; }
+    return DefSubclassProc(hwnd, msg, wp, lp);
+}
 LRESULT CALLBACK scrollButtonProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR data) {
     auto &app = *(App *)data;
     if (msg == WM_LBUTTONDOWN) app.scrollButtonFocus = GetFocus();
@@ -1312,6 +1469,8 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             SendMessageW(app->control(HostList), LB_SETITEMHEIGHT, 0, ui::px(65));
             SetWindowSubclass(app->control(HostList), editProc, 1, (DWORD_PTR)app);
             addButton(NavigationToggle, L"Hide hosts");
+            app->controls[NavigationResize - Search] = ui::control(hwnd, L"STATIC", L"Resize hosts panel", NavigationResize, SS_NOTIFY | WS_TABSTOP);
+            SetWindowSubclass(app->control(NavigationResize), navigationResizeProc, 1, (DWORD_PTR)app);
             addButton(NewFolder, L"+ Folder"); addButton(MoveHostUp, L"↑"); addButton(MoveHostDown, L"↓");
             SetWindowTextW(app->control(MoveHostUp), L"Move up"); SetWindowTextW(app->control(MoveHostDown), L"Move down");
             addButton(TabsPrevious, L"‹"); addButton(TabsNext, L"›"); addButton(TabsList, L"All tabs ▾");
@@ -1334,11 +1493,24 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             app->tooltips = CreateWindowExW(WS_EX_TOPMOST, TOOLTIPS_CLASSW, nullptr, WS_POPUP | TTS_ALWAYSTIP | TTS_NOPREFIX,
                 0, 0, 0, 0, hwnd, nullptr, GetModuleHandleW(nullptr), nullptr);
             SendMessageW(app->tooltips, TTM_SETMAXTIPWIDTH, 0, ui::px(440));
+            SetWindowTheme(app->tooltips, L"", L"");
+            SendMessageW(app->tooltips, TTM_SETTIPBKCOLOR, ui::raised, 0);
+            SendMessageW(app->tooltips, TTM_SETTIPTEXTCOLOR, ui::bright, 0);
+            SendMessageW(app->tooltips, WM_SETFONT, (WPARAM)ui::font(ui::TextSize::caption), FALSE);
+            SendMessageW(app->tooltips, TTM_SETDELAYTIME, TTDT_INITIAL, 650);
+            SendMessageW(app->tooltips, TTM_SETDELAYTIME, TTDT_RESHOW, 150);
+            SendMessageW(app->tooltips, TTM_SETDELAYTIME, TTDT_AUTOPOP, 20000);
             for (int i = 0; i < 32; ++i) {
                 TOOLINFOW tip{sizeof(tip)}; tip.uFlags = TTF_SUBCLASS; tip.hwnd = hwnd; tip.uId = 1000 + i;
                 tip.lpszText = LPSTR_TEXTCALLBACKW; SendMessageW(app->tooltips, TTM_ADDTOOLW, 0, (LPARAM)&tip);
             }
-            for (int id : {NavigationToggle, NewFolder, MoveHostUp, MoveHostDown, Search, SessionSettings, TabsPrevious, TabsNext, TabsList}) {
+            for (auto id : {sessionTip, statusTip}) {
+                TOOLINFOW tip{sizeof(tip)}; tip.uFlags = TTF_SUBCLASS; tip.hwnd = hwnd; tip.uId = id;
+                tip.lpszText = LPSTR_TEXTCALLBACKW; SendMessageW(app->tooltips, TTM_ADDTOOLW, 0, (LPARAM)&tip);
+            }
+            for (int id : {NavigationToggle, NavigationResize, NewFolder, MoveHostUp, MoveHostDown, Search, SessionSettings, TabsPrevious, TabsNext, TabsList,
+                Quick, QuickConnect, HomeNew, HomePreview, LocalCmd, LocalPowerShell, FilesSession, Duplicate, Reconnect, Split,
+                SaveCurrent, CommandText, SendCommand, SendAll, SyncInput, Targets}) {
                 TOOLINFOW tip{sizeof(tip)}; tip.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
                 tip.hwnd = hwnd; tip.uId = (UINT_PTR)app->control(id); tip.lpszText = LPSTR_TEXTCALLBACKW;
                 SendMessageW(app->tooltips, TTM_ADDTOOLW, 0, (LPARAM)&tip);
@@ -1387,9 +1559,12 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_SIZE: if (wp != SIZE_MINIMIZED) app->layout(); return 0;
         case WM_GETMINMAXINFO: ((MINMAXINFO *)lp)->ptMinTrackSize = {ui::px(980), ui::px(740)}; return 0;
         case WM_DPICHANGED: {
+            app->finishNavigationResize(false); app->clearConnectionTooltip();
             ui::dpi = HIWORD(wp); auto r = (RECT *)lp;
             for (auto control : app->controls) if (control) SendMessageW(control, WM_SETFONT, (WPARAM)ui::font(), TRUE);
             SendMessageW(app->control(HostList), LB_SETITEMHEIGHT, 0, ui::px(65));
+            SendMessageW(app->tooltips, TTM_SETMAXTIPWIDTH, 0, ui::px(440));
+            SendMessageW(app->tooltips, WM_SETFONT, (WPARAM)ui::font(ui::TextSize::caption), FALSE);
             SetWindowPos(hwnd, nullptr, r->left, r->top, r->right-r->left,r->bottom-r->top,SWP_NOZORDER | SWP_NOACTIVATE);
             DrawMenuBar(hwnd); return 0;
         }
@@ -1407,22 +1582,36 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 const auto &row = app->connectionRows[d->itemID];
                 bool selected = d->itemState & ODS_SELECTED; ui::fill(d->hDC, d->rcItem, ui::panel);
                 RECT r = d->rcItem; InflateRect(&r, -ui::px(3), -ui::px(3));
-                if (selected) ui::round(d->hDC, r, ui::raised, ui::line, 10);
                 int y = MulDiv(r.top, 96, ui::dpi);
+                int right = MulDiv(r.right, 96, ui::dpi) - 8;
                 if (row.profile < 0) {
+                    ui::round(d->hDC, r, ui::tint(ui::accent, ui::panel, selected ? 16 : 7), selected ? ui::accent : ui::line, 8);
                     auto folder = std::find_if(app->folders.begin(), app->folders.end(), [&](const auto &f) { return f.name == row.folder; });
                     bool collapsed = folder != app->folders.end() && folder->collapsed && ui::value(app->control(Search)).empty();
-                    ui::label(d->hDC, collapsed ? L"▸" : L"▾", ui::rect(10, y + 11, 28, 32), ui::TextSize::body, ui::accent, true, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-                    ui::label(d->hDC, row.folder, ui::rect(42, y + 7, sidebarExpanded - 78, 25), ui::TextSize::body, selected ? ui::bright : ui::text, true);
-                    ui::label(d->hDC, std::to_wstring(row.count) + (row.count == 1 ? L" host" : L" hosts"), ui::rect(42, y + 31, sidebarExpanded - 78, 22), ui::TextSize::caption, ui::muted);
+                    ui::label(d->hDC, collapsed ? L"▸" : L"▾", ui::rect(6, y + 11, 22, 32), ui::TextSize::body, ui::accent, true, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                    // Draw a folder shape instead of relying on an optional emoji font.
+                    ui::round(d->hDC, ui::rect(32, y + 18, 12, 9), ui::accent, ui::accent, 3);
+                    ui::round(d->hDC, ui::rect(32, y + 23, 24, 17), ui::accent, ui::accent, 3);
+                    ui::fill(d->hDC, ui::rect(35, y + 27, 18, 1), ui::tint(ui::bright, ui::accent, 35));
+                    ui::label(d->hDC, row.folder, ui::rect(66, y + 7, std::max(1, right - 66), 25), ui::TextSize::body, selected ? ui::bright : ui::text, true);
+                    ui::label(d->hDC, L"Folder · " + std::to_wstring(row.count) + (row.count == 1 ? L" host" : L" hosts"),
+                        ui::rect(66, y + 31, std::max(1, right - 66), 22), ui::TextSize::caption, ui::muted);
                 } else {
                     const auto &p = app->profiles[row.profile];
-                    int indent = p.group.empty() ? 0 : 14;
-                    ui::round(d->hDC, ui::rect(13 + indent, y + 12, 28, 33), ui::panel, selected ? ui::line : ui::panel, 8);
+                    int indent = p.group.empty() ? 0 : 28;
+                    if (indent) {
+                        RECT guide{ui::px(22), d->rcItem.top, ui::px(23), d->rcItem.bottom};
+                        ui::fill(d->hDC, guide, ui::line);
+                        ui::fill(d->hDC, ui::rect(23, y + 28, 12, 1), ui::line);
+                        r.left += ui::px(indent);
+                    }
+                    if (selected) ui::round(d->hDC, r, ui::raised, ui::accent, 8);
+                    ui::round(d->hDC, ui::rect(13 + indent, y + 12, 28, 33), ui::panel, ui::line, 6);
                     ui::label(d->hDC, L">_", ui::rect(13 + indent, y + 12, 28, 33), ui::TextSize::body, hostColor(p), true, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-                    ui::label(d->hDC, p.displayName(), ui::rect(50 + indent, y + 7, sidebarExpanded - 86 - indent, 25), ui::TextSize::body, selected ? ui::bright : ui::text, true);
-                    std::wstring detail = (p.user.empty() ? L"" : p.user + L"@") + p.host;
-                    ui::label(d->hDC, detail, ui::rect(50 + indent, y + 31, sidebarExpanded - 86 - indent, 22), ui::TextSize::caption, ui::muted);
+                    ui::label(d->hDC, p.displayName(), ui::rect(50 + indent, y + 7, std::max(1, right - 50 - indent), 25), ui::TextSize::body, selected ? ui::bright : ui::text, true);
+                    auto protocol = p.protocol; std::transform(protocol.begin(), protocol.end(), protocol.begin(), towupper);
+                    std::wstring detail = protocol + L" · " + (p.user.empty() ? L"" : p.user + L"@") + p.host;
+                    ui::label(d->hDC, detail, ui::rect(50 + indent, y + 31, std::max(1, right - 50 - indent), 22), ui::TextSize::caption, ui::muted);
                 }
                 if (d->itemState & ODS_FOCUS) { RECT f = r; InflateRect(&f,-3,-3); DrawFocusRect(d->hDC,&f); }
             } else if (d->CtlID == NavigationToggle)
@@ -1447,15 +1636,28 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_NOTIFY: {
             auto header = (NMHDR *)lp;
             if (header->hwndFrom == app->tooltips && header->code == TTN_GETDISPINFOW) {
-                if (header->idFrom >= 1000 && header->idFrom < 1000 + app->tabs.size()) {
-                    auto &tab = *app->tabs[header->idFrom - 1000];
+                app->tooltipText.clear();
+                if (header->idFrom == connectionTip) {
+                    app->tooltipText = app->connectionTooltip();
+                    ((NMTTDISPINFOW *)lp)->lpszText = app->tooltipText.data(); return 0;
+                }
+                bool tabTip = header->idFrom >= 1000 && header->idFrom < 1000 + app->tabs.size();
+                if (tabTip || (header->idFrom == sessionTip && app->active >= 0)) {
+                    auto &tab = *app->tabs[tabTip ? header->idFrom - 1000 : app->active];
                     app->tooltipText = tab.profile.displayName();
                     if (tab.profile.protocol == L"local") app->tooltipText += L"\nLocal terminal";
-                    else if (!tab.preview) app->tooltipText += L"\n" + (tab.profile.user.empty() ? L"" : tab.profile.user + L"@") + tab.profile.host + L":" + std::to_wstring(tab.profile.port);
+                    else if (tab.preview) app->tooltipText += L"\nTerminal color preview";
+                    else app->tooltipText += std::wstring(tab.files ? L"\nSFTP · " : L"\nTerminal · ") + (tab.profile.user.empty() ? L"" : tab.profile.user + L"@") + tab.profile.host + L":" + std::to_wstring(tab.profile.port);
+                    ((NMTTDISPINFOW *)lp)->lpszText = app->tooltipText.data(); return 0;
+                }
+                if (header->idFrom == statusTip) {
+                    if (auto host = app->selectedHost()) app->tooltipText = L"Selected host: " + host->displayName() + L"\n" + host->host + L":" + std::to_wstring(host->port);
+                    else app->tooltipText = L"F10: Open menus\nCtrl+Shift+P: Find a saved connection";
                     ((NMTTDISPINFOW *)lp)->lpszText = app->tooltipText.data(); return 0;
                 }
                 int id = GetDlgCtrlID((HWND)header->idFrom);
                 if (id == NavigationToggle) app->tooltipText = app->navigationVisible ? L"Hide hosts (Ctrl+Shift+H)" : L"Show hosts (Ctrl+Shift+H)";
+                else if (id == NavigationResize) app->tooltipText = L"Drag to resize the hosts panel\nWhen focused, use Left / Right to resize or Home for the default width";
                 else if (id == NewFolder) app->tooltipText = L"Create a folder for saved connections";
                 else if (id == MoveHostUp || id == MoveHostDown) app->tooltipText = !ui::value(app->control(Search)).empty() ?
                     L"Clear search to change the saved order" : id == MoveHostUp ? L"Move selected host or folder up (Ctrl+Up)" : L"Move selected host or folder down (Ctrl+Down)";
@@ -1464,6 +1666,22 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 else if (id == TabsPrevious) app->tooltipText = L"Scroll to earlier tabs (or use the mouse wheel over the tab strip)";
                 else if (id == TabsNext) app->tooltipText = L"Scroll to later tabs (or use the mouse wheel over the tab strip)";
                 else if (id == TabsList) app->tooltipText = L"Show all open tabs and select one, including tabs outside the visible strip";
+                else if (id == Quick) app->tooltipText = L"Quick connect · Enter user@hostname or ssh://user@hostname:port";
+                else if (id == QuickConnect) app->tooltipText = L"Connect to the address in Quick connect";
+                else if (id == HomeNew) app->tooltipText = L"Add a saved host";
+                else if (id == HomePreview) app->tooltipText = L"Preview terminal colors without connecting to a server";
+                else if (id == LocalCmd) app->tooltipText = L"Open a local Command Prompt terminal";
+                else if (id == LocalPowerShell) app->tooltipText = L"Open a local PowerShell terminal";
+                else if (id == FilesSession) app->tooltipText = L"Open SFTP files for the active SSH terminal";
+                else if (id == Duplicate) app->tooltipText = L"Duplicate the active tab (Ctrl+Shift+D)";
+                else if (id == Reconnect) app->tooltipText = L"Reconnect the active terminal (Ctrl+Shift+R)";
+                else if (id == Split) app->tooltipText = L"Choose single, two, three or four terminal panes";
+                else if (id == SaveCurrent) app->tooltipText = L"Save the active connection as a host";
+                else if (id == CommandText) app->tooltipText = L"Type a command and press Enter to send\n" + app->commandStatus;
+                else if (id == SendCommand) app->tooltipText = L"Send the command to the active pane, or to checked targets when Send to targets is enabled";
+                else if (id == SendAll) app->tooltipText = L"Send commands to all selected, visible and connected target panes";
+                else if (id == SyncInput) app->tooltipText = L"Synchronize keyboard input across selected, visible and connected target panes";
+                else if (id == Targets) app->tooltipText = L"Choose which visible terminal panes receive shared commands and synchronized keyboard input";
                 ((NMTTDISPINFOW *)lp)->lpszText = app->tooltipText.data();
                 return 0;
             }
@@ -1599,7 +1817,9 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 PostMessageW(hwnd, WM_SYSCOMMAND, SC_KEYMENU, wp); break;
             }
             return 0;
-        case WM_ACTIVATE: PostMessageW(hwnd, WM_APP + 47, 0, 0); break;
+        case WM_ACTIVATE:
+            if (LOWORD(wp) == WA_INACTIVE) app->finishNavigationResize(false);
+            PostMessageW(hwnd, WM_APP + 47, 0, 0); break;
         case WM_COPYDATA: {
             bool owned = false;
             for (auto &t : app->tabs) if (t->terminal == (HWND)wp) owned = true;
@@ -1702,7 +1922,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
         App app; app.directory=wook::executableDirectory();
         app.launchRelay = relay.get();
         app.navigationVisible = wook::loadNavigationVisible();
-        app.sidebar = app.navigationVisible ? sidebarExpanded : sidebarCollapsed;
+        app.navigationPreferredWidth = wook::loadNavigationWidth();
+        app.sidebar = app.navigationVisible ? app.navigationPreferredWidth : sidebarCollapsed;
         std::wstring migrationError;
         if (!GetEnvironmentVariableW(L"WOOK_DATA_DIR", nullptr, 0)) {
             try { wook::migrateLegacySettings(app.directory + L"\\data"); }
@@ -1741,6 +1962,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
             if (!current) { TranslateMessage(&msg); DispatchMessageW(&msg); continue; }
             ui::DpiScope dpiScope(current->hwnd);
             bool consumed=false;
+            if (msg.message == WM_KEYDOWN && msg.wParam == VK_ESCAPE && current->navigationResizing) {
+                current->finishNavigationResize(false); consumed = true;
+            }
             if (msg.message == WM_MOUSEWHEEL || msg.message == WM_MOUSEHWHEEL)
                 consumed = current->wheelTabs(msg.message, msg.wParam, msg.lParam);
             if (msg.message == WM_KEYDOWN || msg.message == WM_SYSKEYDOWN || msg.message == WM_KEYUP || msg.message == WM_SYSKEYUP) {

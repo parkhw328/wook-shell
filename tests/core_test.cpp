@@ -5,6 +5,7 @@
 #include "split.hpp"
 #include "launch.hpp"
 #include "tab_strip.hpp"
+#include "navigation.hpp"
 #include "broadcast.h"
 #include <algorithm>
 #include <shellapi.h>
@@ -83,6 +84,9 @@ int wmain() {
         check(!wook::loadNavigationVisible(), "Collapsed navigation survives reloading preferences");
         wook::saveNavigationVisible(true);
         check(wook::loadNavigationVisible(), "Expanded navigation survives reloading preferences");
+        check(wook::loadNavigationWidth() == 252, "Existing installations keep the default navigation width");
+        wook::saveNavigationWidth(420);
+        check(wook::loadNavigationWidth() == 420, "Navigation width survives preference reloads");
         check(wook::loadConfirmCloseTabs(), "Tab closing asks by default");
         wook::saveConfirmCloseTabs(false);
         check(!wook::loadConfirmCloseTabs(), "Do not ask again persists across preference reloads");
@@ -91,6 +95,24 @@ int wmain() {
         check(!wook::loadConfirmCloseTabs(), "Changing navigation must preserve close behavior");
         wook::saveConfirmCloseTabs(true);
         check(wook::loadConfirmCloseTabs() && !wook::loadNavigationVisible(), "Close confirmations can be restored independently");
+        check(wook::loadNavigationWidth() == 420, "Visibility and close preferences preserve the chosen width");
+        wook::saveNavigationWidth(-100);
+        check(wook::loadNavigationWidth() == wook::navigationMinWidth, "Saved width cannot hide the navigation controls");
+        wook::saveNavigationWidth(100000);
+        check(wook::loadNavigationWidth() == wook::navigationMaxWidth, "Saved width is bounded");
+        auto layoutPath = wsPath(L"workspace", "layout");
+        for (auto invalid : {"", "0", "219", "521", "320px", "99999999999999999999999"}) {
+            auto layout = wsOpen(layoutPath, true);
+            check(layout && wsSet(layout, "NavigationWidth", invalid) && wsSave(layout), "Write an invalid width fixture");
+            wsClose(layout);
+            check(wook::loadNavigationWidth() == wook::navigationDefaultWidth, "Invalid saved widths fall back safely");
+        }
+        auto lockedLayout = wsOpen(layoutPath, true);
+        check(lockedLayout != nullptr, "Lock workspace preferences");
+        rejects([&] { wook::saveNavigationWidth(400); }, "Navigation width reports a storage lock failure");
+        wsClose(lockedLayout); free(layoutPath);
+        wook::saveNavigationWidth(252);
+        check(!wook::loadNavigationVisible() && wook::loadConfirmCloseTabs(), "Width writes preserve unrelated preferences");
         wook::saveNavigationVisible(true);
         auto defaultPath = wsPath(L"sessions", "Default Settings");
         auto defaults = wsOpen(defaultPath, 0); free(defaultPath);

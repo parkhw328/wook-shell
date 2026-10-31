@@ -32,6 +32,8 @@ void applyTheme(WsStore *store, int fontSize = 9);
 void initializeDefaults();
 bool loadNavigationVisible();
 void saveNavigationVisible(bool visible);
+int loadNavigationWidth();
+void saveNavigationWidth(int width);
 bool loadConfirmCloseTabs();
 void saveConfirmCloseTabs(bool confirm);
 std::vector<Profile> loadProfiles();
