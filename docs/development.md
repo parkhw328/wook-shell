@@ -68,6 +68,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1
 npm --prefix tests/ssh ci --ignore-scripts --omit=optional
 node tests/ssh/font-integration.cjs
 node tests/ssh/navigation-integration.cjs # 탐색 너비 드래그·저장·상태 보존·행별 툴팁
+node tests/ssh/help-scroll-integration.cjs # 단축키·라이선스의 스크롤 직후 픽셀과 메시지 동작
 node tests/ssh/launch-integration.cjs
 node tests/ssh/key-import-integration.cjs # 공개키 선택·개인키 일치·등록·재사용·실제 서명
 node tests/ssh/mouse-integration.cjs

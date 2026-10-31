@@ -98,6 +98,45 @@ inline HWND edit(HWND parent, const wchar_t *cue, int id) {
     SendMessageW(hwnd, EM_SETLIMITTEXT, 512, 0);
     return hwnd;
 }
+inline LRESULT CALLBACK readOnlyTextProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR id, DWORD_PTR) {
+    if (msg == WM_NCDESTROY) { RemoveWindowSubclass(hwnd, readOnlyTextProc, id); return DefSubclassProc(hwnd, msg, wp, lp); }
+    if (msg == WM_ERASEBKGND) return 1;
+    if (msg == WM_PAINT) {
+        PAINTSTRUCT ps{}; auto dc = BeginPaint(hwnd, &ps); RECT r{}; GetClientRect(hwnd, &r);
+        auto buffer = CreateCompatibleDC(dc);
+        auto bitmap = r.right > 0 && r.bottom > 0 ? CreateCompatibleBitmap(dc, r.right, r.bottom) : nullptr;
+        auto target = buffer && bitmap ? buffer : dc;
+        auto old = target == buffer ? SelectObject(buffer, bitmap) : nullptr;
+        // Keep the native EDIT renderer, selection and accessibility, but
+        // compose background and glyphs together instead of showing an erase.
+        fill(target, r, panel); SetBkMode(target, OPAQUE);
+        DefSubclassProc(hwnd, WM_PRINTCLIENT, (WPARAM)target, PRF_CLIENT);
+        if (target == buffer) {
+            BitBlt(dc, 0, 0, r.right, r.bottom, buffer, 0, 0, SRCCOPY);
+            SelectObject(buffer, old);
+        }
+        if (bitmap) DeleteObject(bitmap);
+        if (buffer) DeleteDC(buffer);
+        EndPaint(hwnd, &ps); return 0;
+    }
+    auto result = DefSubclassProc(hwnd, msg, wp, lp);
+    switch (msg) {
+    case WM_VSCROLL: case WM_HSCROLL: case WM_MOUSEWHEEL: case WM_MOUSEHWHEEL:
+    case EM_LINESCROLL: case EM_SCROLL: case EM_SCROLLCARET:
+    case WM_KEYDOWN: case WM_SIZE:
+        // Native scrolling can copy old client pixels and invalidate only the
+        // newly exposed strip. Reconstruct the whole viewport before the next
+        // drag event, including when the native scrollbar runs a modal loop.
+        RedrawWindow(hwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_NOERASE | RDW_UPDATENOW);
+        break;
+    }
+    return result;
+}
+inline HWND readOnlyText(HWND parent, int id, DWORD style = 0) {
+    auto hwnd = control(parent, L"EDIT", L"", id, ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL | style);
+    SetWindowSubclass(hwnd, readOnlyTextProc, 1, 0);
+    return hwnd;
+}
 inline std::wstring value(HWND hwnd) {
     int len = GetWindowTextLengthW(hwnd);
     std::wstring out((size_t)len + 1, L'\0'); GetWindowTextW(hwnd, out.data(), len + 1); out.resize(len); return out;

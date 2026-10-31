@@ -5,6 +5,7 @@
 #include "mouse_smoke.inc"
 #include "scroll_smoke.inc"
 #include "message_smoke.inc"
+#include "help_scroll_smoke.inc"
 #include "workspace_smoke.inc"
 #include "navigation_smoke.inc"
 #include "connections_smoke.inc"
@@ -53,6 +54,21 @@ template<typename Check> void testNativeKeys(const std::wstring &directory, Chec
     require(reopened && publicText(reopened.get()) == publicText(imported.get()), "Converted OpenSSH key changed");
 }
 void runUiSmoke(App &app) {
+    if (GetEnvironmentVariableW(L"WOOK_TEST_HELP_SCROLL_ONLY", nullptr, 0)) {
+        KillTimer(app.hwnd, 1);
+        int checks = 0;
+        try {
+            auto require = [&](bool value, const char *message) { if (!value) throw std::runtime_error(message); ++checks; };
+            testHelpScrolling(app, require);
+            testMessageDialogs(app, require);
+            std::ofstream(std::filesystem::path(app.directory) / L"help-scroll-result.txt") << "PASS " << checks << " checks\n";
+            PostMessageW(app.hwnd, WM_CLOSE, 0, 0);
+        } catch (const std::exception &error) {
+            std::ofstream(std::filesystem::path(app.directory) / L"help-scroll-result.txt") << "FAIL " << error.what() << '\n';
+            PostQuitMessage(1);
+        }
+        return;
+    }
     if (GetEnvironmentVariableW(L"WOOK_TEST_NAVIGATION_ONLY", nullptr, 0)) {
         KillTimer(app.hwnd, 1);
         int checks = 0;
@@ -163,7 +179,7 @@ void runUiSmoke(App &app) {
         } else if (phase == 61) {
             if (testSftpAuthentication(app, require)) { phase = 37; waits = 0; }
         } else if (phase == 58) {
-            phase = -1; testMessageDialogs(app, require); phase = 59; waits = 0;
+            phase = -1; testHelpScrolling(app, require); testMessageDialogs(app, require); phase = 59; waits = 0;
         } else if (phase == 59) {
             if (testHostKeyMessages(app, require)) { phase = 37; waits = 0; }
         } else if (phase == 57) {

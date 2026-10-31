@@ -54,7 +54,7 @@ std::filesystem::path cacheFont(int id, const wchar_t *weight) {
 LRESULT CALLBACK licenseProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (msg == WM_CREATE) {
         ui::dark(hwnd);
-        auto edit = ui::control(hwnd, L"EDIT", L"", 1, ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL | WS_VSCROLL | WS_HSCROLL);
+        auto edit = ui::readOnlyText(hwnd, 1, WS_VSCROLL | WS_HSCROLL);
         SendMessageW(edit, EM_SETLIMITTEXT, 2 * 1024 * 1024, 0);
         auto text = wide(resourceBytes(105));
         std::wstring lines;
@@ -63,6 +63,7 @@ LRESULT CALLBACK licenseProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
     if (msg == WM_SIZE) { MoveWindow(GetDlgItem(hwnd, 1), 0, 0, LOWORD(lp), HIWORD(lp), TRUE); return 0; }
     if (msg == WM_CTLCOLORSTATIC || msg == WM_CTLCOLOREDIT) {
+        SetBkMode((HDC)wp, OPAQUE);
         SetTextColor((HDC)wp, ui::text); SetBkColor((HDC)wp, ui::panel);
         static HBRUSH brush = CreateSolidBrush(ui::panel); return (LRESULT)brush;
     }

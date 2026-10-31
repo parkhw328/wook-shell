@@ -105,8 +105,7 @@ LRESULT CALLBACK messageProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
     case WM_CREATE:
         ui::dark(hwnd);
-        p->body = ui::control(hwnd, L"EDIT", L"", bodyId,
-            ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL | WS_TABSTOP);
+        p->body = ui::readOnlyText(hwnd, bodyId, WS_TABSTOP);
         SetWindowSubclass(p->body, bodyProc, 1, (DWORD_PTR)p);
         SendMessageW(p->body, EM_SETLIMITTEXT, 0x7ffffffe, 0);
         SetWindowTextW(p->body, p->text.c_str());
@@ -181,6 +180,7 @@ LRESULT CALLBACK messageProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return TRUE;
     }
     case WM_CTLCOLORSTATIC: case WM_CTLCOLOREDIT:
+        SetBkMode((HDC)wp, OPAQUE);
         SetTextColor((HDC)wp, ui::text); SetBkColor((HDC)wp, ui::panel); SetDCBrushColor((HDC)wp, ui::panel);
         return (LRESULT)GetStockObject(DC_BRUSH);
     case WM_ERASEBKGND: return 1;
