@@ -167,7 +167,7 @@ SSH의 **공개키 인증은 키 쌍을 사용**합니다. 서버의 `~/.ssh/aut
 
 `Authentication → Public key authentication`을 선택하고 개인키 경로를 지정하세요. Windows는 PPK뿐 아니라 **OpenSSH 및 기존 PEM 형식의 `.key`·`.pem` 개인키**를 가져올 수 있습니다. 호스트를 저장하거나 접속할 때 PPK 사본을 등록하며, **Choose or import a registered key → Use key**로 다른 호스트에서도 재사용합니다. macOS는 기존 OpenSSH 경로를 사용합니다. 개인키는 서버에 업로드하지 마세요.
 
-다음 Windows 개발 빌드에는 **공개키 파일을 선택해 대응하는 로컬 개인키를 찾는 기능**이 추가되었습니다. 등록된 PPK와 같은 폴더의 키를 실제 공개키 내용으로 비교하며, 일치하는 개인키로 접속합니다. 기존 1.2.17 배포 파일에는 포함되지 않았습니다. 검색 순서·암호화된 키의 이름 규칙·검증 범위는 [공개키 파일 선택 안내](public-key-selection.md)를 확인하세요.
+Windows **1.2.18부터 공개키 파일을 선택해 대응하는 로컬 개인키를 찾을 수 있습니다.** 등록된 PPK와 같은 폴더의 키를 실제 공개키 내용으로 비교하며, 일치하는 개인키로 접속합니다. 검색 순서·암호화된 키의 이름 규칙은 [공개키 파일 선택 안내](public-key-selection.md), 배포 검증 범위는 [1.2.18 릴리스 노트](releases/1.2.18.md)를 확인하세요.
 
 ![Public key authentication](../assets/screenshots/public-key-host.png)
 
