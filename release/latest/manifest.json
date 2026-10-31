@@ -1,26 +1,26 @@
 {
-  "version": "1.2.19",
+  "version": "1.2.20",
   "createdBy": "Hyunwook Park",
   "artifacts": [
     {
       "platform": "windows-x64",
       "file": "windows-x64/wShell.exe",
-      "bytes": 3744256,
-      "sha256": "a19809c093ce1140f99c507abf5f40de70c8b3269c2f1a78118217b82a71a09a"
+      "bytes": 3746304,
+      "sha256": "03ee881ee58ec7d7512a2598d2b5952e823be99f8281a85955aec5d9c9b29239"
     },
     {
       "platform": "windows-x64",
       "file": "windows-x64/wshell-windows-x64.zip",
-      "bytes": 1708944,
-      "sha256": "7abbbed09a908a984a62f5a63fdd99a88f46cf118c5757106fc3a2882d4c7b52"
+      "bytes": 1709780,
+      "sha256": "2347ddc885c00fbe3a08294adef5af204a5339cca38664c611cebb50c643819c"
     }
   ],
-  "sourceCommit": "71d75f56db408edfbbe75f176b37966ddd96d386",
+  "sourceCommit": "a9f883dae77894833963d7a571f9762687309a7b",
   "sourceDirty": false,
   "buildHost": "linux",
   "build": {
-    "version": "1.2.19",
-    "sourceCommit": "71d75f56db408edfbbe75f176b37966ddd96d386",
+    "version": "1.2.20",
+    "sourceCommit": "a9f883dae77894833963d7a571f9762687309a7b",
     "sourceDirty": false,
     "host": "linux",
     "compiler": "clang version 23.1.2 (https://github.com/llvm/llvm-project.git 85ac560262434c9ccfc0c183ec22d4138ed647fb)",
@@ -46,7 +46,7 @@
       "libmingw32.a": "6d5bc14ef6512f14086cb6363c9eb84a0abf01f78e7eac862b79f939c4dd7e06",
       "libmingwex.a": "eb6aa4217b92a0d261f618abe92bb4807c6d230fbf50d33267651f5dbf84cf63"
     },
-    "binarySha256": "a19809c093ce1140f99c507abf5f40de70c8b3269c2f1a78118217b82a71a09a"
+    "binarySha256": "03ee881ee58ec7d7512a2598d2b5952e823be99f8281a85955aec5d9c9b29239"
   },
   "validation": {
     "staticPackage": "passed",
