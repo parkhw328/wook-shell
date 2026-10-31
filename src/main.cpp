@@ -112,6 +112,7 @@ struct App {
     RECT plus{}, home{};
     HWND control(int id) const { return controls[id - Search]; }
     void layout(bool revealTab = false);
+    void layoutNavigation();
     void scrollTabs(int delta);
     bool wheelTabs(UINT message, WPARAM keys, LPARAM position);
     void allTabsMenu(POINT point);
@@ -547,6 +548,49 @@ void App::moveConnection(int direction) {
 void App::activateConnection() {
     if (!selectedFolder().empty()) action(ToggleFolder); else action(ConnectHost);
 }
+void App::layoutNavigation() {
+    struct Placement { HWND window; RECT rect; };
+    std::vector<Placement> changed;
+    auto place = [&](int id, int x, int y, int width, int height) {
+        auto window = control(id);
+        RECT previous{}; GetWindowRect(window, &previous); MapWindowPoints(nullptr, hwnd, (POINT *)&previous, 2);
+        auto next = ui::rect(x, y, width, height);
+        if (!EqualRect(&previous, &next)) changed.push_back({window, next});
+    };
+    place(NavigationResize, sidebar - 7, 0, 7, height);
+    place(NavigationToggle, sidebar - 44, 12, 32, 32);
+    int navigationWidth = navigationVisible ? sidebar : navigationPreferredWidth;
+    place(Search, 26, 64, navigationWidth - 52, 22);
+    place(NewFolder, 18, 102, navigationWidth - 122, 30);
+    place(MoveHostUp, navigationWidth - 96, 102, 34, 30);
+    place(MoveHostDown, navigationWidth - 54, 102, 34, 30);
+    place(HostList, 10, 140, navigationWidth - 24, std::max(55, height - 178));
+    if (!changed.empty()) {
+        // Finish the whole navigation geometry before scheduling any paints.
+        // MoveWindow(TRUE) paints each control in the middle of a drag frame.
+        constexpr UINT flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW;
+        auto batch = BeginDeferWindowPos((int)changed.size());
+        for (const auto &item : changed) {
+            if (!batch) break;
+            auto r = item.rect;
+            batch = DeferWindowPos(batch, item.window, nullptr, r.left, r.top, r.right - r.left, r.bottom - r.top, flags);
+        }
+        if (!batch || !EndDeferWindowPos(batch)) for (const auto &item : changed) {
+            auto r = item.rect;
+            SetWindowPos(item.window, nullptr, r.left, r.top, r.right - r.left, r.bottom - r.top, flags);
+        }
+        // Lists must repaint every row when their width changes, including the
+        // scrollbar frame. Buttons paint a complete image without erasing first.
+        for (const auto &item : changed) RedrawWindow(item.window, nullptr, nullptr,
+            RDW_INVALIDATE | RDW_FRAME | (item.window == control(HostList) ? RDW_ERASE : RDW_NOERASE));
+    }
+    auto caption = navigationVisible ? L"Hide hosts" : L"Show hosts";
+    if (ui::value(control(NavigationToggle)) != caption) SetWindowTextW(control(NavigationToggle), caption);
+    for (int id : {NavigationResize, Search, HostList, NewFolder, MoveHostUp, MoveHostDown}) {
+        bool show = navigationVisible && (id != HostList || !connectionRows.empty());
+        if (bool(GetWindowLongPtrW(control(id), GWL_STYLE) & WS_VISIBLE) != show) visible(control(id), show);
+    }
+}
 void App::layout(bool revealTab) {
     ui::DpiScope dpiScope(hwnd);
     RECT client; GetClientRect(hwnd, &client);
@@ -578,23 +622,7 @@ void App::layout(bool revealTab) {
                                 9, strip.width - 5, 35);
         SendMessageW(tooltips, TTM_NEWTOOLRECTW, 0, (LPARAM)&tip);
     }
-    ui::place(control(NavigationResize), sidebar - 7, 0, 7, height);
-    visible(control(NavigationResize), navigationVisible);
-    ui::place(control(NavigationToggle), sidebar - 44, 12, 32, 32);
-    SetWindowTextW(control(NavigationToggle), navigationVisible ? L"Hide hosts" : L"Show hosts");
-    int navigationWidth = navigationVisible ? sidebar : navigationPreferredWidth;
-    ui::place(control(Search), 26, 64, navigationWidth - 52, 22);
-    ui::place(control(NewFolder), 18, 102, navigationWidth - 122, 30);
-    ui::place(control(MoveHostUp), navigationWidth - 96, 102, 34, 30);
-    ui::place(control(MoveHostDown), navigationWidth - 54, 102, 34, 30);
-    ui::place(control(HostList), 10, 140, navigationWidth - 24, std::max(55, height - 178));
-    visible(control(Search), navigationVisible);
-    visible(control(HostList), navigationVisible && !connectionRows.empty());
-    for (int id : {NewFolder, MoveHostUp, MoveHostDown}) visible(control(id), navigationVisible);
-    // Shrinking an owner-drawn list does not invalidate its existing rows.
-    // Repaint all navigation children so text ellipses and moved buttons update.
-    if (navigationChanged) for (int id : {NavigationToggle, NavigationResize, Search, HostList, NewFolder, MoveHostUp, MoveHostDown})
-        InvalidateRect(control(id), nullptr, TRUE);
+    layoutNavigation();
     int left = sidebar + 48, span = std::max(360, width - left - 48), card = (span - 17) / 2;
     ui::place(control(Quick), left + 17, 246, std::max(100, span - 166), 25);
     ui::place(control(QuickConnect), left + span - 123, 235, 123, 46);
@@ -1438,6 +1466,30 @@ LRESULT CALLBACK navigationResizeProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp,
     } catch (const std::exception &error) { ui::error(app.hwnd, error); return 0; }
     return DefSubclassProc(hwnd, msg, wp, lp);
 }
+LRESULT CALLBACK navigationButtonProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR id, DWORD_PTR) {
+    // WM_DRAWITEM covers the entire client area. Native button erasure would
+    // expose the system background before the finished image is copied below.
+    if (msg == WM_ERASEBKGND) return 1;
+    if (msg == WM_NCDESTROY) RemoveWindowSubclass(hwnd, navigationButtonProc, id);
+    return DefSubclassProc(hwnd, msg, wp, lp);
+}
+void drawNavigationButton(const DRAWITEMSTRUCT *item, ui::TextSize size, const wchar_t *caption = nullptr) {
+    auto r = item->rcItem;
+    int width = r.right - r.left, height = r.bottom - r.top;
+    auto memory = CreateCompatibleDC(item->hDC);
+    auto bitmap = CreateCompatibleBitmap(item->hDC, width, height);
+    if (!memory || !bitmap) {
+        if (memory) DeleteDC(memory);
+        if (bitmap) DeleteObject(bitmap);
+        ui::drawButton(item, false, size, caption); return;
+    }
+    auto previous = SelectObject(memory, bitmap);
+    SetWindowOrgEx(memory, r.left, r.top, nullptr);
+    auto buffered = *item; buffered.hDC = memory;
+    ui::drawButton(&buffered, false, size, caption);
+    BitBlt(item->hDC, r.left, r.top, width, height, memory, r.left, r.top, SRCCOPY);
+    SelectObject(memory, previous); DeleteObject(bitmap); DeleteDC(memory);
+}
 LRESULT CALLBACK scrollButtonProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR data) {
     auto &app = *(App *)data;
     if (msg == WM_LBUTTONDOWN) app.scrollButtonFocus = GetFocus();
@@ -1472,6 +1524,8 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             app->controls[NavigationResize - Search] = ui::control(hwnd, L"STATIC", L"Resize hosts panel", NavigationResize, SS_NOTIFY | WS_TABSTOP);
             SetWindowSubclass(app->control(NavigationResize), navigationResizeProc, 1, (DWORD_PTR)app);
             addButton(NewFolder, L"+ Folder"); addButton(MoveHostUp, L"↑"); addButton(MoveHostDown, L"↓");
+            for (int id : {NavigationToggle, NewFolder, MoveHostUp, MoveHostDown})
+                SetWindowSubclass(app->control(id), navigationButtonProc, 1, 0);
             SetWindowTextW(app->control(MoveHostUp), L"Move up"); SetWindowTextW(app->control(MoveHostDown), L"Move down");
             addButton(TabsPrevious, L"‹"); addButton(TabsNext, L"›"); addButton(TabsList, L"All tabs ▾");
             SetWindowSubclass(app->control(TabsPrevious), scrollButtonProc, 1, (DWORD_PTR)app);
@@ -1600,7 +1654,9 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     const auto &p = app->profiles[row.profile];
                     int indent = p.group.empty() ? 0 : 28;
                     if (indent) {
-                        RECT guide{ui::px(22), d->rcItem.top, ui::px(23), d->rcItem.bottom};
+                        bool lastChild = d->itemID + 1 >= app->connectionRows.size() ||
+                            app->connectionRows[d->itemID + 1].profile < 0 || app->connectionRows[d->itemID + 1].folder != row.folder;
+                        RECT guide{ui::px(22), d->rcItem.top, ui::px(23), lastChild ? ui::px(y + 29) : d->rcItem.bottom};
                         ui::fill(d->hDC, guide, ui::line);
                         ui::fill(d->hDC, ui::rect(23, y + 28, 12, 1), ui::line);
                         r.left += ui::px(indent);
@@ -1615,9 +1671,10 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 }
                 if (d->itemState & ODS_FOCUS) { RECT f = r; InflateRect(&f,-3,-3); DrawFocusRect(d->hDC,&f); }
             } else if (d->CtlID == NavigationToggle)
-                ui::drawButton(d, false, ui::TextSize::section, app->navigationVisible ? L"‹" : L"›");
+                drawNavigationButton(d, ui::TextSize::section, app->navigationVisible ? L"‹" : L"›");
             else if (d->CtlID == MoveHostUp || d->CtlID == MoveHostDown)
-                ui::drawButton(d, false, ui::TextSize::body, d->CtlID == MoveHostUp ? L"↑" : L"↓");
+                drawNavigationButton(d, ui::TextSize::body, d->CtlID == MoveHostUp ? L"↑" : L"↓");
+            else if (d->CtlID == NewFolder) drawNavigationButton(d, ui::TextSize::body);
             else ui::drawButton(d, d->CtlID == QuickConnect,
                                   d->CtlID == TabsList ? ui::TextSize::caption : ui::TextSize::body);
             return TRUE;

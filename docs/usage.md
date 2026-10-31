@@ -84,7 +84,7 @@ Windows **1.2.19부터 `File · Host · Session · View · Tools · Help` 메뉴
 
 검색 안내는 **Name, alias, address…**이며 이름·별칭·주소·그룹·사용자를 검색합니다. 선택할 결과가 없으면 Connect·SFTP·Edit이 비활성화됩니다. [0.10.0 변경 내역](../docs/releases/0.10.0.md), [작업 공간 UI 요구사항](../rules/requirements/workspace-ui.md)
 
-![Resizable navigation with distinct folders and terminal connections](../assets/screenshots/navigation-folders-1.2.21.png)
+![Resizable navigation with folder branches ending at the last terminal](../assets/screenshots/navigation-tree-1.2.22.png)
 
 ### Windows 연결 폴더와 표시 순서
 
@@ -94,7 +94,7 @@ Windows **1.2.19부터 `File · Host · Session · View · Tools · Help` 메뉴
 
 왼쪽 목록의 **+ Folder**로 폴더를 만들고, 폴더 우클릭의 **Rename folder / Delete folder**로 이름을 바꾸거나 삭제합니다. 기존 호스트의 Group 값도 폴더로 표시됩니다. 폴더 화살표 또는 Enter·더블클릭으로 접고 펼치며, 빈 폴더와 접힘 상태도 저장됩니다. 폴더를 삭제하면 안의 호스트는 폴더 밖으로 이동하고 연결 설정과 열려 있는 터미널은 유지됩니다.
 
-폴더에는 **주황색 폴더 아이콘·배경·Folder 설명**을 표시합니다. 터미널에는 **`>_` 아이콘·프로토콜·접속 주소**를 표시하고, 폴더 안의 터미널은 들여쓰기와 연결선으로 묶어 보여줍니다.
+폴더에는 **주황색 폴더 아이콘·배경·Folder 설명**을 표시합니다. 터미널에는 **`>_` 아이콘·프로토콜·접속 주소**를 표시하고, 폴더 안의 터미널은 들여쓰기와 연결선으로 묶어 보여줍니다. 연결선은 마지막 자식에서 `└` 모양으로 끝나며 검색 결과에서도 마지막으로 표시되는 자식을 기준으로 마감합니다.
 
 호스트 우클릭의 **Move to folder**에서 이동할 폴더를 선택합니다. **No folder**는 폴더 밖으로 옮깁니다. New host / Edit의 **Folder**에서도 기존 폴더를 선택하거나 새 이름을 입력할 수 있습니다. 폴더를 선택한 채 New host를 누르면 해당 폴더가 미리 선택됩니다. 폴더는 한 단계 그룹으로 관리합니다.
 

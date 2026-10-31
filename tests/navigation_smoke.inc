@@ -1,4 +1,18 @@
 // Isolated navigation gestures and tooltip routing; no SSH processes are started.
+struct NavigationPaintProbe {
+    HWND window;
+    unsigned paints = 0, moves = 0, captions = 0;
+    explicit NavigationPaintProbe(HWND value) : window(value) { SetWindowSubclass(window, proc, 91, (DWORD_PTR)this); }
+    ~NavigationPaintProbe() { RemoveWindowSubclass(window, proc, 91); }
+    void reset() { paints = moves = captions = 0; }
+    static LRESULT CALLBACK proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR data) {
+        auto &probe = *(NavigationPaintProbe *)data;
+        if (msg == WM_PAINT) ++probe.paints;
+        if (msg == WM_WINDOWPOSCHANGING) ++probe.moves;
+        if (msg == WM_SETTEXT) ++probe.captions;
+        return DefSubclassProc(hwnd, msg, wp, lp);
+    }
+};
 template<typename Check> void testNavigationDetails(App &app, Check require) {
     auto list = app.control(HostList), handle = app.control(NavigationResize);
     auto rectangle = [&](HWND window) {
@@ -41,10 +55,67 @@ template<typename Check> void testNavigationDetails(App &app, Check require) {
     SetWindowPos(app.hwnd, nullptr, 0, 0, ui::px(1400), ui::px(820), SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
     auto selection = app.connectionSelection(); SetFocus(app.control(Quick));
     SetWindowTextW(app.control(Quick), L"keep-this-draft");
+    auto checkGuide = [&](unsigned index, bool lastChild) {
+        auto target = GetDC(list), memory = CreateCompatibleDC(target);
+        auto bitmap = CreateCompatibleBitmap(target, ui::px(220), ui::px(65));
+        auto old = SelectObject(memory, bitmap);
+        DRAWITEMSTRUCT item{}; item.CtlType = ODT_LISTBOX; item.CtlID = HostList; item.itemID = index;
+        item.itemAction = ODA_DRAWENTIRE; item.hwndItem = list; item.hDC = memory; item.rcItem = ui::rect(0, 0, 220, 65);
+        SendMessageW(app.hwnd, WM_DRAWITEM, HostList, (LPARAM)&item);
+        auto above = GetPixel(memory, ui::px(22), ui::px(10));
+        auto elbow = GetPixel(memory, ui::px(28), ui::px(31));
+        auto below = GetPixel(memory, ui::px(22), ui::px(50));
+        SelectObject(memory, old); DeleteObject(bitmap); DeleteDC(memory); ReleaseDC(list, target);
+        require(above == ui::line && elbow == ui::line, "Each folder child must connect to the tree above and to its terminal icon");
+        require(below == (lastChild ? ui::panel : ui::line), "The last folder child must end its branch at the elbow, while earlier siblings continue");
+    };
+    checkGuide(2, true); // A single child, followed by another folder.
+    auto sibling = grouped; sibling.name = L"Replica"; sibling.alias = L"Replica";
+    app.profiles.push_back(sibling); app.filter();
+    checkGuide(2, false); checkGuide(3, true);
+    app.folders[0].collapsed = true; app.filter();
+    require(app.connectionRows.size() == 3 && app.connectionRows[2].profile < 0, "Collapsed folders must not leave any child branches");
+    SetWindowTextW(app.control(Search), grouped.name.c_str());
+    require(app.connectionRows.size() == 2, "Search should expose only the matching child of the collapsed folder");
+    checkGuide(1, true);
+    SetWindowTextW(app.control(Search), L""); app.folders[0].collapsed = false; app.folders.pop_back(); app.filter();
+    checkGuide(3, true); // Last child at the end of the entire connection list.
+    for (int i = 0; i < 32; ++i) { auto extra = sibling; extra.name += std::to_wstring(i); app.profiles.push_back(extra); }
+    app.filter();
+    RECT listClient{}; GetClientRect(list, &listClient);
+    auto bottom = SendMessageW(list, LB_ITEMFROMPOINT, 0, MAKELPARAM(ui::px(90), listClient.bottom - 1));
+    require(LOWORD(bottom) + 1 < app.connectionRows.size(), "Tree fixture has siblings below the viewport");
+    checkGuide(LOWORD(bottom), false);
+    SendMessageW(list, LB_SETTOPINDEX, app.connectionRows.size() - 2, 0);
+    checkGuide((unsigned)app.connectionRows.size() - 1, true);
+    app.profiles.resize(2); app.folders.push_back({L"Empty folder"}); app.filter(selection);
+    SendMessageW(list, LB_SETTOPINDEX, 0, 0);
+    pump(100);
+    NavigationPaintProbe probes[] {NavigationPaintProbe(app.control(NavigationToggle)), NavigationPaintProbe(app.control(NewFolder)),
+        NavigationPaintProbe(app.control(MoveHostUp)), NavigationPaintProbe(app.control(MoveHostDown))};
+    for (auto &probe : probes) {
+        RECT r{}; GetClientRect(probe.window, &r);
+        auto target = GetDC(probe.window), memory = CreateCompatibleDC(target);
+        auto bitmap = CreateCompatibleBitmap(target, r.right, r.bottom);
+        auto old = SelectObject(memory, bitmap);
+        ui::fill(memory, r, RGB(91, 53, 117));
+        SendMessageW(probe.window, WM_ERASEBKGND, (WPARAM)memory, 0);
+        bool retained = GetPixel(memory, r.right / 2, r.bottom / 2) == RGB(91, 53, 117);
+        SelectObject(memory, old); DeleteObject(bitmap); DeleteDC(memory); ReleaseDC(probe.window, target);
+        require(retained, "Navigation button erasure must not expose an intermediate blank frame");
+    }
     begin(); dragTo(420);
+    for (auto &probe : probes) require(probe.paints == 0, "A resize gesture must finish positioning navigation buttons before painting any of them");
+    pump(100);
+    for (auto &probe : probes) require(probe.paints == 1, "Each moved navigation button should paint once per resize frame");
     require(app.navigationResizing && GetCapture() == handle && app.sidebar == 420, "Dragging the divider resizes immediately with capture");
     require(wook::loadNavigationWidth() == 252, "A drag does not write preferences on every mouse move");
     end();
+    pump(100);
+    for (auto &probe : probes) probe.reset();
+    app.layout(); app.layout(); pump(100);
+    for (auto &probe : probes) require(probe.paints == 0 && probe.moves == 0 && probe.captions == 0,
+        "Unchanged layout and captions must not repaint or move navigation buttons");
     require(!app.navigationResizing && GetCapture() != handle && wook::loadNavigationWidth() == 420, "Releasing the divider saves its width");
     require(GetFocus() == app.control(Quick) && ui::value(app.control(Quick)) == L"keep-this-draft" && app.connectionSelection() == selection,
             "Dragging preserves input focus, draft and selected connection");
