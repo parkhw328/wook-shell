@@ -38,7 +38,7 @@ void runConnectionsSmoke(App &app) {
         };
         editor(NewFolder, L"빈 폴더");
         require(app.selectedFolder() == L"빈 폴더" && app.connectionRows.size() == 3, "Create an empty folder through the native dialog");
-        require(!IsWindowEnabled(app.control(ConnectHost)) && !IsWindowEnabled(app.control(EditHost)) && !IsWindowEnabled(app.control(FilesHost)),
+        require(!app.menuBar.enabled(ConnectHost) && !app.menuBar.enabled(EditHost) && !app.menuBar.enabled(FilesHost),
                 "Selecting a folder disables actions that require a host");
         auto count = app.folders.size();
         editor(NewFolder, L"Canceled folder", false);

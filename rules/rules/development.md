@@ -7,21 +7,21 @@
 - 2026-10-08 GitHub Actions 포함 사용량 소진으로 Windows도 로컬 빌드·검증을 기본으로 한다. `windows.yml`과 `ipad.yml`은 수동 실행 전용이며 push·PR에서 자동 빌드를 실행하지 않는다. 한도가 초기화되더라도 자동으로 CI를 재개하지 않고 사용자의 재개 요청을 따른다.
 - GitHub-hosted CI는 사용자가 실행을 명시적으로 요청했을 때만 사용한다. macOS는 추가로 `windows.yml`의 `build_macos: true`를, iPad는 `ipad.yml`을 선택해야 하며 해당 플랫폼 빌드 중단 규칙도 유지한다.
 - 기존 macOS·iPad 소스와 빌드 절차는 재개를 위해 보존한다. Windows 검증 결과를 다른 플랫폼의 검증 완료로 표시하지 않으며, 이전 산출물을 최신 Windows 변경까지 반영한 것으로 안내하지 않는다.
-- 아래 macOS 및 [iPad 규칙](ipad.md)의 빌드·검증 절차는 해당 플랫폼을 명시적으로 요청받았을 때 적용한다.
+- 아래 macOS 및 [iPad 규칙](../requirements/ipad.md)의 빌드·검증 절차는 해당 플랫폼을 명시적으로 요청받았을 때 적용한다.
 
 ## 공통 개발 원칙
 
-- 루트 `AGENTS.md`는 작업 시작점과 규칙 색인으로 최신 상태를 유지한다. 상세 개발 정책은 이 문서, 기능별 정책은 해당 `rules/` 문서에서 관리한다.
+- 루트 `AGENTS.md`는 작업 시작점으로, [프로젝트 지도](../README.md)는 규칙·요구사항·구현·검증 색인으로 유지한다. `rules/rules/`에는 개발·검증·배포 방법을, `rules/requirements/`에는 제품 동작·기술 제약·인수 기준을 둔다. 같은 정책을 복사하지 않고 해당 원본에 연결한다.
 - C++20과 Win32 API를 사용한다. C/C++ 들여쓰기는 공백 4칸, 타입은 PascalCase, 함수와 변수는 camelCase다.
 - 소스는 `src/`, 테스트는 `tests/`, 빌드 자동화는 `scripts/`, 패치는 `patches/`, 재배포 자산은 `assets/`와 `licenses/`에 둔다.
 - PuTTY 코어의 암호화와 터미널 해석은 재구현하지 않는다. 변경은 저장소, 창 통합, 설정 화면과 자격 증명 공급 경계에 한정한다.
-- 저장 비밀번호는 `src/credentials.cpp`에서 DPAPI 사용자 범위로 암호화한다. 자식 프로세스에 평문 인수·환경변수·임시 파일로 전달하지 않으며 복호화 버퍼는 사용 후 지운다. 사용자가 직접 지정한 실행 인자 `-pw`/`--password`는 입력 경계에서만 허용하며 노출 범위와 `--password-stdin` 대안을 문서화한다. 상세 동작은 [실행 인자 규칙](launch-arguments.md)을 따른다.
+- 저장 비밀번호는 `src/credentials.cpp`에서 DPAPI 사용자 범위로 암호화한다. 자식 프로세스에 평문 인수·환경변수·임시 파일로 전달하지 않으며 복호화 버퍼는 사용 후 지운다. 사용자가 직접 지정한 실행 인자 `-pw`/`--password`는 입력 경계에서만 허용하며 노출 범위와 `--password-stdin` 대안을 문서화한다. 상세 동작은 [실행 인자 규칙](../requirements/launch-arguments.md)을 따른다.
 - 비밀번호 공급은 SSH 엔진이 지정한 인증 대상 메타데이터만 사용한다. 서버가 보낸 프롬프트 문자열로 비밀번호나 OTP를 추측하지 않는다. 백업에서는 암호문과 연결 정보를 제외한다.
 - 연결 설정의 추상 모델과 핸들러는 유지한다. `patches/wshell-config.h`가 모델을 `src/settings_ui.cpp`의 테마 화면에 연결한다.
 - 키 관리는 직접 라이브러리를 호출한다. RSA 생성은 Windows CNG를 사용하고 PuTTY의 암호 연산 링크 보호를 제거하지 않는다.
-- Windows 키 가져오기·등록·재사용은 [개인키 등록 규칙](keys.md)을 따른다.
+- Windows 키 가져오기·등록·재사용은 [개인키 등록 요구사항](../requirements/keys.md)을 따른다.
 - 텍스트 크기는 `src/ui.hpp`의 `TextSize`를 사용하고 굵기는 실제 내장 Regular/Bold만 사용한다.
-- 탐색창·상단 메뉴·검색·폰트를 변경할 때는 [작업 공간 UI 규칙](workspace-ui.md)을 적용한다. 폰트 캐시 생성 전부터 `WOOK_DATA_DIR`를 격리하고, 자식 터미널도 같은 캐시를 사용한다.
+- 탐색창·상단 메뉴·검색·폰트를 변경할 때는 [작업 공간 UI 요구사항](../requirements/workspace-ui.md)을 적용한다. 폰트 캐시 생성 전부터 `WOOK_DATA_DIR`를 격리하고, 자식 터미널도 같은 캐시를 사용한다.
 - 외부 소스·도구는 버전과 SHA-256을 고정하고 검증한다. 개발 도구·중간 빌드·캐시는 커밋하지 않는다. 2026-10-08 사용자 요청에 따라 검증한 버전별 `release` 배포 산출물은 Git에 함께 보관한다.
 - `resources/`는 사용자가 제공한 로컬 재현 샘플·진단 자료용이며 전체를 Git과 배포에서 제외한다. 테스트는 샘플을 이 경로에서 읽되 생성 파일은 `build/` 아래 격리 폴더에 둔다.
 - 사용자 입력은 검증하고, 프로세스 인수는 Windows 규칙에 따라 인용한다. 셸을 경유해 실행하지 않는다.
@@ -34,7 +34,7 @@
 
 - Linux x86_64 교차 빌드: `python3 scripts/build-windows-linux.py --bootstrap`, 이후 `python3 scripts/build-windows-linux.py`. 도구는 `.tools/`, 중간 빌드는 `build/windows-linux/`, 작업 중 EXE·ZIP·해시는 `build/packages/<VERSION>/windows-x64/`에 둔다. 배포 요청 시 소스를 커밋하고 `python3 scripts/build-windows-linux.py --dist`로 새 버전을 `release/<VERSION>/windows-x64/`에 모은다.
 - Linux에서는 PE·ZIP·내장 리소스를 정적으로 검증하고 Windows 테스트 EXE를 컴파일한다. Windows 실행·SSH·UI·IME·DPAPI 회귀 검증은 실행하지 않으며 통과로 표시하지 않는다. Windows와 Linux 빌드는 같은 checkout에서 동시에 실행하지 않는다. 2026-10-08 사용자 요청에 따라 Windows 실기 검증 전의 교차 빌드도 `release/`에서 제공하되, manifest와 다운로드 안내에 Linux 정적 검사 통과·Windows/NGS 실행 미검증을 명시한다. 이는 이전의 실기 검증 전 배포 금지 규칙을 대체한다.
-- Python 빌드 도구 회귀 검증: `python3 -m unittest discover -s tests -p 'test_*.py'`. Linux 호스트 런타임 호환 설정은 [상세 개발 안내](../docs/development.md)의 교차 빌드 절차를 따른다.
+- Python 빌드 도구 회귀 검증: `python3 -m unittest discover -s tests -p 'test_*.py'`. Linux 호스트 런타임 호환 설정은 [상세 개발 안내](../../docs/development.md)의 교차 빌드 절차를 따른다.
 - 최초 빌드: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 -Bootstrap`.
 - 이후 빌드: `scripts/build.ps1`; CTest의 `core-tests`와 배포 ZIP 생성까지 수행한다.
 - Windows 네이티브·Linux 교차 빌드는 `scripts/windows-release.cmake`의 공통 Release 옵션을 사용한다. 최적화·정적 링크·보호 옵션을 호스트별로 복제하지 않는다. PuTTY의 C assertion과 암호 연산 최적화 경계를 유지하며, 내장 고지는 UTF-8/LF와 명시적인 파일명 정렬 순서, 앱 manifest·버전 헤더는 LF, PE·ZIP의 빌드 시각 메타데이터는 고정한다.
@@ -44,9 +44,9 @@
 - 알림·확인·About: `node tests/ssh/message-integration.cjs`. 기본 버튼·Enter/Esc·긴 한글 본문·스크롤·DPI·중첩 모달과 실제 SSH 호스트 키 취소/일회 연결/저장 동작을 격리 검증한다. Win32 메시지 검사는 실제 OS 입력 라우팅 검사와 구분한다.
 - 터미널 마우스·스크롤: `node tests/ssh/mouse-integration.cjs`, `node tests/ssh/mouse-integration.cjs --application-mouse`, `node tests/ssh/scroll-integration.cjs`, `node tests/ssh/scroll-integration.cjs --follow-output`. 실제 루프백 SSH·클립보드·스크롤바와 Win32 메시지를 사용하며 OS의 실제 포커스 라우팅 검사와 구분한다.
 - 실행 인자: `node tests/ssh/launch-integration.cjs`. 배포 EXE로 실제 루프백 SSH 인증, 저장 호스트 재사용, UTF-8 파이프, 일회용 암호 정리와 자식 명령줄을 검증한다.
-- SSH 키 선택·등록: `node tests/ssh/key-import-integration.cjs`. 공개키에서 개인키 찾기, 외부 형식 가져오기, 등록 파일 보호와 EXE의 실제 키 인증·재사용을 검증한다. Linux의 파서·검색 로직 검사는 [SSH 키 규칙](keys.md)을 따른다.
+- SSH 키 선택·등록: `node tests/ssh/key-import-integration.cjs`. 공개키에서 개인키 찾기, 외부 형식 가져오기, 등록 파일 보호와 EXE의 실제 키 인증·재사용을 검증한다. Linux의 파서·검색 로직 검사는 [SSH 키 요구사항](../requirements/keys.md)을 따른다.
 - 테스트는 임시 루프백 SSH 서버와 `build/` 아래 격리 데이터만 사용한다. 테스트 창은 자동 종료한다.
-- 배포 산출물은 플랫폼별 기존 `release` 경로로 일원화하고 해시·manifest·다운로드 목록·설명서를 함께 갱신해 커밋·푸시한다. 실행파일과 ZIP 내부 이름은 항상 `wShell.exe`이며 NGS용 별도 이름의 파일은 제공하지 않는다. NGS 환경의 수동 이름 변경은 [상세 사용법](../docs/usage.md)에 안내한다. Linux 배포 manifest는 `--cross-built`로 생성하고 재검증은 `--catalog-only`로 기존 출처와 검증 상태를 보존한다.
+- 배포 산출물은 플랫폼별 기존 `release` 경로로 일원화하고 해시·manifest·다운로드 목록·설명서를 함께 갱신해 커밋·푸시한다. 실행파일과 ZIP 내부 이름은 항상 `wShell.exe`이며 NGS용 별도 이름의 파일은 제공하지 않는다. NGS 환경의 수동 이름 변경은 [상세 사용법](../../docs/usage.md)에 안내한다. Linux 배포 manifest는 `--cross-built`로 생성하고 재검증은 `--catalog-only`로 기존 출처와 검증 상태를 보존한다.
 - 데스크톱 버전은 루트 `VERSION`에서 관리한다. 현재 배포 대상은 `release/<version>/windows-x64/`이며 `scripts/index-dist.py`로 해시 manifest를 생성한다. `release/<version>/macos-universal/`은 macOS 빌드를 명시적으로 요청받았을 때만 갱신한다.
 - 새 Windows 배포는 `VERSION`을 올리고 소스 변경을 커밋한 뒤 `scripts/build.ps1`과 위의 로컬 회귀 검증을 실행한다. 검증한 EXE·ZIP·SHA-256·manifest를 별도 배포 커밋으로 푸시한다. 소스 커밋·푸시와 `release` 파일 공유에 GitHub Actions 실행은 필요하지 않다.
 - 로컬 배포 manifest는 실제 `sourceCommit`과 `sourceDirty: false`를 확인한다. 로컬 빌드에는 `workflow`가 없으며 CI 통과로 표시하지 않는다. 명시적으로 요청받은 CI 배포는 통과한 산출물을 내려받고 `python scripts/index-dist.py --catalog-only`로 검증·목록만 갱신해 원래 소스 커밋과 CI 링크를 보존한다.
@@ -71,22 +71,6 @@
 - SwiftTerm의 터미널 명령을 통한 클립보드 읽기/쓰기는 허용하지 않는다. 사용자가 실행한 키보드 복사/붙여넣기는 유지한다.
 - Windows 로컬 셸은 PuTTY ConPTY 백엔드, macOS는 PTY와 로그인 셸을 사용한다. 셸/SSH 프로세스는 탭 종료 시 정리한다.
 - macOS의 고급 연결 기능은 Windows와 범위가 다르다. `docs/usage.md`의 플랫폼 비교와 실제 검증 범위를 일치시킨다.
-
-## 분할 보기
-
-- 분할 영역은 탭의 안정적인 객체/UUID로 추적한다. 탭 재정렬·닫기·포커스 이동에 따라 다른 연결을 잘못 조작하지 않도록 검증한다.
-- Windows 엔진의 포커스 알림은 실제 소유한 터미널 HWND만 받는다. macOS는 해당 작업 공간 창의 클릭만 추적한다.
-- Windows 활성 영역은 호스트 색상과 독립된 주황색 테두리와 ACTIVE 텍스트로 표시한다. 확대/복귀는 기존 영역 객체를 보존하며 입력 동기화를 해제한다. Files는 선택적 도구 모음의 맨 왼쪽에 두어 로컬 셸에서 중간 공백을 만들지 않는다.
-- Windows 키보드 포커스는 실제 전경 입력 큐로 검증한다. 지연된 엔진 알림만으로 활성 영역을 바꾸지 않는다. 분할 선택·확대/복귀와 터미널 본문 클릭은 터미널로 포커스를 돌려주며, 명령창 편집 중에는 포커스를 빼앗지 않는다. 실제 입력 영역만 커서·테두리가 깜빡이고 명령 전송 대상은 SELECTED로 구별한다.
-- 포커스 회귀 테스트는 `tests/focus_smoke.inc`에서 `SendInput`으로 실제 셸 입력을 확인하고 커서 셀·테두리 픽셀 변화를 검사한다. 특정 HWND에 직접 보낸 WM_CHAR만으로 포커스 전환을 검증하지 않는다.
-- 2~4개 네이티브 터미널의 비중첩 배치·독립 입력·단일 보기 복귀를 UI 통합 테스트로 검증한다. 테스트 파일은 격리된 `build/` 아래에만 쓴다.
-
-## 한글·IME 입력
-
-- Windows 조합 미리보기는 `src/ime.c`에서 실제 터미널 커서와 셀 크기에 맞춰 그린다. 조합창은 포커스를 가져가지 않으며 OS 후보창을 유지한다.
-- 조합 문자열은 화면 표시 전용이다. IME가 확정한 문자열만 기존 입력 경로로 보내고, 취소·종료 이벤트에서 중복 전송하지 않는다. UTF-16 서로게이트 쌍을 나누지 않는다.
-- macOS는 AppKit의 attributed/plain 확정 문자열과 marked selection을 모두 처리한다. 입력 내용을 임의로 정규화하거나 서버의 로케일·키맵을 변경하지 않는다.
-- `ime-tests`로 조합·취소·확정·한글 폭·리사이즈를 검증하고, 루프백 SSH에서 유니코드 문자열이 한 번만 전달되는지 확인한다. 합성 이벤트 검증과 실제 OS 입력기 수동 검증을 구분해 기록한다.
 
 ## PC 간 작업과 규칙 관리
 

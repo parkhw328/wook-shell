@@ -1,4 +1,4 @@
-# Split terminal input
+# 분할 공통 입력·동기화 요구사항
 
 - Host aliases (`WookAlias`) and RGB colors (`WookTabColor`) are display metadata; they must not change SSH endpoints, credential scopes or storage identities. Preserve them in settings backups.
 - The command bar and live keyboard synchronization target only currently visible split terminals. Both checkboxes start unchecked and reset when the pane group changes or the workspace returns home/single view.

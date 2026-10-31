@@ -1,10 +1,10 @@
 # 빌드 및 검증 상세 안내
 
-모든 명령은 저장소 루트에서 실행합니다. 작업 범위와 배포 정책은 [개발 규칙](../rules/development.md)을 따릅니다.
+모든 명령은 저장소 루트에서 실행합니다. 작업 범위와 배포 정책은 [개발 규칙](../rules/rules/development.md)을 따릅니다.
 
 ## 빠른 개발 빌드
 
-**작업 전 [AGENTS.md](../AGENTS.md) → [개발 규칙](../rules/development.md) → 해당 기능 규칙을 읽습니다.** PC가 바뀌어도 Git에 저장된 규칙을 공통 기준으로 사용합니다. 현재는 Windows 로컬 빌드·검증이 기본이며, macOS·iPad 빌드와 GitHub Actions 실행은 명시적인 요청이 있을 때만 수행합니다.
+**작업 전 [AGENTS.md](../AGENTS.md) → [개발 규칙](../rules/rules/development.md) → 해당 기능 요구사항을 읽습니다.** PC가 바뀌어도 Git에 저장된 규칙을 공통 기준으로 사용합니다. 현재는 Windows 로컬 빌드·검증이 기본이며, macOS·iPad 빌드와 GitHub Actions 실행은 명시적인 요청이 있을 때만 수행합니다.
 
 모든 명령은 저장소 루트에서 실행합니다. Windows는 Python 3.10 이상·PowerShell이 필요하며, 최초 명령이 고정된 빌드 도구와 소스를 다운로드합니다.
 
@@ -113,8 +113,8 @@ node tests/ssh/mac-integration.cjs # AppKit, 로컬 PTY, 실제 공개키/Keycha
 python3 scripts/index-dist.py      # 현재 버전의 배포 manifest 생성
 ```
 
-`src/`는 Windows UI·설정 저장소, `patches/`는 PuTTY 통합, `mac/Sources/WShell/`은 AppKit UI, `mac/Sources/WShellCore/`는 macOS 설정·인증·백업, `tests/`와 `mac/Tests/`는 테스트, `scripts/`는 빌드/패키징, `rules/`는 개발 규칙입니다.
-작업 전 [AGENTS.md](../AGENTS.md)와 [공통 개발 규칙](../rules/development.md)을 확인합니다.
+`src/`는 Windows UI·설정 저장소, `patches/`는 PuTTY 통합, `mac/Sources/WShell/`은 AppKit UI, `mac/Sources/WShellCore/`는 macOS 설정·인증·백업, `tests/`와 `mac/Tests/`는 테스트, `scripts/`는 빌드/패키징입니다. `rules/rules/`에는 개발·배포 규칙, `rules/requirements/`에는 제품·기능 요구사항을 둡니다. [프로젝트 지도](../rules/README.md)에서 기능별 소스와 검증 위치를 확인하세요.
+작업 전 [AGENTS.md](../AGENTS.md)와 [공통 개발 규칙](../rules/rules/development.md)을 확인합니다.
 자동 포맷터나 수치형 커버리지 기준은 아직 없습니다. 기능 변경에는 해당 동작의 회귀 검증을 추가하세요.
 
 검증 범위: 주소/인수 처리, 한글 설정, 파일 잠금·손상, 설정 백업·복원과 기존 데이터 이전, 기존 호스트 키 보존, 세 종류의 키 생성·암호화 저장·잘못된 암호 거부, 암호화된 OpenSSH 키 변환, 실제 SSH 암호/공개키 인증, 저장된 비밀번호의 암호화·대상 확인·변조 거부·백업 제외·삭제, 비밀번호 세션 복제·재연결·수동 입력 전환, 호스트 키 거부·저장, GUI SSH 입출력·리사이즈, 탭 전환·복제, 컬러/한글 화면, 연결 설정 전체 페이지의 글꼴·폭·검색·스크롤과 변경 저장, 세션 설정의 적용·취소, 호스트 인증기관 저장.

@@ -2,25 +2,27 @@
 
 ## 작업 시작 순서
 
-1. 이 파일과 [개발 규칙](rules/development.md), [제품 요구사항](rules/product.md)을 읽는다.
-2. 수정할 기능에 해당하는 아래 규칙을 읽고 실제 코드·테스트와 대조한다.
+1. 이 파일과 [개발 규칙](rules/rules/development.md), [제품 요구사항](rules/requirements/product.md)을 읽는다.
+2. [프로젝트 지도](rules/README.md)에서 수정할 기능의 요구사항을 찾고 실제 코드·테스트와 대조한다.
 3. `git status --short --branch`와 `git diff`로 현재 브랜치와 기존 작업을 확인한다. 다른 PC에서 이어서 작업할 때는 원격 변경도 확인하고 작업 트리를 보존하며 동기화한다.
 
 Git에 저장된 `AGENTS.md`와 `rules/`를 모든 PC·작업 도구의 공통 기준으로 삼는다. 개인 메모나 이전 대화로 저장소 규칙을 대체하지 않는다. 사용자의 명시적인 최신 지시가 기존 규칙을 바꾸면 관련 규칙도 함께 갱신한다. 상세 절차를 여러 파일에 복사하지 않고 원본 문서를 링크한다.
 
-## 기능별 규칙
+## 규칙과 요구사항
+
+`rules/rules/`는 개발·검증·배포 방법, `rules/requirements/`는 제품 동작·기능 제약·인수 기준을 관리한다. 상세 내용은 한 곳에서 유지하고 [프로젝트 지도](rules/README.md)와 아래 색인에서 연결한다.
 
 | 작업 영역 | 확인할 문서 |
 | --- | --- |
-| 빌드·검증·배포·PC 간 작업 | [development.md](rules/development.md) |
-| 제품 범위·저장소·디자인 | [product.md](rules/product.md) |
-| 작업 공간·탐색·탭·폰트 | [workspace-ui.md](rules/workspace-ui.md) |
-| 분할 공통 입력·동기화 | [broadcast.md](rules/broadcast.md) |
-| SFTP | [sftp.md](rules/sftp.md) |
-| SSH 공개키 선택·개인키 | [keys.md](rules/keys.md) |
-| 명령줄 접속·기존 창 전달 | [launch-arguments.md](rules/launch-arguments.md) |
-| 외부 코드·자산·라이선스 | [licensing.md](rules/licensing.md) |
-| iPad | [ipad.md](rules/ipad.md) |
+| 빌드·검증·배포·PC 간 작업 | [development.md](rules/rules/development.md) |
+| 제품 범위·저장소·디자인 | [product.md](rules/requirements/product.md) |
+| 작업 공간·탐색·탭·폰트 | [workspace-ui.md](rules/requirements/workspace-ui.md) |
+| 분할 공통 입력·동기화 | [broadcast.md](rules/requirements/broadcast.md) |
+| SFTP | [sftp.md](rules/requirements/sftp.md) |
+| SSH 공개키 선택·개인키 | [keys.md](rules/requirements/keys.md) |
+| 명령줄 접속·기존 창 전달 | [launch-arguments.md](rules/requirements/launch-arguments.md) |
+| 외부 코드·자산·라이선스 | [licensing.md](rules/rules/licensing.md) |
+| iPad | [ipad.md](rules/requirements/ipad.md) |
 
 ## 저장소 구조
 
@@ -30,7 +32,8 @@ Git에 저장된 `AGENTS.md`와 `rules/`를 모든 PC·작업 도구의 공통 �
 - `tests/`: 핵심·도구 테스트, `tests/ssh/`: 루프백 SSH/UI 통합 테스트.
 - `assets/`, `licenses/`: 내장 자산과 라이선스.
 - `docs/`: 상세 사용법·개발 안내, `docs/releases/`: 버전별 변경 및 검증 기록.
-- `rules/`: 유지해야 할 작업·기능 규칙. `release/`: 버전별 배포 파일·해시·manifest.
+- `rules/rules/`: 개발·배포·라이선스 규칙. `rules/requirements/`: 제품·기능 요구사항.
+- `rules/README.md`: 요구사항·구현·검증 문서 지도. `release/`: 버전별 배포 파일·해시·manifest.
 
 ## 구현과 검증
 
@@ -45,5 +48,5 @@ Git에 저장된 `AGENTS.md`와 `rules/`를 모든 PC·작업 도구의 공통 �
 ## 커밋과 배포
 
 - 의미 있는 작업 단위로 나누고 간결한 명령형 커밋 제목을 쓴다. 커밋 전 변경 내용과 검증 결과를 확인한다.
-- 배포는 [개발 규칙](rules/development.md)의 버전·출처·검증 절차를 따른다. 이미 공개한 버전별 파일은 덮어쓰지 않는다.
+- 배포는 [개발 규칙](rules/rules/development.md)의 버전·출처·검증 절차를 따른다. 이미 공개한 버전별 파일은 덮어쓰지 않는다.
 - PR에는 문제, 변경 후 동작, 검증 결과와 미실행 항목을 적고 UI 변경에는 스크린샷을 포함한다.

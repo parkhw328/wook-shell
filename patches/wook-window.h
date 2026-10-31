@@ -2,6 +2,7 @@
 #include "wshell-credentials.h"
 #include "wshell-ime.h"
 #include "wshell-theme.h"
+#include "wshell-menu-keys.h"
 /* Owned by the clipboard reader until its synchronous window message returns. */
 typedef struct WsClipboardRequest {
     HWND hwnd;
@@ -198,10 +199,19 @@ static bool wookKey(HWND hwnd, UINT message, WPARAM key, LPARAM flags) {
         if (GetFocus() != hwnd) SetFocus(hwnd);
     if (message == WM_SETFOCUS || message == WM_KILLFOCUS)
         PostMessageW(wookParent, WM_APP + 46, (WPARAM)hwnd, 0);
-    if (message != WM_KEYDOWN && message != WM_SYSKEYDOWN && message != WM_KEYUP && message != WM_SYSKEYUP) return false;
     bool control = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
     bool shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
     bool alt = (GetKeyState(VK_MENU) & 0x8000) != 0;
+    // TranslateMessage may have queued WM_SYSCHAR before wookKey consumes the
+    // keydown. Do not also send the menu mnemonic into the SSH/local session.
+    if (message == WM_SYSCHAR && wsMenuAccessKey((unsigned)key, control, shift, true) > 0) return true;
+    if (message != WM_KEYDOWN && message != WM_SYSKEYDOWN && message != WM_KEYUP && message != WM_SYSKEYUP) return false;
+    int menuKey = wsMenuAccessKey((unsigned)key, control, shift, alt);
+    if (menuKey >= 0) {
+        if ((message == WM_KEYDOWN || message == WM_SYSKEYDOWN) && !(flags & (1L << 30)))
+            PostMessageW(wookParent, WM_APP + 50, menuKey, (LPARAM)hwnd);
+        return true;
+    }
     int command = 0;
     if (control && key == VK_TAB) command = shift ? 6 : 5;
     else if (control && shift && key == 'T') command = 1;

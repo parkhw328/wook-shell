@@ -169,6 +169,10 @@ void runUiSmoke(App &app) {
             app.action(Preview); phase = 1; waits = 0;
         } else if (phase == 1 && ready()) {
             require(app.tabs.size() == 1, "Preview must open one tab");
+            app.updateMenu();
+            require(app.menuBar.enabled(MenuCloseTab) && !app.menuBar.enabled(Reconnect) &&
+                    !app.menuBar.enabled(FilesSession) && !app.menuBar.enabled(SessionSettings) && !app.menuBar.enabled(SaveCurrent),
+                    "Preview menu must allow closing without exposing real connection commands");
             wchar_t childImage[32768]{}; DWORD length = 32768;
             require(QueryFullProcessImageNameW(app.tabs[0]->process, 0, childImage, &length) &&
                 std::filesystem::path(childImage).filename() == L"wShell.exe", "Tabs must run the same executable, without a PuTTY helper");
@@ -322,6 +326,10 @@ void runUiSmoke(App &app) {
             app.connect(*found,true,false,false,true);phase=28;waits=0;
         } else if (phase == 28 && ready() && SendMessageW(app.tabs[0]->terminal,WM_APP+121,0,0)==1) {
             require(app.tabs[0]->files && !app.tabs[0]->process,"SFTP must be an in-process tab with an independently supervised transport");
+            app.updateMenu();
+            require(app.menuBar.enabled(MenuCloseTab) && app.menuBar.enabled(Duplicate) &&
+                    !app.menuBar.enabled(Reconnect) && !app.menuBar.enabled(FilesSession) && !app.menuBar.enabled(SessionSettings),
+                    "SFTP menu must preserve tab actions and avoid terminal-only commands");
             auto view=app.tabs[0]->terminal;
             RECT original{};GetWindowRect(app.hwnd,&original);
             for(int width : {980,1400}) {
@@ -420,6 +428,10 @@ void runUiSmoke(App &app) {
             }
             phase=35;waits=0;
         } else if (phase == 35 && ready() && waits>2) {
+            app.updateMenu();
+            require(app.menuBar.enabled(MenuCloseTab) && app.menuBar.enabled(Duplicate) && app.menuBar.enabled(Reconnect) &&
+                    !app.menuBar.enabled(FilesSession) && !app.menuBar.enabled(SessionSettings) && !app.menuBar.enabled(SaveCurrent),
+                    "Local session menu must not expose SSH files, settings or saved-host actions");
             RECT splitButton{}, duplicateButton{}, reconnectButton{};
             GetWindowRect(app.control(Split), &splitButton); GetWindowRect(app.control(Duplicate), &duplicateButton);
             GetWindowRect(app.control(Reconnect), &reconnectButton);

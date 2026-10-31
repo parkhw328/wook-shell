@@ -22,7 +22,7 @@ Windows 10 1903 이상·Windows 11 x64에서 사용할 수 있습니다. 현재 
 
 - [사용법과 플랫폼별 지원 범위](docs/usage.md)
 - [다운로드·버전·검증 상태](release/README.md)
-- [빌드와 개발 안내](docs/development.md) · [작업 규칙](AGENTS.md)
+- [빌드와 개발 안내](docs/development.md) · [프로젝트 지도·규칙·요구사항](rules/README.md) · [작업 시작점](AGENTS.md)
 
 ## 라이선스
 

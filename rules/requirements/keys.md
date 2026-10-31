@@ -1,4 +1,4 @@
-# Windows SSH 공개키 선택과 개인키 등록
+# Windows SSH 공개키 선택·개인키 등록 요구사항
 
 - 확장자가 아니라 파일 내용으로 개인키 형식을 판별한다. PPK, OpenSSH 개인키, 기존 PEM RSA/DSA/EC와 SSH.com 형식의 읽기·변환은 내장 PuTTY 함수를 사용한다. 암호 연산이나 키 파서를 재구현하지 않는다.
 - 호스트 저장·접속과 Host Settings 적용에서 OpenSSH/PEM 개인키를 사용할 수 있어야 한다. 원본은 수정하지 않고 `%LOCALAPPDATA%\wShell\keys`에 PPK v3 사본을 등록한다. `WOOK_DATA_DIR` 지정 시 그 아래로 격리한다.

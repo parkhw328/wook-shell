@@ -35,6 +35,15 @@ template<typename Check> bool testSplitFocus(App &app, Check require) {
         for (int i = 0; i < 6; ++i) { events[i].type = INPUT_KEYBOARD; events[i].ki.wVk = keys[i]; if (i >= 3) events[i].ki.dwFlags = KEYEVENTF_KEYUP; }
         require(SendInput(6, events, sizeof(INPUT)) == 6, "Navigation shortcut injection failed");
     };
+    auto menuKey = [&](WORD key, bool alt = false) {
+        require(GetForegroundWindow() == app.hwnd, "Menu input requires the foreground test workspace");
+        std::vector<INPUT> events;
+        auto add = [&](WORD value, DWORD flags) { INPUT event{}; event.type = INPUT_KEYBOARD; event.ki.wVk = value; event.ki.dwFlags = flags; events.push_back(event); };
+        if (alt) add(VK_MENU, 0);
+        add(key, 0); add(key, KEYEVENTF_KEYUP);
+        if (alt) add(VK_MENU, KEYEVENTF_KEYUP);
+        require(SendInput((UINT)events.size(), events.data(), sizeof(INPUT)) == events.size(), "Native menu key injection failed");
+    };
     auto click = [&](HWND terminal) {
         RECT r{}; GetClientRect(terminal, &r);
         // The embedded terminal must acquire focus in its own mouse handler.
@@ -194,6 +203,30 @@ template<typename Check> bool testSplitFocus(App &app, Check require) {
         require(std::any_of(app.hits.begin(), app.hits.end(), [&](const Hit &hit) { return !hit.close && hit.index == app.active; }),
                 "Reopening navigation in a narrow window must keep the active tab visible");
         SetWindowPos(app.hwnd, nullptr, 0, 0, window.right - window.left, window.bottom - window.top, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+        menuKey(VK_F10); step = 15;
+    } else if (step == 15) {
+        require(app.menuOpen, "F10 from a hosted terminal must focus the native menu bar");
+        menuKey(VK_RIGHT); menuKey(VK_DOWN); step = 16;
+    } else if (step == 16) {
+        require(app.menuOpen, "Arrow keys must navigate from the menu bar into a submenu");
+        auto popup = FindWindowW(L"#32768", nullptr);
+        require(popup && IsWindowVisible(popup), "Keyboard navigation must display a native popup menu");
+        captureTestWindow(popup, L"ui-host-menu.bmp");
+        menuKey(VK_ESCAPE); menuKey(VK_ESCAPE); step = 17;
+    } else if (step == 17) {
+        require(!app.menuOpen && focus() == app.tabs[3]->terminal && app.panes == navigationGroup,
+                "Cancelling menu navigation must restore the original terminal and pane group");
+        sendMarker(L"focus-menu-f10"); step = 18;
+    } else if (step == 18 && std::filesystem::exists(marker(L"focus-menu-f10"))) {
+        menuKey('H', true); step = 19;
+    } else if (step == 19) {
+        require(app.menuOpen, "Alt+H from a hosted terminal must open the Host menu");
+        menuKey(VK_ESCAPE); menuKey(VK_ESCAPE); step = 20;
+    } else if (step == 20) {
+        require(!app.menuOpen && focus() == app.tabs[3]->terminal, "Menu mnemonic cancellation must preserve terminal focus");
+        sendMarker(L"focus-menu-mnemonic"); step = 21;
+    } else if (step == 21 && std::filesystem::exists(marker(L"focus-menu-mnemonic"))) {
+        require(ui::value(app.control(CommandText)) == L"draft stays here", "Menu navigation must preserve the command draft");
         SetWindowTextW(app.control(CommandText), L""); return true;
     }
     return false;

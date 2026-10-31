@@ -33,7 +33,7 @@
 
 ## 저장소에 있는 빌드 경로와 제공 파일
 
-- 규칙: [`rules/ipad.md`](../rules/ipad.md)
+- 규칙: [`rules/requirements/ipad.md`](../rules/requirements/ipad.md)
 - 워크플로: [`.github/workflows/ipad.yml`](../.github/workflows/ipad.yml), 표시 이름 **iPad personal preview**
 - 빌드: [`scripts/build-ios.py`](../scripts/build-ios.py), `macos-15`에서 시뮬레이터와 arm64 기기 앱을 빌드
 - 검증: `node tests/ssh/ios-integration.cjs`로 SSH·SFTP·Keychain을 시뮬레이터에서 확인

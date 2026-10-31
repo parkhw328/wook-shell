@@ -327,13 +327,14 @@ extern "C" void wsShowAbout(HWND owner) {
     p.text = L"A quiet workspace for your servers.\r\nNative Windows x64 / Portable / MIT License\r\n\r\n"
         L"Created by Hyunwook Park\r\n\r\nPuTTY 0.85 — modified portable build (MIT)\r\n"
         L"Flexoki — Steph Ango (MIT)\r\nJetBrains Mono — SIL OFL 1.1\r\n\r\n"
-        L"Full notices: Tools → Open-source licenses.\r\nIndependent project; not affiliated with PuTTY or Termius.";
+        L"Full notices: Help → Open-source licenses.\r\nIndependent project; not affiliated with PuTTY or Termius.";
     p.choices = {{IDOK,L"Close"}}; p.defaultId = p.cancelId = IDOK; show(owner, p);
 }
 extern "C" void wsShowShortcuts(HWND owner) {
     wsMessageBoxW(owner, L"Ctrl+Shift+T  New connection\r\nCtrl+Shift+D  Duplicate tab\r\nCtrl+Tab  Next tab\r\nCtrl+Shift+W  Close tab\r\n"
         L"Ctrl+Shift+H  Show / hide hosts\r\nCtrl+Shift+P  Search connections\r\nCtrl+Shift+C / V  Copy / paste\r\n"
         L"Alt+1…9  Switch tabs\r\nF11  Full screen\r\n\r\n"
+        L"Application menus\r\nF10  Focus menu bar\r\nAlt+F / H / S / V / T / E  File / Host / Session / View / Tools / Help\r\nArrow keys / Enter / Esc  Navigate / choose / cancel\r\n\r\n"
         L"Connection list\r\nCtrl+Up / Down  Move host or folder (clear search first)\r\nF2  Edit host / rename folder\r\nDelete  Delete host / folder (confirm first)\r\nEnter  Connect / expand or collapse folder\r\nLeft / Right  Collapse / expand folder\r\n\r\n"
         L"Confirmation dialogs\r\nUse the letter shown in parentheses, with or without Alt.\r\n\r\n"
         L"SFTP file lists\r\nF2  Rename selected item\r\nDelete  Delete selected items (confirm first)\r\nY / N  Confirm / cancel deletion\r\nEsc  Cancel deletion\r\nF5  Refresh both lists",

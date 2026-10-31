@@ -111,7 +111,7 @@ template<typename Check> void testTabOverflow(App &app, Check require) {
         app.poll(); app.layout();
         require(app.tabScroll == 0, "Background layout and polling must not snap a manually scrolled strip back to the active tab");
         require(!IsWindowEnabled(app.control(TabsPrevious)) && IsWindowEnabled(app.control(TabsNext)), "First page bounds the scroll buttons");
-        POINT pointer{ui::px(app.sidebar + 150), ui::px(appBarHeight + 25)}; ClientToScreen(app.hwnd, &pointer);
+        POINT pointer{ui::px(app.sidebar + 150), ui::px(25)}; ClientToScreen(app.hwnd, &pointer);
         SendMessageW(app.hwnd, WM_MOUSEWHEEL, MAKEWPARAM(0, -60), MAKELPARAM(pointer.x, pointer.y));
         require(app.tabScroll == 0, "High resolution wheels accumulate partial steps");
         SendMessageW(app.hwnd, WM_APP + 48, MAKEWPARAM(0, -60), MAKELPARAM(pointer.x, pointer.y));

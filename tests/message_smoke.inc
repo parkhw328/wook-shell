@@ -80,17 +80,16 @@ template<typename Check> void testMessageDialogs(App &app, Check require) {
     }, IDNO);
     RECT original{}; GetWindowRect(app.hwnd, &original);
     SetWindowPos(app.hwnd, nullptr, 0, 0, ui::px(980), ui::px(740), SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
-    RECT shortcut{}, about{}, client{}; GetWindowRect(app.control(Shortcuts), &shortcut); GetWindowRect(app.control(About), &about);
-    GetClientRect(app.hwnd, &client); MapWindowPoints(app.hwnd, nullptr, (POINT *)&client, 2);
-    require(shortcut.right < about.left && shortcut.top == about.top && about.right <= client.right,
-            "Shortcuts must fit immediately left of About at minimum window size");
-    captureTestWindow(app.hwnd, L"ui-shortcuts-toolbar.bmp");
-    run([&] { SendMessageW(app.control(Shortcuts), BM_CLICK, 0, 0); return IDOK; }, [&](HWND dialog) {
+    auto helpMenu = GetSubMenu(GetMenu(app.hwnd), 5);
+    require(helpMenu && GetMenuItemID(helpMenu, 0) == Shortcuts && GetMenuItemID(helpMenu, 3) == About,
+            "Help must group keyboard shortcuts, licenses and About");
+    captureTestWindow(app.hwnd, L"ui-menu-bar.bmp");
+    run([&] { SendMessageW(app.hwnd, WM_COMMAND, Shortcuts, 0); return IDOK; }, [&](HWND dialog) {
         inspect(dialog);
         require(ui::value(dialog) == L"Keyboard shortcuts" && ui::value(GetDlgItem(dialog, 1000)).find(L"Ctrl+Shift+T") != std::wstring::npos,
-                "The top-level Shortcuts button must open the keyboard reference");
+                "Help menu command must open the keyboard reference");
         captureTestWindow(dialog, L"ui-shortcuts.bmp"); PostMessageW(GetFocus(), WM_KEYDOWN, VK_ESCAPE, 0);
-    }, IDOK, app.control(Shortcuts));
+    }, IDOK, app.control(Search));
     SetWindowPos(app.hwnd, nullptr, 0, 0, original.right-original.left, original.bottom-original.top, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
     SetFocus(app.control(Search));
     run([&] { return wsMessageBoxW(app.hwnd, L"The selected file could not be saved.\r\nCheck the destination and try again.\r\n\r\n한글 오류 안내 / C:\\test\\output.txt", L"Unable to save file", MB_OK | MB_ICONERROR); }, [&](HWND dialog) {
