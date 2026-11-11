@@ -125,6 +125,18 @@ UI 검증은 **EXE만 복사한 빈 폴더**에서 시작하며 내장 폰트·�
 분할 비율 드래그 조정, 클라우드 동기화는 제공하지 않습니다. `plink`·`pscp`·`psftp` 등 별도 CLI 실행파일도 배포하지 않습니다.
 
 
+## 최소화·복원과 SSH 크기 회귀 검사
+
+Windows 빌드 후 다음 검사는 일반·최대화 창, 단일·2~4분할과 영역 확대에서 최소화 중 마지막 정상 크기와 탭 상태를 유지하는지 확인합니다. 종료한 탭 정리와 엔진 연결 알림을 거친 뒤에도 실제 루프백 SSH 서버의 PTY 열/행이 유지되어야 합니다. 복원 후 실제 창 크기 변경은 서버까지 전달되어야 합니다.
+
+```powershell
+node tests/ssh/minimize-integration.cjs
+# SSH 없이 창 레이아웃과 탭 정리만 검사
+node tests/ssh/minimize-integration.cjs --layout-only
+```
+
+기본 실행파일 위치는 `build/native/ui-smoke-tests.exe`입니다. `--binaries`로 빌드 폴더를 선택하고, Linux에서 Wine 호환 검사를 할 때만 `--wine`으로 Wine 실행파일을 지정합니다. Wine의 `WINEPREFIX`는 `build/` 아래 격리 폴더를 사용하세요. `--ssh-only`는 레이아웃 검사와 독립적으로 SSH 크기 경로를 재현합니다. `build/minimize-test-*/`에 검사 결과, `pty-events.json`과 복원 화면 `ui-minimize-restored.bmp`를 남깁니다. 이 검사는 Win32 메시지로 조작하며 실제 OS 키보드·마우스 라우팅이나 Windows 장시간 절전·다중 모니터 DPI 검증을 대신하지 않습니다.
+
 ## 1.2.7 검증 인계
 
 변경 사항과 사용자 확인·자동 검사·미실행 항목은 [1.2.7 릴리스 노트](releases/1.2.7.md)를 확인하세요. 사용자가 수정 개발 빌드의 정상 동작을 확인했으며 자동화된 Windows 전체 회귀 검사 통과를 뜻하지는 않습니다.

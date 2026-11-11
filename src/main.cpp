@@ -593,9 +593,15 @@ void App::layoutNavigation() {
 }
 void App::layout(bool revealTab) {
     ui::DpiScope dpiScope(hwnd);
-    RECT client; GetClientRect(hwnd, &client);
     int previousWidth = width, previousHeight = height, previousSidebar = sidebar;
-    width = MulDiv(client.right, 96, ui::dpi); height = MulDiv(client.bottom, 96, ui::dpi);
+    // Layout also runs on background tab exit and terminal attachment, not just
+    // WM_SIZE. An iconic window's client size is not a usable terminal size:
+    // forwarding it would shrink the SSH PTY and reflow output into a few columns.
+    // Keep the last usable extent, but still reconcile tabs/panes and routing.
+    RECT client{};
+    if (!IsIconic(hwnd) && GetClientRect(hwnd, &client) && client.right > 0 && client.bottom > 0) {
+        width = MulDiv(client.right, 96, ui::dpi); height = MulDiv(client.bottom, 96, ui::dpi);
+    }
     sidebar = navigationVisible ? wook::navigationWidth(navigationPreferredWidth, width) : sidebarCollapsed;
     bool navigationChanged = width != previousWidth || height != previousHeight || sidebar != previousSidebar;
     if (navigationChanged) clearConnectionTooltip();
