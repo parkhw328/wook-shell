@@ -219,7 +219,7 @@ RSA 생성은 Windows CNG, Ed25519와 키 형식 처리는 PuTTY 라이브러리
 
 ## 마우스 복사·붙여넣기 (Windows)
 
-Windows 개발 빌드에서는 **Tools → Application settings → Show context menu on terminal right-click**에서 터미널 우클릭 동작을 선택합니다.
+Windows 1.2.24부터 **Tools → Application settings → Show context menu on terminal right-click**에서 터미널 우클릭 동작을 선택할 수 있습니다.
 
 | 체크박스 | 기본 셸에서 일반 우클릭 |
 | --- | --- |
