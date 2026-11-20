@@ -44,6 +44,17 @@ template<typename Check> bool testTerminalMouse(App &app, Check require) {
         require(GetGUIThreadInfo(GetWindowThreadProcessId(terminal(), nullptr), &info), "Cannot query terminal focus");
         return info;
     };
+    auto popup = [&] {
+        HWND menu = nullptr;
+        EnumThreadWindows(GetWindowThreadProcessId(terminal(), nullptr), [](HWND window, LPARAM result) -> BOOL {
+            wchar_t name[32]{};
+            GetClassNameW(window, name, 32);
+            if (!IsWindowVisible(window) || std::wstring_view(name) != L"#32768") return TRUE;
+            *reinterpret_cast<HWND *>(result) = window;
+            return FALSE;
+        }, reinterpret_cast<LPARAM>(&menu));
+        return menu;
+    };
     auto point = [&](int column) {
         return MAKELPARAM(cell.left + (cell.right - cell.left) * column + (cell.right - cell.left) / 2,
                          cell.top + (cell.bottom - cell.top) / 2);
@@ -56,9 +67,9 @@ template<typename Check> bool testTerminalMouse(App &app, Check require) {
         SendMessageW(terminal(), WM_MOUSEMOVE, MK_LBUTTON | modifiers, point(9));
         SendMessageW(terminal(), WM_LBUTTONUP, modifiers, point(9));
     };
-    auto paste = [&](bool shift) {
+    auto rightClick = [&](bool shift) {
         SetFocus(app.control(Search));
-        SendMessageW(terminal(), WM_RBUTTONDOWN, shift ? MK_SHIFT : 0, point(12));
+        SendMessageW(terminal(), WM_RBUTTONDOWN, MK_RBUTTON | (shift ? MK_SHIFT : 0), point(12));
         require(focus().hwndFocus == terminal(), "Right-click must focus the clicked single terminal");
         SendMessageW(terminal(), WM_RBUTTONUP, shift ? MK_SHIFT : 0, point(12));
     };
@@ -96,16 +107,45 @@ template<typename Check> bool testTerminalMouse(App &app, Check require) {
         require(wsSave(store), "Cannot pin mouse SSH host key"); wsClose(store);
         app.connect(p, true); ++step; waits = 0;
     } else if (step == 1 && IsWindow(terminal()) && std::filesystem::exists(file(L"mouse-screen.ready")) && waits > 3) {
-        app.focusActive(); cell = focus().rcCaret;
-        require(focus().hwndCaret == terminal(), "Mouse geometry must belong to the test terminal");
+        SetForegroundWindow(app.hwnd);
+        app.focusActive();
+        auto info = focus();
+        if (info.hwndCaret != terminal() && waits < 40) return false;
+        require(info.hwndCaret == terminal(), "Mouse geometry must belong to the test terminal");
+        cell = info.rcCaret;
         require(cell.right > cell.left && cell.bottom > cell.top, "Terminal must expose its native character-cell geometry");
         captureTestWindow(app.hwnd, L"ui-mouse-terminal.bmp");
         setClipboard(L"before-selection"); drag(false); ++step; waits = 0;
     } else if (step == 2) {
         require(clipboard() == L"COPY-MOUSE", "Normal drag must auto-copy exact selected text");
-        setClipboard(L"normal-paste-한글"); paste(false); ++step; waits = 0;
+        DWORD previous = GetClipboardSequenceNumber();
+        rightClick(false);
+        require(GetClipboardSequenceNumber() != previous && clipboard() == L"COPY-MOUSE",
+                "Right-click on a selection must write it to the system clipboard");
+        rightClick(false); step = 21; waits = 0;
+    } else if (step == 21 && std::filesystem::exists(file(L"mouse-copied-paste.ready"))) {
+        setClipboard(L"normal-paste-한글"); rightClick(false); step = 3; waits = 0;
     } else if (step == 3 && std::filesystem::exists(file(L"mouse-normal-paste.ready"))) {
-        std::ofstream(file(L"mouse-enable.request")) << "enable\n"; ++step; waits = 0;
+        wook::saveApplicationSettings(std::nullopt, true);
+        setClipboard(L"menu-cancel-sentinel");
+        PostMessageW(terminal(), WM_RBUTTONDOWN, MK_RBUTTON, point(12)); step = 22; waits = 0;
+    } else if (step == 22 && popup()) {
+        PostMessageW(terminal(), WM_CANCELMODE, 0, 0); ++step; waits = 0;
+    } else if (step == 23 && !popup()) {
+        SendMessageW(terminal(), WM_RBUTTONUP, 0, point(12));
+        require(clipboard() == L"menu-cancel-sentinel", "Dismissing the popup must preserve the clipboard");
+        drag(false);
+        require(clipboard() == L"COPY-MOUSE", "Drag selection must still work in menu mode");
+        PostMessageW(terminal(), WM_RBUTTONDOWN, MK_RBUTTON, point(12)); ++step; waits = 0;
+    } else if (step == 24 && popup()) {
+        setClipboard(L"menu-paste-한글");
+        PostMessageW(terminal(), WM_CHAR, 'p', 1); // Activate the existing &Paste menu item.
+        ++step; waits = 0;
+    } else if (step == 25 && !popup() && std::filesystem::exists(file(L"mouse-menu-paste.ready"))) {
+        SendMessageW(terminal(), WM_RBUTTONUP, 0, point(12));
+        // Also exercise raw application mouse reporting with the menu preference enabled.
+        wook::saveApplicationSettings(std::nullopt, applicationMouse);
+        std::ofstream(file(L"mouse-enable.request")) << "enable\n"; step = 4; waits = 0;
     } else if (step == 4 && std::filesystem::exists(file(L"mouse-reporting.ready"))) {
         hover(false, L"hover-active");
         hover(true, L"hover-shift");
@@ -113,13 +153,14 @@ template<typename Check> bool testTerminalMouse(App &app, Check require) {
     } else if (step == 5) {
         require(clipboard() == (activeMouse ? L"raw-selection-sentinel" : L"COPY-MOUSE"),
                 "Mouse policy must choose between application input and local drag-copy");
-        setClipboard(activeMouse ? L"raw-paste-sentinel" : L"preferred-paste-한글"); paste(false); ++step; waits = 0;
+        setClipboard(activeMouse ? L"raw-paste-sentinel" : L"preferred-paste-한글"); rightClick(false); ++step; waits = 0;
     } else if (step == 6 && std::filesystem::exists(file(activeMouse ? L"mouse-raw-clicks.ready" : L"mouse-preferred-paste.ready"))) {
         drag(true); ++step; waits = 0;
     } else if (step == 7) {
         require(clipboard() == L"COPY-MOUSE", "Shift-drag must auto-copy while application mouse reporting is active");
-        setClipboard(L"shift-paste-한글"); paste(true); ++step; waits = 0;
+        setClipboard(L"shift-paste-한글"); rightClick(true); ++step; waits = 0;
     } else if (step == 8 && std::filesystem::exists(file(L"mouse-shift-paste.ready"))) {
+        wook::saveApplicationSettings(std::nullopt, false);
         std::ofstream(file(L"mouse-toggle.request")) << "toggle\n";
         app.action(SessionSettings); step = 12; waits = 0;
     } else if (step == 12 && std::filesystem::exists(file(L"mouse-toggled.ready")) &&
@@ -128,14 +169,14 @@ template<typename Check> bool testTerminalMouse(App &app, Check require) {
     } else if (step == 13) {
         require(clipboard() == (toggledMouse ? L"toggled-selection-sentinel" : L"COPY-MOUSE"),
                 "Applying mouse preference must change drag handling in the connected terminal");
-        setClipboard(toggledMouse ? L"toggled-paste-sentinel" : L"toggled-paste-한글"); paste(false); ++step; waits = 0;
+        setClipboard(toggledMouse ? L"toggled-paste-sentinel" : L"toggled-paste-한글"); rightClick(false); ++step; waits = 0;
     } else if (step == 14 && std::filesystem::exists(file(toggledMouse ? L"mouse-toggled-raw.ready" : L"mouse-toggled-paste.ready"))) {
         std::ofstream(file(L"mouse-disable.request")) << "disable\n"; step = 9; waits = 0;
     } else if (step == 9 && std::filesystem::exists(file(L"mouse-restored.ready"))) {
         setClipboard(L"restored-selection-sentinel"); drag(false); ++step; waits = 0;
     } else if (step == 10) {
         require(clipboard() == L"COPY-MOUSE", "Normal drag must return after the application releases mouse capture");
-        setClipboard(L"restored-paste-한글"); paste(false); ++step; waits = 0;
+        setClipboard(L"restored-paste-한글"); rightClick(false); ++step; waits = 0;
     } else if (step == 11 && std::filesystem::exists(file(L"mouse-restored-paste.ready"))) {
         hover(false, L"hover-restored");
         std::ofstream(file(L"mouse-abandon.request")) << "abandon\n"; step = 15; waits = 0;
@@ -145,7 +186,7 @@ template<typename Check> bool testTerminalMouse(App &app, Check require) {
         hover(true, L"hover-abandoned-shift");
         // Literal report-looking user input must survive; fix the producer, not text.
         for (auto c : std::wstring(L"35;68;23M\r")) SendMessageW(terminal(), WM_CHAR, c, 1);
-        setClipboard(L"abandoned-paste-한글"); paste(true); step = 17; waits = 0;
+        setClipboard(L"abandoned-paste-한글"); rightClick(true); step = 17; waits = 0;
     } else if (step == 17 && std::filesystem::exists(file(L"mouse-abandoned-paste.ready"))) {
         std::ofstream(file(L"mouse-interrupt.request")) << "interrupt\n"; step = 18; waits = 0;
     } else if (step == 18 && std::filesystem::exists(file(L"mouse-interrupt.ready"))) {

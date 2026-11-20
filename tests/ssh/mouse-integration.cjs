@@ -6,13 +6,18 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const assert = require('node:assert/strict');
 const { StringDecoder } = require('node:string_decoder');
+const { parseArgs } = require('node:util');
+const { values } = parseArgs({ options: {
+  binaries: { type: 'string', default: 'build/native' }, wine: { type: 'string' },
+  'application-mouse': { type: 'boolean' }, 'alternate-screen': { type: 'boolean' },
+} });
 const root = path.resolve(__dirname, '../..');
-const applicationMouse = process.argv.includes('--application-mouse');
-const alternateScreen = process.argv.includes('--alternate-screen');
+const applicationMouse = !!values['application-mouse'];
+const alternateScreen = !!values['alternate-screen'];
 const artifact = path.join(root, 'build', `mouse-test-${Date.now()}`);
 fs.mkdirSync(artifact);
 const executable = path.join(artifact, 'wShell.exe');
-fs.copyFileSync(path.join(root, 'build/native/ui-smoke-tests.exe'), executable);
+fs.copyFileSync(path.resolve(root, values.binaries, 'ui-smoke-tests.exe'), executable);
 const key = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' });
 const fingerprint = 'SHA256:' + crypto.createHash('sha256').update(utils.parseKey(key).getPublicSSH()).digest('base64').replace(/=+$/, '');
 const signal = name => fs.writeFileSync(path.join(artifact, `mouse-${name}.ready`), 'ready\n');
@@ -53,13 +58,15 @@ const server = new Server({ hostKeys: [key] }, client => {
             if (name === 'resumed') signal('resumed-input');
           }
         }
-        for (const kind of ['normal', 'preferred', 'shift', 'toggled', 'restored', 'abandoned']) {
+        if (stage === 'screen' && received.includes('COPY-MOUSE')) signal('copied-paste');
+        for (const kind of ['normal', 'menu', 'preferred', 'shift', 'toggled', 'restored', 'abandoned']) {
           if (received.includes(`${kind}-paste-한글`)) signal(`${kind}-paste`);
         }
         if (/\x1b\[<0;\d+;\d+M/.test(received) && /\x1b\[<2;\d+;\d+M/.test(received)) signal(stage === 'toggled' ? 'toggled-raw' : 'raw-clicks');
       });
       timer = setInterval(() => {
         if (stage === 'screen' && fs.existsSync(path.join(artifact, 'mouse-enable.request'))) {
+          fs.writeFileSync(path.join(artifact, 'screen-input.json'), JSON.stringify(received));
           stage = 'reporting'; received = '';
           stream.write('\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h\x1b[?1004h\x1b[?2004h'); screen();
         } else if (stage === 'reporting' && fs.existsSync(path.join(artifact, 'mouse-toggle.request'))) {
@@ -97,14 +104,19 @@ const server = new Server({ hostKeys: [key] }, client => {
     delete environment.WOOK_TEST_ALT_MOUSE;
     if (alternateScreen) environment.WOOK_TEST_ALT_MOUSE = '1';
     if (applicationMouse) environment.WOOK_TEST_APP_MOUSE = '1';
-    const child = spawn(executable, [], { cwd: artifact, windowsHide: true, stdio: 'ignore', env: environment });
+    const child = spawn(values.wine || executable, values.wine ? [executable] : [],
+      { cwd: artifact, windowsHide: false, stdio: 'ignore', env: environment });
     const timeout = setTimeout(() => child.kill(), 60000);
     const code = await new Promise((resolve, reject) => { child.on('error', reject); child.on('close', resolve); }).finally(() => clearTimeout(timeout));
     const result = JSON.parse(fs.readFileSync(path.join(artifact, 'ui-smoke-result.json'), 'utf8'));
     fs.writeFileSync(path.join(artifact, 'hover-reports.json'), JSON.stringify(hoverReports, null, 2));
-    console.log(JSON.stringify({ artifact, applicationMouse, alternateScreen, code, ...result }, null, 2));
+    console.log(JSON.stringify({ artifact, runtime: values.wine ? 'Wine' : 'Windows', applicationMouse, alternateScreen, code, ...result }, null, 2));
     assert.equal(code, 0, 'Mouse test process must exit successfully');
     assert.equal(result.passed, true, JSON.stringify(result));
+    const screen = JSON.parse(fs.readFileSync(path.join(artifact, 'screen-input.json'), 'utf8'));
+    assert.equal(screen.split('COPY-MOUSE').length - 1, 1, 'Only the right-click after copying may send the selected text');
+    assert.ok(!screen.includes('menu-cancel-sentinel'), 'Opening and cancelling the menu must not paste');
+    assert.equal(screen.split('menu-paste-한글').length - 1, 1, 'Selecting Paste in the menu must send the clipboard exactly once');
     const reporting = JSON.parse(fs.readFileSync(path.join(artifact, 'reporting-input.json'), 'utf8'));
     if (applicationMouse) {
       assert.ok(!reporting.includes('raw-paste-sentinel'), 'Opting out must deliver unmodified right clicks to the application');

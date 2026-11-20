@@ -88,7 +88,9 @@ int wmain() {
         wook::saveNavigationWidth(420);
         check(wook::loadNavigationWidth() == 420, "Navigation width survives preference reloads");
         check(wook::loadConfirmCloseTabs(), "Tab closing asks by default");
-        wook::saveConfirmCloseTabs(false);
+        check(!wook::loadApplicationSettings().terminalRightClickMenu, "Existing layouts default to right-click copy");
+        wook::saveApplicationSettings(false, true);
+        check(wook::loadApplicationSettings().terminalRightClickMenu, "Terminal context menus survive preference reloads");
         check(!wook::loadConfirmCloseTabs(), "Do not ask again persists across preference reloads");
         check(wook::loadNavigationVisible(), "Saving close behavior must preserve navigation preferences");
         wook::saveNavigationVisible(false);
@@ -110,7 +112,12 @@ int wmain() {
         auto lockedLayout = wsOpen(layoutPath, true);
         check(lockedLayout != nullptr, "Lock workspace preferences");
         rejects([&] { wook::saveNavigationWidth(400); }, "Navigation width reports a storage lock failure");
+        rejects([&] { wook::saveApplicationSettings(false, false); }, "Saving both checkboxes must report a lock failure");
         wsClose(lockedLayout); free(layoutPath);
+        auto stored = wook::loadApplicationSettings();
+        check(stored.confirmCloseTabs && stored.terminalRightClickMenu, "A failed save and unrelated edits preserve the checkboxes");
+        wook::saveApplicationSettings(std::nullopt, false);
+        check(!wook::loadApplicationSettings().terminalRightClickMenu, "Right-click copy can be restored independently");
         wook::saveNavigationWidth(252);
         check(!wook::loadNavigationVisible() && wook::loadConfirmCloseTabs(), "Width writes preserve unrelated preferences");
         wook::saveNavigationVisible(true);

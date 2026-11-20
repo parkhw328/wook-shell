@@ -61,9 +61,17 @@ CONF_OPTION(no_mouse_rep,''')
     (SOURCE / "conf.h").write_text(conf_header, encoding="utf-8")
     terminal_header = replace(original("terminal/terminal.h"), "struct terminal_tag {", "struct terminal_tag {\n    uint64_t wshell_paste_epoch;\n    size_t wshell_local_paste_pending;\n    void (*wshell_input)(void *, int, int, const void *, int);\n    void *wshell_input_context;")
     terminal_header = replace(terminal_header, "void term_release_line(termline *line);",
-                              "void term_release_line(termline *line);\n\nbool wshellApplicationMouse(Terminal *term);")
+                              "void term_release_line(termline *line);\n\nbool wshellApplicationMouse(Terminal *term);\nvoid wshellCopySelection(Terminal *term, int clipboard);")
     (SOURCE / "terminal/terminal.h").write_text(terminal_header, encoding="utf-8")
     terminal = original("terminal/terminal.c")
+    terminal = replace(terminal, "void term_request_paste(Terminal *term, int clipboard)", '''void wshellCopySelection(Terminal *term, int clipboard)
+{
+    term_request_copy(term, &clipboard, 1);
+    deselect(term);
+    term_schedule_update(term);
+}
+
+void term_request_paste(Terminal *term, int clipboard)''')
     # Modified arrows use CSI even when an application enables DECCKM. The
     # upstream ordering otherwise discards modifiers (and consumes Alt).
     # Keep unmodified application arrows, VT52 and the legacy mode unchanged.
@@ -198,8 +206,30 @@ static void conpty_terminate(ConPTY *conpty)''')
         if (button == MBT_RIGHT) return MBT_PASTE;
         if (button == MBT_MIDDLE) return MBT_EXTEND;
     }''')
-    window = replace(window, "(conf_get_int(wgs->conf, CONF_mouse_is_xterm) == MOUSE_WINDOWS))) {",
-                     "(!conf_get_bool(wgs->conf, CONF_wshell_mouse_clipboard) &&\n              conf_get_int(wgs->conf, CONF_mouse_is_xterm) == MOUSE_WINDOWS))) {")
+    window = replace(window, '''        if (message == WM_RBUTTONDOWN &&
+            ((wParam & MK_CONTROL) ||
+             (conf_get_int(wgs->conf, CONF_mouse_is_xterm) == MOUSE_WINDOWS))) {
+            POINT cursorpos;
+
+            /* Just in case this happened in mid-select */
+            term_cancel_selection_drag(wgs->term);
+
+            show_mouseptr(wgs, true);    /* make sure pointer is visible */
+            GetCursorPos(&cursorpos);
+            TrackPopupMenu(wgs->popup_menus[CTXMENU].menu,
+                           TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON,
+                           cursorpos.x, cursorpos.y,
+                           0, hwnd, NULL);
+            break;
+        }''', '''        if (message == WM_RBUTTONUP && wgs->wshell_local_right_click) {
+            wgs->wshell_local_right_click = false;
+            return 0;
+        }
+        if (message == WM_RBUTTONDOWN) {
+            POINT point = { X_POS(lParam), Y_POS(lParam) };
+            if (wookRightButtonDown(wgs, wParam, is_alt_pressed(), point))
+                return 0;
+        }''')
     # Any-event tracking also reports passive motion. Preserve modifiers here
     # so Shift override suppresses it just as it suppresses clicks and drags.
     window = replace(window, '''            term_mouse(wgs->term, MBT_NOTHING, MBT_NOTHING, MA_MOVE,
@@ -307,6 +337,7 @@ static void conpty_terminate(ConPTY *conpty)''')
     (SOURCE / "windows/window.c").write_text(window, encoding="utf-8")
     seat = original("windows/win-gui-seat.h")
     seat = replace(seat, "    HWND term_hwnd;", "    HWND term_hwnd;\n    struct WsIme *wshell_ime;")
+    seat = replace(seat, "    bool send_raw_mouse;", "    bool send_raw_mouse;\n    bool wshell_local_right_click;")
     (SOURCE / "windows/win-gui-seat.h").write_text(seat, encoding="utf-8")
 
     # Explicit, locally assigned authentication metadata: never infer password prompts from server text.
@@ -421,8 +452,8 @@ static void conpty_terminate(ConPTY *conpty)''')
     config = replace(config, '''    ctrl_checkbox(s, "Shift overrides application's use of mouse", 'p',''', '''    ctrl_checkbox(s, "Prefer mouse copy and paste", NO_SHORTCUT,
                   HELPCTX(selection_shiftdrag), conf_checkbox_handler,
                   I(CONF_wshell_mouse_clipboard));
-    ctrl_text(s, "Normal screens use drag-copy, right-click paste and history scrolling. "
-              "Full-screen apps can use mouse controls; hold Shift to copy, paste or scroll terminal history.",
+    ctrl_text(s, "Drag to copy. Right-click uses the choice in Tools > Application settings. "
+              "Hold Shift while scrolling to browse terminal history.",
               HELPCTX(selection_shiftdrag));
     ctrl_checkbox(s, "Shift overrides application's use of mouse", 'p',''')
     config = replace(config, '''        if (!midsession) {

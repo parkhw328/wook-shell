@@ -1,7 +1,7 @@
 struct CloseTabsTest {
     App *app{};
     int answer{}, prompts{};
-    bool mutate{}, remember{}, settings{}, defaultFocused = true, initialChecked{};
+    bool mutate{}, remember{}, settings{}, defaultFocused = true, initialChecked{}, initialMenuChecked{};
     uint64_t newTab{};
 };
 CloseTabsTest *closeTabsTest = nullptr;
@@ -14,6 +14,10 @@ void CALLBACK closeTabsTestTimer(HWND, UINT, UINT_PTR, DWORD) {
         test.defaultFocused &= GetFocus() == GetDlgItem(window, IDOK);
         test.initialChecked = SendDlgItemMessageW(window, 1001, BM_GETCHECK, 0, 0) == BST_CHECKED;
         if (test.remember) SendDlgItemMessageW(window, 1001, BM_SETCHECK, BST_CHECKED, 0);
+        if (test.settings) {
+            test.initialMenuChecked = IsDlgButtonChecked(window, 1002) == BST_CHECKED;
+            SendDlgItemMessageW(window, 1002, BM_CLICK, 0, 0);
+        }
         captureTestWindow(window, test.settings ? L"ui-application-settings.bmp" : L"ui-close-confirm.bmp");
         if (++test.prompts == 1 && test.mutate) {
             test.app->closeTab(1, true);
@@ -45,12 +49,19 @@ template<typename Check> void testBulkTabConsent(App &app, Check require) {
     require(!wook::loadConfirmCloseTabs(), "Accepting do not ask again must remember the choice");
     test.settings = true; test.answer = IDCANCEL; test.prompts = 0;
     timer = SetTimer(nullptr, 0, 80, closeTabsTestTimer);
-    showApplicationSettings(app.hwnd); KillTimer(nullptr, timer);
+    app.action(MenuApplicationSettings); KillTimer(nullptr, timer);
     require(test.prompts == 1 && !test.initialChecked && !wook::loadConfirmCloseTabs(), "Cancelling settings must preserve disabled close prompts");
+    require(!test.initialMenuChecked && !wook::loadApplicationSettings().terminalRightClickMenu, "Cancel must discard the right-click change");
     test.answer = IDOK; test.prompts = 0;
     timer = SetTimer(nullptr, 0, 80, closeTabsTestTimer);
-    showApplicationSettings(app.hwnd); KillTimer(nullptr, timer);
+    app.action(MenuApplicationSettings); KillTimer(nullptr, timer);
     require(test.prompts == 1 && wook::loadConfirmCloseTabs(), "Application settings must restore close confirmations");
+    require(wook::loadApplicationSettings().terminalRightClickMenu, "Save must enable the right-click menu");
+    test.answer = IDCANCEL; test.prompts = 0;
+    timer = SetTimer(nullptr, 0, 80, closeTabsTestTimer);
+    app.action(MenuApplicationSettings); KillTimer(nullptr, timer);
+    require(test.initialMenuChecked && wook::loadApplicationSettings().terminalRightClickMenu, "Reopening settings must show the saved right-click choice");
+    test.answer = IDOK;
     test.settings = false; test.remember = false;
     for (int i = 0; i < 3; ++i) { auto tab = std::make_unique<Tab>(); tab->files = true; app.tabs.push_back(std::move(tab)); }
     test.prompts = 0; test.mutate = true;
@@ -69,7 +80,8 @@ template<typename Check> void testBulkTabConsent(App &app, Check require) {
     app.closeTabs(CloseTabs::all); KillTimer(nullptr, timer);
     require(test.prompts == 0 && app.tabs.empty(), "Remembered choice must skip the next close confirmation");
     require(test.defaultFocused, "Close and Save must receive the initial keyboard focus");
-    wook::saveConfirmCloseTabs(true); closeTabsTest = nullptr;
+    require(wook::loadApplicationSettings().terminalRightClickMenu, "Tab close prompts must preserve the terminal mouse preference");
+    wook::saveApplicationSettings(true, false); closeTabsTest = nullptr;
 }
 template<typename Check> void testTabOverflow(App &app, Check require) {
     require(app.tabs.empty(), "Tab overflow fixture requires an empty workspace");

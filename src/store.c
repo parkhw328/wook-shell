@@ -171,6 +171,24 @@ WsStore *wsOpen(const wchar_t *path, int writable) {
     return store;
 }
 
+WsStore *wsOpenWorkspaceLayout(int writable) {
+    wchar_t *path = wsPath(L"workspace", "layout");
+    WsStore *store = wsOpen(path, writable);
+    free(path);
+    return store;
+}
+
+bool wsLoadApplicationSettings(WsApplicationSettings *settings) {
+    WsStore *store = wsOpenWorkspaceLayout(0);
+    if (!store) return false;
+    const char *confirm = wsGet(store, "ConfirmCloseTabs");
+    const char *menu = wsGet(store, "TerminalRightClickMenu");
+    settings->confirmCloseTabs = !confirm || strcmp(confirm, "0") != 0;
+    settings->terminalRightClickMenu = menu && strcmp(menu, "1") == 0;
+    wsClose(store);
+    return true;
+}
+
 static int writeBytes(HANDLE file, const char *data, size_t len) {
     DWORD written;
     return len <= WS_LIMIT && WriteFile(file, data, (DWORD)len, &written, NULL) && written == len;

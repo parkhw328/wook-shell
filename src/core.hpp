@@ -4,6 +4,7 @@
 #include <string_view>
 #include <vector>
 #include <limits>
+#include <optional>
 
 namespace wook {
 std::string utf8(const std::wstring &value);
@@ -34,8 +35,10 @@ bool loadNavigationVisible();
 void saveNavigationVisible(bool visible);
 int loadNavigationWidth();
 void saveNavigationWidth(int width);
-bool loadConfirmCloseTabs();
-void saveConfirmCloseTabs(bool confirm);
+WsApplicationSettings loadApplicationSettings();
+void saveApplicationSettings(std::optional<bool> confirmCloseTabs, std::optional<bool> terminalRightClickMenu);
+inline bool loadConfirmCloseTabs() { return loadApplicationSettings().confirmCloseTabs; }
+inline void saveConfirmCloseTabs(bool confirm) { saveApplicationSettings(confirm, std::nullopt); }
 std::vector<Profile> loadProfiles();
 void saveProfile(const Profile &profile, const std::wstring &originalName = L"",
                  PasswordAction passwordAction = PasswordAction::keep, std::wstring_view password = {});

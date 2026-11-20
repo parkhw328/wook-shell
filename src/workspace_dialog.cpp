@@ -4,11 +4,17 @@
 #include <stdexcept>
 
 namespace {
-constexpr int preferenceCheck = 1001;
+constexpr int closeTabsCheck = 1001, rightClickMenuCheck = 1002;
 struct Dialog {
-    bool settings{}, checked{}, done{}, accepted{};
+    bool settings{}, done{}, accepted{};
+    WsApplicationSettings initial{};
     std::wstring title, message;
 };
+std::optional<bool> changedCheck(HWND hwnd, int id, bool initial) {
+    bool checked = SendDlgItemMessageW(hwnd, id, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    if (checked == initial) return std::nullopt;
+    return checked;
+}
 LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     auto form = (Dialog *)GetWindowLongPtrW(hwnd, GWLP_USERDATA);
     if (msg == WM_NCCREATE) {
@@ -19,8 +25,14 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
     case WM_CREATE:
         ui::dark(hwnd);
-        ui::place(ui::checkbox(hwnd, form->settings ? L"Confirm before closing tabs" : L"Don't ask again when closing tabs", preferenceCheck), 28, 137, 564, 28);
-        SendDlgItemMessageW(hwnd, preferenceCheck, BM_SETCHECK, form->checked ? BST_CHECKED : BST_UNCHECKED, 0);
+        if (form->settings) {
+            ui::place(ui::checkbox(hwnd, L"Confirm before closing tabs", closeTabsCheck), 28, 72, 564, 28);
+            ui::place(ui::checkbox(hwnd, L"Show context menu on terminal right-click", rightClickMenuCheck), 28, 122, 564, 28);
+            CheckDlgButton(hwnd, closeTabsCheck, form->initial.confirmCloseTabs ? BST_CHECKED : BST_UNCHECKED);
+            CheckDlgButton(hwnd, rightClickMenuCheck, form->initial.terminalRightClickMenu ? BST_CHECKED : BST_UNCHECKED);
+        } else {
+            ui::place(ui::checkbox(hwnd, L"Don't ask again when closing tabs", closeTabsCheck), 28, 137, 564, 28);
+        }
         ui::place(ui::button(hwnd, L"Cancel", IDCANCEL), 352, 222, 112, 36);
         ui::place(ui::button(hwnd, form->settings ? L"Save" : L"Close", IDOK), 480, 222, 112, 36);
         return 0;
@@ -28,8 +40,12 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         if (LOWORD(wp) == IDCANCEL) { form->done = true; return 0; }
         if (LOWORD(wp) == IDOK) {
             try {
-                bool checked = SendDlgItemMessageW(hwnd, preferenceCheck, BM_GETCHECK, 0, 0) == BST_CHECKED;
-                if (form->settings || checked) wook::saveConfirmCloseTabs(form->settings ? checked : false);
+                if (form->settings) {
+                    wook::saveApplicationSettings(changedCheck(hwnd, closeTabsCheck, form->initial.confirmCloseTabs),
+                                                  changedCheck(hwnd, rightClickMenuCheck, form->initial.terminalRightClickMenu));
+                } else if (IsDlgButtonChecked(hwnd, closeTabsCheck) == BST_CHECKED) {
+                    wook::saveConfirmCloseTabs(false);
+                }
                 form->accepted = true; form->done = true;
             } catch (const std::exception &e) { ui::error(hwnd, e); }
         }
@@ -40,10 +56,14 @@ LRESULT CALLBACK dialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_PAINT: {
         PAINTSTRUCT ps{}; auto dc = BeginPaint(hwnd, &ps); RECT r{}; GetClientRect(hwnd, &r); ui::fill(dc, r, ui::panel);
         ui::label(dc, form->title, ui::rect(28, 20, 564, 35), ui::TextSize::title, ui::bright, true);
-        ui::label(dc, form->message, ui::rect(28, 68, 564, 58), ui::TextSize::body, ui::text, false, DT_LEFT | DT_WORDBREAK);
-        ui::label(dc, form->settings ? L"Turn this on to restore the close confirmation. Saved on this PC." :
-                  L"Restore the confirmation in Tools → Application settings.",
-                  ui::rect(28, 172, 564, 36), ui::TextSize::caption, ui::muted, false, DT_LEFT | DT_WORDBREAK);
+        if (form->settings) {
+            ui::label(dc, L"When off, right-click copies the selection or pastes if nothing is selected.",
+                      ui::rect(28, 155, 564, 48), ui::TextSize::caption, ui::muted, false, DT_LEFT | DT_WORDBREAK);
+        } else {
+            ui::label(dc, form->message, ui::rect(28, 68, 564, 58), ui::TextSize::body, ui::text, false, DT_LEFT | DT_WORDBREAK);
+            ui::label(dc, L"Restore the confirmation in Tools → Application settings.",
+                      ui::rect(28, 172, 564, 36), ui::TextSize::caption, ui::muted, false, DT_LEFT | DT_WORDBREAK);
+        }
         EndPaint(hwnd, &ps); return 0;
     }
     }
@@ -93,8 +113,7 @@ bool confirmTabClose(HWND owner, size_t tabs, size_t live) {
     return showDialog(owner, form, tabs == 1 ? L"Close tab" : L"Close tabs");
 }
 void showApplicationSettings(HWND owner) {
-    Dialog form; form.settings = true; form.checked = wook::loadConfirmCloseTabs();
+    Dialog form; form.settings = true; form.initial = wook::loadApplicationSettings();
     form.title = L"Application settings";
-    form.message = L"Choose how wShell confirms closing active terminal and SFTP tabs.";
     showDialog(owner, form, L"wShell · Application settings");
 }

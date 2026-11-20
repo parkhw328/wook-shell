@@ -3,6 +3,41 @@
 #include "wshell-ime.h"
 #include "wshell-theme.h"
 #include "wshell-menu-keys.h"
+#include "wook-store.h"
+
+static bool wookRightButtonDown(WinGuiSeat *wgs, WPARAM keys, bool alt, POINT point) {
+    wgs->wshell_local_right_click = false;
+    bool menu = (keys & MK_CONTROL) ||
+        (!conf_get_bool(wgs->conf, CONF_wshell_mouse_clipboard) &&
+         conf_get_int(wgs->conf, CONF_mouse_is_xterm) == MOUSE_WINDOWS);
+    if (!menu) {
+        if (wgs->send_raw_mouse || alt || (keys & (MK_SHIFT | MK_LBUTTON | MK_MBUTTON)))
+            return false;
+        /* Engines run in separate processes. Read the saved choice on a local
+         * right press so existing, new and detached terminals all see Save. */
+        WsApplicationSettings settings;
+        menu = !wsLoadApplicationSettings(&settings) || settings.terminalRightClickMenu;
+        if (!menu && (wgs->term->selstate != SELECTED || translate_button(wgs, MBT_RIGHT) != MBT_PASTE))
+            return false;
+    }
+
+    /* The menu has its own message loop. Consume a matching release even if
+     * the remote program changes mouse modes while the menu is open. */
+    wgs->wshell_local_right_click = true;
+    wgs->lastbtn = MBT_NOTHING;
+    show_mouseptr(wgs, true);
+    if (menu) {
+        term_cancel_selection_drag(wgs->term);
+        ClientToScreen(wgs->term_hwnd, &point);
+        TrackPopupMenu(wgs->popup_menus[CTXMENU].menu,
+                       TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON,
+                       point.x, point.y, 0, wgs->term_hwnd, NULL);
+    } else {
+        wshellCopySelection(wgs->term, CLIP_SYSTEM);
+    }
+    return true;
+}
+
 /* Owned by the clipboard reader until its synchronous window message returns. */
 typedef struct WsClipboardRequest {
     HWND hwnd;

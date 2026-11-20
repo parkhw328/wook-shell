@@ -149,21 +149,18 @@ void initializeDefaults() {
     }
 }
 bool loadNavigationVisible() {
-    auto path = wsPath(L"workspace", "layout");
-    StorePtr store(wsOpen(path, false), wsClose); free(path);
+    StorePtr store(wsOpenWorkspaceLayout(false), wsClose);
     if (!store) throw std::runtime_error("Cannot read workspace preferences.");
     auto value = wsGet(store.get(), "NavigationVisible");
     return !value || std::string_view(value) != "0";
 }
 void saveNavigationVisible(bool visible) {
-    auto path = wsPath(L"workspace", "layout");
-    StorePtr store(wsOpen(path, true), wsClose); free(path);
+    StorePtr store(wsOpenWorkspaceLayout(true), wsClose);
     if (!store || !wsSet(store.get(), "NavigationVisible", visible ? "1" : "0") || !wsSave(store.get()))
         throw std::runtime_error("Cannot save workspace preferences. Check folder permissions and disk space.");
 }
 int loadNavigationWidth() {
-    auto path = wsPath(L"workspace", "layout");
-    StorePtr store(wsOpen(path, false), wsClose); free(path);
+    StorePtr store(wsOpenWorkspaceLayout(false), wsClose);
     if (!store) throw std::runtime_error("Cannot read workspace preferences.");
     auto value = wsGet(store.get(), "NavigationWidth");
     if (!value) return navigationDefaultWidth;
@@ -176,22 +173,22 @@ int loadNavigationWidth() {
 }
 void saveNavigationWidth(int width) {
     auto value = std::to_string(std::clamp(width, navigationMinWidth, navigationMaxWidth));
-    auto path = wsPath(L"workspace", "layout");
-    StorePtr store(wsOpen(path, true), wsClose); free(path);
+    StorePtr store(wsOpenWorkspaceLayout(true), wsClose);
     if (!store || !wsSet(store.get(), "NavigationWidth", value.c_str()) || !wsSave(store.get()))
         throw std::runtime_error("Cannot save workspace preferences. Check folder permissions and disk space.");
 }
-bool loadConfirmCloseTabs() {
-    auto path = wsPath(L"workspace", "layout");
-    StorePtr store(wsOpen(path, false), wsClose); free(path);
-    if (!store) throw std::runtime_error("Cannot read workspace preferences.");
-    auto value = wsGet(store.get(), "ConfirmCloseTabs");
-    return !value || std::string_view(value) != "0";
+WsApplicationSettings loadApplicationSettings() {
+    WsApplicationSettings settings{};
+    if (!wsLoadApplicationSettings(&settings)) throw std::runtime_error("Cannot read workspace preferences.");
+    return settings;
 }
-void saveConfirmCloseTabs(bool confirm) {
-    auto path = wsPath(L"workspace", "layout");
-    StorePtr store(wsOpen(path, true), wsClose); free(path);
-    if (!store || !wsSet(store.get(), "ConfirmCloseTabs", confirm ? "1" : "0") || !wsSave(store.get()))
+void saveApplicationSettings(std::optional<bool> confirmCloseTabs, std::optional<bool> terminalRightClickMenu) {
+    if (!confirmCloseTabs && !terminalRightClickMenu) return;
+    StorePtr store(wsOpenWorkspaceLayout(true), wsClose);
+    if (!store ||
+        (confirmCloseTabs && !wsSet(store.get(), "ConfirmCloseTabs", *confirmCloseTabs ? "1" : "0")) ||
+        (terminalRightClickMenu && !wsSet(store.get(), "TerminalRightClickMenu", *terminalRightClickMenu ? "1" : "0")) ||
+        !wsSave(store.get()))
         throw std::runtime_error("Cannot save workspace preferences. Check folder permissions and disk space.");
 }
 std::vector<Profile> loadProfiles() {

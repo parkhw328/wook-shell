@@ -110,7 +110,7 @@ class Native:
         for value in text:
             self.user.SendMessageW(hwnd, 0x102, ord(value), 1)
 
-    def paste(self, hwnd):
+    def right_click(self, hwnd):
         point = 20 | (20 << 16)
         self.user.SendMessageW(hwnd, 0x204, 2, point)
         self.user.SendMessageW(hwnd, 0x205, 0, point)
@@ -270,8 +270,9 @@ def session(folder, executable, sample, port, mode, native):
             payload = native.copy_output(hwnd)
             if expected.decode('ascii') not in payload:
                 raise RuntimeError('Mouse drag did not copy the sample output: ' + repr(payload))
+            native.right_click(hwnd)  # Copy the highlighted output and clear the selection.
         if mode != 'plain':
-            native.paste(hwnd)
+            native.right_click(hwnd)
             if mode != 'immediate':
                 time.sleep(0.3)
         pasted_before = paste_marker.exists()
@@ -306,7 +307,7 @@ def session(folder, executable, sample, port, mode, native):
             raw = folder / 'raw-input.bin'
             result['rawInputPreserved'] = raw.exists() and raw.read_bytes() == b'raw-paste\r\x03'
         native.clipboard(hwnd, 'echo fresh>fresh-paste\r\n')
-        native.paste(hwnd)
+        native.right_click(hwnd)
         fresh = folder / 'fresh-paste'
         try:
             until(lambda: fresh.exists() and fresh.read_bytes().strip() == b'fresh', 'fresh paste after interrupt', 5)
