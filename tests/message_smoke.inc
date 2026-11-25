@@ -192,8 +192,86 @@ template<typename Check> void testMessageDialogs(App &app, Check require) {
         [&](HWND dialog) { PostMessageW(GetDlgItem(dialog, result), BM_CLICK, 0, 0); }, result);
 }
 
+std::vector<HWND> workspaceEngineDialogs(HWND workspace) {
+    std::vector<HWND> dialogs;
+    HWND dialog = nullptr;
+    while ((dialog = FindWindowExW(nullptr, dialog, L"wShell.MessageDialog", nullptr))) {
+        DWORD pid{}; GetWindowThreadProcessId(dialog, &pid);
+        if (pid != GetCurrentProcessId() && GetWindow(dialog, GW_OWNER) == workspace && IsWindowVisible(dialog))
+            dialogs.push_back(dialog);
+    }
+    return dialogs;
+}
+template<typename Check> bool testConcurrentConnectionDialogs(App &app, Check require) {
+    static int step = 0, waits = 0;
+    static HWND sshDialog{}, filesDialog{};
+    if (++waits > 60) throw std::runtime_error("Parallel SSH/SFTP dialogs timed out at step " + std::to_string(step));
+    if (step == 0) {
+        // Keep the accepted SSH session on server 2 live. Server 1 was trusted
+        // only once, so both new connections must make their own decision.
+        auto found = std::find_if(app.profiles.begin(), app.profiles.end(),
+            [](const Profile &p) { return p.name == L"Dialog host 1"; });
+        require(found != app.profiles.end(), "Missing Connect Once host");
+        Profile p = *found;
+        app.connect(p, true);
+        app.connect(p, true, false, false, true);
+    } else if (step == 1) {
+        auto dialogs = workspaceEngineDialogs(app.hwnd);
+        if (dialogs.size() != 2) return false;
+        for (auto dialog : dialogs) {
+            require(GetDlgItem(dialog, IDYES) && GetDlgItem(dialog, IDNO), "Both workers must present host key choices");
+            DWORD pid{}; GetWindowThreadProcessId(dialog, &pid);
+            if (pid == app.tabs[1]->pid) sshDialog = dialog;
+            else filesDialog = dialog;
+        }
+        require(sshDialog && filesDialog && IsWindowEnabled(app.hwnd), "Both decisions must leave other tabs usable");
+        require(IsWindowEnabled(app.tabs[0]->terminal) && !IsWindowEnabled(app.tabs[1]->terminal),
+            "Only the SSH terminal awaiting a decision may be disabled");
+        app.select(0);
+        PostMessageW(app.tabs[0]->terminal, WM_CHAR, L'x', 1);
+    } else if (step == 2) {
+        if (!std::filesystem::exists(std::filesystem::path(app.directory) / L"dialog-existing-input.ready")) return false;
+        require(IsWindow(sshDialog) && IsWindow(filesDialog), "Both connections must still await a trust decision");
+        PostMessageW(filesDialog, WM_COMMAND, IDNO, 0);
+    } else if (step == 3) {
+        auto view = app.tabs[2]->terminal;
+        if (!SendMessageW(view, WM_APP + 121, 0, 0)) return false;
+        require(ListView_GetItemCount(GetDlgItem(view, 15)) == 1, "SFTP must list the fixture while SSH still waits");
+        require(IsWindowEnabled(sshDialog), "Answering SFTP must preserve the SSH decision");
+        PostMessageW(sshDialog, WM_COMMAND, IDNO, 0);
+    } else if (step == 4) {
+        if (!std::filesystem::exists(std::filesystem::path(app.directory) / L"dialog-second-shell.ready")) return false;
+        // Same trusted host and account as the live tab, but this server refuses SFTP.
+        app.connect(app.tabs[0]->profile, true, false, false, true);
+    } else if (step == 5) {
+        auto dialogs = workspaceEngineDialogs(app.hwnd);
+        if (dialogs.empty()) return false;
+        require(dialogs.size() == 1 && IsWindowEnabled(app.hwnd), "A failed subsystem must leave the workspace usable");
+        wchar_t body[512]{};
+        SendDlgItemMessageW(dialogs.front(), 1000, WM_GETTEXT, std::size(body), (LPARAM)body);
+        require(wcsstr(body, L"Server refused to start") != nullptr, "SFTP must display the server's refusal");
+        PostMessageW(dialogs.front(), WM_COMMAND, IDOK, 0);
+    } else if (step == 6) {
+        auto state = SendMessageW(app.tabs[3]->terminal, WM_APP + 121, 0, 0);
+        if (!state) return false;
+        auto reconnect = GetDlgItem(app.tabs[3]->terminal, 6);
+        require(state == -1 && IsWindowEnabled(reconnect), "A refused SFTP session must finish and allow retry");
+        SendMessageW(reconnect, BM_CLICK, 0, 0);
+    } else {
+        auto view = app.tabs[3]->terminal;
+        auto state = SendMessageW(view, WM_APP + 121, 0, 0);
+        if (!state) return false;
+        require(state == 1 && ListView_GetItemCount(GetDlgItem(view, 15)) == 1, "The same tab must reconnect and load its directory");
+        require(IsWindowEnabled(app.tabs[1]->terminal) && app.inputReady(app.tabs[0].get()) && app.inputReady(app.tabs[1].get()) &&
+            SendMessageW(app.tabs[2]->terminal, WM_APP + 121, 0, 0) == 1, "Other connections must survive the refusal");
+        for (int i = 3; i >= 0; --i) app.closeTab(i, true);
+        return true;
+    }
+    ++step; waits = 0; return false;
+}
 template<typename Check> bool testHostKeyMessages(App &app, Check require) {
     static int index = 0, step = 0, waits = 0;
+    if (index == 3) return testConcurrentConnectionDialogs(app, require);
     auto file = [&](const std::wstring &name) { return std::filesystem::path(app.directory) / name; };
     if (++waits > 60) throw std::runtime_error("SSH host key dialog test timed out");
     if (step == 0) {
@@ -226,10 +304,10 @@ template<typename Check> bool testHostKeyMessages(App &app, Check require) {
         auto path = wsPath(L"trust", "hostkeys"); auto store = wsOpen(path, 0); free(path);
         int keys = 0; if (store) { for (auto pair = store->pairs; pair; pair = pair->next) ++keys; wsClose(store); }
         require(keys == (index == 2 ? 1 : 0), "Only Accept may persist an SSH host key");
+        if (index == 2) { ++index; return false; }
         app.closeTab(0, true); step = 3; waits = 0;
     } else if (step == 3 && app.tabs.empty()) {
-        if (++index == 3) return true;
-        step = 0; waits = 0;
+        ++index; step = 0; waits = 0;
     }
     return false;
 }

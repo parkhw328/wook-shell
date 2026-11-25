@@ -12,6 +12,7 @@ int wsHostKeyDialog(HWND owner, const char *title, const char *text, const char 
 void wsShowAbout(HWND owner);
 void wsShowShortcuts(HWND owner);
 void wsInitializeMessageDialogs(void);
+void wsSetEngineDialogHost(HWND terminal, HWND host);
 #ifdef __cplusplus
 }
 #endif

@@ -88,7 +88,10 @@ static LRESULT wookReparent(HWND hwnd, WPARAM previous, LPARAM next) {
     GetWindowThreadProcessId(wookParent, &oldPid);
     GetWindowThreadProcessId((HWND)next, &newPid);
     if (wookParent != (HWND)previous || !oldPid || oldPid != newPid || GetParent(hwnd) != (HWND)next) return FALSE;
+    /* An open decision still belongs to the current workspace. */
+    if (!IsWindowEnabled(hwnd)) return FALSE;
     wookParent = (HWND)next;
+    wsSetEngineDialogHost(hwnd, wookParent);
     return TRUE;
 }
 static bool wookWindowHasFocus(HWND hwnd) {
@@ -199,6 +202,7 @@ static void wookWindowInit(void) {
         GetWindowThreadProcessId(wookParent, &pid);
         if (!GetEnvironmentVariableW(L"WOOK_PARENT_PID", text, 64) ||
             pid != wcstoul(text, NULL, 10) || !IsWindow(wookParent)) exit(1);
+        wsSetEngineDialogHost(NULL, wookParent);
     }
     wshellLoadFonts();
 }

@@ -1852,7 +1852,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             for (size_t i=0;i<app->tabs.size();++i) if (app->tabs[i]->pid==pid && pid==(DWORD)lp && GetParent(terminal)==hwnd) {
                 app->tabs[i]->terminal=terminal; app->layout();
                 if (app->tabs[i]->closing) PostMessageW(terminal, WM_CLOSE, 0, 0);
-                else if ((int)i==app->active) app->focusActive();
+                else if ((int)i == app->active && GetForegroundWindow() == hwnd) app->focusActive();
                 app->refresh(); break;
             }
             return 0;

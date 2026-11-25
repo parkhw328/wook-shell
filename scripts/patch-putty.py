@@ -264,7 +264,10 @@ static void conpty_terminate(ConPTY *conpty)''')
     window = replace(window, "                                  wgs->term_hwnd, 0, &in_threadid);", "                                  request, 0, &in_threadid);")
     window = replace(window, "        CloseHandle(hThread);          /* we don't need the thread handle */", "        CloseHandle(hThread);          /* we don't need the thread handle */\n    else\n        sfree(request);")
     window = replace(window, "    SetWindowLongPtr(wgs->term_hwnd, GWLP_USERDATA, (LONG_PTR)wgs);",
-                     "    SetWindowLongPtr(wgs->term_hwnd, GWLP_USERDATA, (LONG_PTR)wgs);\n    wgs->wshell_ime = wsImeCreate(wgs->term_hwnd, wookImeSend, mk_wcwidth, wgs);\n    SetWindowLongPtr(wgs->term_hwnd, GWL_STYLE, GetWindowLongPtr(wgs->term_hwnd, GWL_STYLE) | WS_CLIPCHILDREN);")
+                     """    SetWindowLongPtr(wgs->term_hwnd, GWLP_USERDATA, (LONG_PTR)wgs);
+    wsSetEngineDialogHost(wgs->term_hwnd, wookParent);
+    wgs->wshell_ime = wsImeCreate(wgs->term_hwnd, wookImeSend, mk_wcwidth, wgs);
+    SetWindowLongPtr(wgs->term_hwnd, GWL_STYLE, GetWindowLongPtr(wgs->term_hwnd, GWL_STYLE) | WS_CLIPCHILDREN);""")
     window = replace(window, "static void wgs_cleanup(WinGuiSeat *wgs)\n{",
                      "static void wgs_cleanup(WinGuiSeat *wgs)\n{\n    wsImeDestroy(wgs->wshell_ime);")
     window = replace(window, "    ImmSetCompositionWindow(hIMC, &cf);",

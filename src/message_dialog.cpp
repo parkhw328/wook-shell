@@ -9,6 +9,7 @@
 extern "C" int (*wshellMessageBoxIndirect)(const MSGBOXPARAMSW *);
 
 namespace {
+HWND engineTerminal{}, engineHost{};
 constexpr int bodyId = 1000, detailsId = 1001, emailId = 1010, sourceId = 1012;
 struct Choice { int id; const wchar_t *label; WPARAM key = 0; };
 struct Message {
@@ -204,7 +205,11 @@ LRESULT CALLBACK messageProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
 int show(HWND owner, Message &p) {
-    if (owner) owner = GetAncestor(owner, GA_ROOT);
+    // A terminal can be an embedded child or the hidden SFTP transport window.
+    // Show its decision over the workspace, but suspend only that engine's input.
+    bool engineDialog = engineHost && (!owner || owner == engineTerminal);
+    owner = GetAncestor(engineDialog ? engineHost : owner, GA_ROOT);
+    HWND modalOwner = engineDialog ? engineTerminal : owner;
     p.dpi = owner ? GetDpiForWindow(owner) : GetDpiForSystem(); if (!p.dpi) p.dpi = 96;
     DpiScope dpi(p.dpi);
     WNDCLASSW wc{}; wc.lpfnWndProc = messageProc; wc.hInstance = GetModuleHandleW(nullptr);
@@ -229,8 +234,8 @@ int show(HWND owner, Message &p) {
     HWND dialog = CreateWindowExW(WS_EX_DLGMODALFRAME, wc.lpszClassName, p.title.c_str(),
         WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN, x,y,width,height,owner,nullptr,wc.hInstance,&p);
     if (!dialog) return p.cancelId;
-    bool enabled = owner && IsWindowEnabled(owner);
-    if (enabled) EnableWindow(owner, FALSE);
+    bool enabled = modalOwner && IsWindowEnabled(modalOwner);
+    if (enabled) EnableWindow(modalOwner, FALSE);
     ShowWindow(dialog, SW_SHOWNORMAL); SetForegroundWindow(dialog); SetFocus(GetDlgItem(dialog, p.defaultId));
     MSG msg{}; bool quit = false;
     while (!p.done && IsWindow(dialog)) {
@@ -258,9 +263,11 @@ int show(HWND owner, Message &p) {
         }
         if (!ours || !IsDialogMessageW(dialog, &msg)) { TranslateMessage(&msg); DispatchMessageW(&msg); }
     }
-    if (enabled && IsWindow(owner)) EnableWindow(owner, TRUE);
+    if (enabled && IsWindow(modalOwner)) EnableWindow(modalOwner, TRUE);
+    if (engineDialog && GetForegroundWindow() == dialog && IsWindowEnabled(owner) &&
+        IsWindowVisible(owner) && !IsIconic(owner)) SetForegroundWindow(owner);
     if (IsWindow(dialog)) DestroyWindow(dialog);
-    if (enabled && IsWindow(owner)) { SetActiveWindow(owner); if (IsWindow(previous)) SetFocus(previous); }
+    if (!engineDialog && enabled && IsWindow(owner)) { SetActiveWindow(owner); if (IsWindow(previous)) SetFocus(previous); }
     if (quit) PostQuitMessage((int)msg.wParam);
     return p.result ? p.result : p.cancelId;
 }
@@ -341,3 +348,7 @@ extern "C" void wsShowShortcuts(HWND owner) {
         L"Keyboard shortcuts", MB_OK | MB_ICONINFORMATION);
 }
 extern "C" void wsInitializeMessageDialogs(void) { wshellMessageBoxIndirect = wsMessageBoxIndirectW; }
+extern "C" void wsSetEngineDialogHost(HWND terminal, HWND host) {
+    engineTerminal = terminal;
+    engineHost = host;
+}

@@ -204,7 +204,8 @@ void Browser::start(const std::function<void(Result&)> &operation) {
 }
 void Browser::connect() {
     stop(); busy=false; connected=false; status=L"Connecting to SFTP…";
-    client=std::make_unique<sftp::Client>(owner,job,session,saved,passwordSession);
+    // The view follows the tab when it moves to another workspace.
+    client=std::make_unique<sftp::Client>(hwnd,job,session,saved,passwordSession);
     passwordSession.clear(); // Reconnect uses saved/manual authentication, never the launch secret.
     start([this](Result &r){r.path=client->initialize();if(!initialRemote.empty())r.path=client->canonical(initialRemote);r.entries=client->list(r.path);r.message=L"Connected · Select local files and > to upload; select remote files and < to download.";});
 }
